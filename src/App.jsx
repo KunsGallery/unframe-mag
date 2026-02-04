@@ -5,6 +5,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -12,7 +13,6 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-  getDoc,
 } from "firebase/firestore";
 
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
@@ -38,6 +38,17 @@ function go(url) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
+function formatDate(createdAt) {
+  try {
+    if (!createdAt) return "N/A";
+    if (createdAt?.seconds) return new Date(createdAt.seconds * 1000).toLocaleDateString("ko-KR");
+    if (createdAt instanceof Date) return createdAt.toLocaleDateString("ko-KR");
+    return "N/A";
+  } catch {
+    return "N/A";
+  }
+}
+
 const ADMIN_EMAILS = [
   "gallerykuns@gmail.com",
   "cybog2004@gmail.com",
@@ -47,11 +58,6 @@ const ADMIN_EMAILS = [
 
 const CATEGORIES = ["Exhibition", "Project", "Artist Note", "News"];
 
-const IMGBB_KEY = import.meta.env.VITE_IMGBB_KEY;
-
-// ------------------------
-// App
-// ------------------------
 export default function App() {
   const qs = useQuery();
   const mode = qs.get("mode") || "list";
@@ -81,6 +87,10 @@ export default function App() {
   // -------------------------
   const [list, setList] = useState([]);
   const [article, setArticle] = useState(null);
+
+  // drafts (admin)
+  const [draftList, setDraftList] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [err, setErr] = useState("");
@@ -109,7 +119,6 @@ export default function App() {
     setLoading(true);
     setErr("");
     try {
-      // ✅ Rules에 맞게 published 조건 포함
       const q = query(
         collection(db, "articles"),
         where("status", "==", "published"),
@@ -126,6 +135,23 @@ export default function App() {
     }
   };
 
+  const fetchDrafts = async () => {
+    if (!isAdmin) return;
+    setErr("");
+    try {
+      const q = query(
+        collection(db, "articles"),
+        where("status", "==", "draft"),
+        orderBy("id", "desc")
+      );
+      const snap = await getDocs(q);
+      setDraftList(snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() })));
+    } catch (e) {
+      console.error(e);
+      setErr(String(e?.message || e));
+    }
+  };
+
   useEffect(() => {
     if (mode === "list") fetchList();
     if (mode === "view") fetchOnePublished(idParam);
@@ -135,7 +161,7 @@ export default function App() {
   // -------------------------
   // Editor (Admin)
   // -------------------------
-  const [editDocId, setEditDocId] = useState(null); // Firestore docId
+  const [editDocId, setEditDocId] = useState(null);
 
   const [form, setForm] = useState({
     id: 1,
@@ -144,8 +170,8 @@ export default function App() {
     excerpt: "",
     status: "draft",
     cover: "",
-    tagsText: "", // 콤마로 입력 -> tags 배열로 저장
-    createdAt: null, // Firestore Timestamp or null (로드 시 채움)
+    tagsText: "",
+    createdAt: null,
   });
 
   const editor = useEditor({
@@ -183,19 +209,19 @@ export default function App() {
     }
   };
 
-  // editor 모드에서 관리자면 기본 새 글 세팅
   useEffect(() => {
     if (mode !== "editor") return;
     if (!isAdmin) return;
     if (!editor) return;
     initNewArticle();
+    fetchDrafts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, isAdmin, editor]);
 
-  // ✅ 관리자: 기존 글 불러오기(드래프트/발행 상관없이)
   const loadForEdit = async (id) => {
     if (!isAdmin) return alert("관리자만 불러올 수 있어요.");
     if (!id) return alert("불러올 id를 입력해줘.");
+
     setLoading(true);
     setErr("");
     try {
@@ -231,33 +257,30 @@ export default function App() {
     }
   };
 
-  // ✅ imgbb 커버 업로드
+  // ✅ 커버 업로드: Netlify Function 경유 (키 노출 없음)
   const handleCoverUpload = async (file) => {
     if (!file) return;
-    if (!IMGBB_KEY) return alert("VITE_IMGBB_KEY가 설정되지 않았어요 (.env / Netlify env 확인)");
 
     setUploadingCover(true);
     setErr("");
 
     try {
-      const formData = new FormData();
-      formData.append("image", file);
+      const fd = new FormData();
+      fd.append("image", file);
 
-      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
+      const res = await fetch("/.netlify/functions/uploadCover", {
         method: "POST",
-        body: formData,
+        body: fd,
       });
 
       const data = await res.json();
-      const url = data?.data?.url;
-
-      if (!url) {
-        console.error("imgbb response:", data);
-        alert("커버 업로드 실패(응답에 url 없음)");
+      if (!data?.ok || !data?.url) {
+        console.error("uploadCover response:", data);
+        alert("커버 업로드 실패");
         return;
       }
 
-      setForm((p) => ({ ...p, cover: url }));
+      setForm((p) => ({ ...p, cover: data.url }));
     } catch (e) {
       console.error(e);
       alert("커버 업로드 실패");
@@ -266,7 +289,7 @@ export default function App() {
     }
   };
 
-  // ✅ 저장/발행
+  // ✅ 저장/발행 (createdAt/likes/views 보호)
   const savePost = async (statusType) => {
     if (!isAdmin) return alert("관리자만 저장/발행할 수 있어요.");
     if (!form.title.trim()) return alert("제목은 필수!");
@@ -281,8 +304,8 @@ export default function App() {
       .filter(Boolean);
 
     try {
+      // CREATE
       if (!editDocId) {
-        // CREATE: createdAt 최초 1회 저장
         const payload = {
           id: Number(form.id),
           title: form.title.trim(),
@@ -305,11 +328,17 @@ export default function App() {
         setEditDocId(docRef.id);
 
         alert(statusType === "published" ? "발행 완료!" : "임시저장 완료!");
+        await fetchDrafts();
+        await fetchList();
+
         if (statusType === "published") go(`/?mode=view&id=${form.id}`);
         return;
       }
 
-      // UPDATE: createdAt은 절대 건드리지 않기(필드에서 아예 제외)
+      // UPDATE (먼저 읽고 보호)
+      const current = await getDoc(doc(db, "articles", editDocId));
+      const currentData = current.exists() ? current.data() : {};
+
       const payload = {
         id: Number(form.id),
         title: form.title.trim(),
@@ -321,17 +350,21 @@ export default function App() {
         cover: form.cover || "",
         tags,
 
-      // ✅ 절대 유지해야 하는 것들
-      createdAt: currentData.createdAt ?? form.createdAt ?? null,
-      likes: currentData.likes ?? 0,
-      views: currentData.views ?? 0,
-    };
+        createdAt: currentData.createdAt ?? form.createdAt ?? null,
+        likes: currentData.likes ?? 0,
+        views: currentData.views ?? 0,
+        mapEmbed: currentData.mapEmbed ?? "",
+      };
 
-      const current = await getDoc(doc(db, "articles", editDocId));
-      const currentData = current.exists() ? current.data() : {};
       await updateDoc(doc(db, "articles", editDocId), payload);
 
+      // createdAt 프리뷰도 유지
+      setForm((p) => ({ ...p, createdAt: payload.createdAt }));
+
       alert(statusType === "published" ? "재발행 완료!" : "수정 저장 완료!");
+      await fetchDrafts();
+      await fetchList();
+
       if (statusType === "published") go(`/?mode=view&id=${form.id}`);
     } catch (e) {
       console.error(e);
@@ -390,7 +423,7 @@ export default function App() {
   // -------------------------
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="max-w-5xl mx-auto px-6 py-10">
+      <div className="max-w-6xl mx-auto px-6 py-10">
         {header}
 
         <div className="mt-10 rounded-3xl border border-white/15 bg-white/5 p-8">
@@ -420,8 +453,15 @@ export default function App() {
                         <div className="text-xs uppercase tracking-[0.25em] text-white/60">
                           No. {a.id} • {a.category}
                         </div>
+
                         <div className="mt-2 text-2xl font-bold">{a.title || "(No Title)"}</div>
                         <div className="mt-2 text-white/70 line-clamp-2">{a.excerpt || ""}</div>
+
+                        <div className="mt-3 text-xs text-white/50 flex flex-wrap gap-4">
+                          <span>📅 {formatDate(a.createdAt)}</span>
+                          <span>👁 {a.views ?? 0}</span>
+                          <span>♥ {a.likes ?? 0}</span>
+                        </div>
 
                         <button
                           className="mt-4 inline-flex items-center gap-2 text-sm border-b border-white/40 hover:border-white"
@@ -476,6 +516,12 @@ export default function App() {
                   </div>
                   <div className="mt-3 text-4xl font-bold">{article.title}</div>
                   <div className="mt-4 text-white/70 italic">{article.excerpt}</div>
+
+                  <div className="mt-4 text-xs text-white/50 flex flex-wrap gap-4">
+                    <span>📅 {formatDate(article.createdAt)}</span>
+                    <span>👁 {article.views ?? 0}</span>
+                    <span>♥ {article.likes ?? 0}</span>
+                  </div>
 
                   {Array.isArray(article.tags) && article.tags.length > 0 && (
                     <div className="mt-6 flex flex-wrap gap-2">
@@ -537,7 +583,7 @@ export default function App() {
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div>
                       <h1 className="text-4xl font-bold">Editor</h1>
-                      <p className="mt-2 text-white/70">최소 버전: 제목/요약/본문 + 커버 + 태그 + 저장/발행</p>
+                      <p className="mt-2 text-white/70">draft 리스트 클릭하면 바로 로드됩니다.</p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -554,123 +600,174 @@ export default function App() {
                         }}
                         className="px-5 py-2 rounded-full border border-white/20 hover:border-white/50"
                       >
-                        Load
+                        Load by ID
+                      </button>
+                      <button
+                        onClick={fetchDrafts}
+                        className="px-5 py-2 rounded-full border border-white/20 hover:border-white/50"
+                      >
+                        Refresh Drafts
                       </button>
                     </div>
                   </div>
 
-                  {/* Meta inputs */}
-                  <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">No.</div>
-                      <input
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                        value={form.id}
-                        readOnly
-                      />
-                      <div className="mt-2 text-[11px] text-white/50">
-                        {editDocId ? "편집 중(기존 글)" : "새 글"}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-2">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Category</div>
-                      <select
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                        value={form.category}
-                        onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-                      >
-                        {CATEGORIES.map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Title</div>
-                      <input
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                        value={form.title}
-                        onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                        placeholder="제목"
-                      />
-                    </div>
-
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Excerpt</div>
-                      <input
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                        value={form.excerpt}
-                        onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
-                        placeholder="요약 문구"
-                      />
-                    </div>
-
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Tags</div>
-                      <input
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
-                        value={form.tagsText}
-                        onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))}
-                        placeholder="예: exhibition, seoul, photography"
-                      />
-                      <div className="mt-2 text-[11px] text-white/50">콤마(,)로 구분해서 입력</div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-3">Cover Image</div>
-
-                      <div className="flex flex-col md:flex-row gap-4 items-start">
-                        <label className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-white text-black font-bold hover:opacity-90 cursor-pointer">
-                          {uploadingCover ? "Uploading..." : "Upload Cover"}
+                  <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Editor main */}
+                    <div className="lg:col-span-8">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">No.</div>
                           <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleCoverUpload(e.target.files?.[0])}
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                            value={form.id}
+                            readOnly
                           />
-                        </label>
-
-                        {form.cover ? (
-                          <div className="w-full md:w-80 rounded-2xl overflow-hidden border border-white/10 bg-black/40">
-                            <img src={form.cover} alt="" className="w-full h-48 object-cover" />
+                          <div className="mt-2 text-[11px] text-white/50">
+                            {editDocId ? "편집 중(기존 글)" : "새 글"}
                           </div>
-                        ) : (
-                          <div className="text-white/50 text-sm mt-2">커버 이미지를 업로드하면 미리보기가 보여요.</div>
-                        )}
+                          <div className="mt-2 text-[11px] text-white/50">
+                            createdAt: {formatDate(form.createdAt)}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-2">
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Category</div>
+                          <select
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                            value={form.category}
+                            onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                          >
+                            {CATEGORIES.map((c) => (
+                              <option key={c}>{c}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Title</div>
+                          <input
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                            value={form.title}
+                            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                            placeholder="제목"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Excerpt</div>
+                          <input
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                            value={form.excerpt}
+                            onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
+                            placeholder="요약 문구"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-2">Tags</div>
+                          <input
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none"
+                            value={form.tagsText}
+                            onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))}
+                            placeholder="예: exhibition, seoul, photography"
+                          />
+                          <div className="mt-2 text-[11px] text-white/50">콤마(,)로 구분</div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:col-span-3">
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-3">Cover Image</div>
+
+                          <div className="flex flex-col md:flex-row gap-4 items-start">
+                            <label className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-white text-black font-bold hover:opacity-90 cursor-pointer">
+                              {uploadingCover ? "Uploading..." : "Upload Cover"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleCoverUpload(e.target.files?.[0])}
+                              />
+                            </label>
+
+                            {form.cover ? (
+                              <div className="w-full md:w-80 rounded-2xl overflow-hidden border border-white/10 bg-black/40">
+                                <img src={form.cover} alt="" className="w-full h-48 object-cover" />
+                              </div>
+                            ) : (
+                              <div className="text-white/50 text-sm mt-2">
+                                커버 업로드하면 미리보기가 떠요.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* TipTap */}
+                      <div className="mt-6 rounded-2xl border border-white/15 bg-white/5 p-4">
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-3">Body</div>
+                        <div className="min-h-[320px] rounded-xl border border-white/10 bg-black/30 p-4">
+                          <EditorContent editor={editor} />
+                        </div>
+                      </div>
+
+                      {/* Buttons */}
+                      <div className="mt-6 flex flex-col md:flex-row gap-3">
+                        <button
+                          onClick={() => savePost("draft")}
+                          className="w-full md:w-auto px-6 py-3 rounded-full border border-white/20 hover:border-white/50"
+                        >
+                          Save Draft
+                        </button>
+                        <button
+                          onClick={() => savePost("published")}
+                          className="w-full md:w-auto px-6 py-3 rounded-full bg-white text-black font-bold hover:opacity-90"
+                        >
+                          Publish
+                        </button>
                       </div>
                     </div>
-                  </div>
 
-                  {/* TipTap */}
-                  <div className="mt-8 rounded-2xl border border-white/15 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.25em] text-white/60 mb-3">Body</div>
-                    <div className="min-h-[260px] rounded-xl border border-white/10 bg-black/30 p-4">
-                      <EditorContent editor={editor} />
+                    {/* Draft Sidebar */}
+                    <div className="lg:col-span-4">
+                      <div className="rounded-3xl border border-white/15 bg-white/5 p-5 sticky top-6">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-bold">Draft Articles</div>
+                          <button
+                            onClick={fetchDrafts}
+                            className="text-xs px-3 py-1 rounded-full border border-white/20 hover:border-white/50"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+
+                        <div className="mt-4 space-y-3 max-h-[560px] overflow-auto pr-1">
+                          {draftList.length === 0 ? (
+                            <div className="text-white/50 text-sm py-10 text-center">No drafts found.</div>
+                          ) : (
+                            draftList.map((d) => (
+                              <button
+                                key={d.firebaseId}
+                                onClick={() => loadForEdit(d.id)}
+                                className="w-full text-left rounded-2xl border border-white/10 bg-black/30 hover:bg-black/40 p-4 transition"
+                              >
+                                <div className="text-xs uppercase tracking-[0.2em] text-white/50">
+                                  No. {d.id} • {d.category}
+                                </div>
+                                <div className="mt-1 font-bold truncate">
+                                  {d.title ? d.title : "(No Title)"}
+                                </div>
+                                <div className="mt-1 text-xs text-white/50">
+                                  createdAt: {formatDate(d.createdAt)}
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="mt-4 text-[11px] text-white/50">
+                          * draft 클릭 → 바로 불러오기
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-3 text-xs text-white/50">
-                      TipTap 최소버전(StarterKit). 추후 이미지/정렬/링크/테이블/투표 등 확장 가능.
-                    </div>
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="mt-8 flex flex-col md:flex-row gap-3">
-                    <button
-                      onClick={() => savePost("draft")}
-                      className="w-full md:w-auto px-6 py-3 rounded-full border border-white/20 hover:border-white/50"
-                    >
-                      Save Draft
-                    </button>
-                    <button
-                      onClick={() => savePost("published")}
-                      className="w-full md:w-auto px-6 py-3 rounded-full bg-white text-black font-bold hover:opacity-90"
-                    >
-                      Publish
-                    </button>
-                  </div>
-
-                  <div className="mt-4 text-xs text-white/50">
-                    * createdAt은 “최초 생성 시만” 저장되고, 수정/재발행 시에는 변경되지 않게 처리되어 있어요.
                   </div>
                 </div>
               )}
