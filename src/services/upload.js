@@ -1,5 +1,7 @@
 // src/services/upload.js
 export async function uploadImage(file) {
+  if (!file) throw new Error("No file");
+
   const fd = new FormData();
   fd.append("image", file);
 
@@ -15,5 +17,6 @@ export async function uploadImage(file) {
     throw new Error(data?.error || "upload failed");
   }
 
-  return { url: data.url, thumbUrl: data.thumbUrl };
+  // thumbUrl이 함수에서 내려오면 같이 반환(없어도 OK)
+  return { url: data.url, thumbUrl: data.thumbUrl || "" };
 }

@@ -1,181 +1,173 @@
+// src/pages/ViewPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { addComment, getCommentsByArticleId } from "../services/comments";
-import { bumpLikes, bumpViews, getArticleByIdNumber } from "../services/articles";
-import { go } from "../utils/router";
-import CommentBox from "../components/CommentBox";
+import { getParam, go } from "../utils/router";
+import { getArticleByIdNumber, bumpLikes, bumpViews } from "../services/articles";
+import { listComments, addComment } from "../services/comments";
 
-function formatDate(value) {
-  if (!value) return "";
+
+function fmtDate(createdAt) {
+  if (!createdAt) return "";
   const d =
-    typeof value?.toDate === "function"
-      ? value.toDate()
-      : value instanceof Date
-      ? value
+    typeof createdAt?.toDate === "function"
+      ? createdAt.toDate()
+      : createdAt instanceof Date
+      ? createdAt
       : null;
   if (!d) return "";
-  return d.toLocaleDateString("ko-KR");
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
 }
 
-export default function ViewPage({ id }) {
+function fmtDateTime(createdAt) {
+  if (!createdAt) return "";
+  const d =
+    typeof createdAt?.toDate === "function"
+      ? createdAt.toDate()
+      : createdAt instanceof Date
+      ? createdAt
+      : null;
+  if (!d) return "";
+  return d.toLocaleString("ko-KR");
+}
+
+export default function ViewPage() {
+  const idNum = useMemo(() => Number(getParam("id") || 0), []);
   const [article, setArticle] = useState(null);
   const [comments, setComments] = useState([]);
-  const [busyLike, setBusyLike] = useState(false);
-
-  const idNum = useMemo(() => Number(id || 0), [id]);
+  const [loading, setLoading] = useState(true);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [commentBusy, setCommentBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
-      if (!idNum) return;
+      setLoading(true);
       const a = await getArticleByIdNumber(idNum);
       setArticle(a);
+      setLoading(false);
 
-      if (a?.firebaseId) {
-        // ✅ 조회수 30분 중복 방지 (세션)
-        const key = `viewed:${a.firebaseId}`;
-        const now = Date.now();
-        const last = Number(sessionStorage.getItem(key) || 0);
-        const THIRTY = 30 * 60 * 1000;
+      if (!a?.firebaseId) return;
 
-        if (!last || now - last > THIRTY) {
-          try {
-            await bumpViews(a.firebaseId);
-            sessionStorage.setItem(key, String(now));
-            // 로컬 UI에도 즉시 반영
-            setArticle((prev) => (prev ? { ...prev, views: (prev.views || 0) + 1 } : prev));
-          } catch (e) {
-            console.warn("view bump failed", e);
-          }
-        }
-      }
+      // ✅ 조회수 +1 (UI도 즉시 +1)
+      try {
+        await bumpViews(a.firebaseId);
+        setArticle((p) => (p ? { ...p, views: (p.views ?? 0) + 1 } : p));
+      } catch {}
 
-      // 댓글 로드
-      if (idNum) {
-        const list = await getCommentsByArticleId(idNum);
-        setComments(list);
+      // ✅ 댓글 로드
+      try {
+        const cs = await listComments(idNum);
+        setComments(cs);
+      } catch (e) {
+        console.error(e);
       }
     })();
   }, [idNum]);
 
-  const like = async () => {
-    if (!article?.firebaseId) return;
-    // ✅ 브라우저 기준 1회 제한(영구) — 원하면 30분 제한으로 바꿀 수도 있어
-    const key = `liked:${article.firebaseId}`;
-    if (localStorage.getItem(key)) return alert("이미 좋아요 했어!");
-
-    setBusyLike(true);
+  const onLike = async () => {
+    if (!article?.firebaseId || likeBusy) return;
+    setLikeBusy(true);
     try {
       await bumpLikes(article.firebaseId);
-      localStorage.setItem(key, "1");
-      setArticle((prev) => (prev ? { ...prev, likes: (prev.likes || 0) + 1 } : prev));
+      setArticle((p) => (p ? { ...p, likes: (p.likes ?? 0) + 1 } : p));
     } finally {
-      setBusyLike(false);
+      setLikeBusy(false);
     }
   };
 
-  const share = async () => {
-    const url = window.location.href;
+  const onComment = async () => {
+    if (commentBusy) return;
+    const name = prompt("이름") || "Anonymous";
+    const text = prompt("댓글 내용") || "";
+    if (!text.trim()) return;
+
+    setCommentBusy(true);
     try {
-      await navigator.clipboard.writeText(url);
-      alert("링크를 복사했어!");
-    } catch {
-      prompt("복사해서 공유해줘:", url);
+      await addComment(idNum, name, text);
+      const cs = await listComments(idNum);
+      setComments(cs);
+    } catch (e) {
+      console.error(e);
+      alert("댓글 저장/불러오기 실패(인덱스/권한 확인)");
+    } finally {
+      setCommentBusy(false);
     }
   };
 
-  const submitComment = async ({ name, text }) => {
-    await addComment({ articleId: idNum, name, text });
-    const list = await getCommentsByArticleId(idNum);
-    setComments(list);
-  };
-
-  if (!article) {
-    return (
-      <div className="min-h-screen bg-[#f4f1ea] px-6 py-14">
-        <button onClick={() => go("?mode=list")} className="underline">
-          ← Back
-        </button>
-        <div className="mt-10 text-gray-500">글을 불러오는 중...</div>
-      </div>
-    );
-  }
-
-  const cover = article.cover || "";
+  if (loading) return <div className="p-8">Loading…</div>;
+  if (!article) return <div className="p-8">글을 찾지 못했어.</div>;
 
   return (
-    <div className="min-h-screen bg-[#f4f1ea] text-black">
-      <div className="max-w-4xl mx-auto px-6 pt-10 pb-20">
-        <div className="flex items-center justify-between gap-3">
-          <button onClick={() => go("?mode=list")} className="text-sm underline">
-            ← Back to list
-          </button>
-          <button onClick={() => go(`?mode=editor&id=${article.id}`)} className="text-sm underline">
-            Edit
+    <div className="min-h-screen bg-white text-black">
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        <button className="text-sm underline mb-6" onClick={() => go("?mode=list")}>
+          ← Back
+        </button>
+
+        {article.cover ? (
+          <img
+            src={article.cover}
+            alt=""
+            className="w-full rounded-2xl mb-8 object-cover"
+            style={{ maxHeight: 420 }}
+          />
+        ) : null}
+
+        <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+          <span>NO.{article.id}</span>
+          <span>•</span>
+          <span>{article.category}</span>
+          <span>•</span>
+          <span>{fmtDate(article.createdAt)}</span>
+        </div>
+
+        <h1 className="text-3xl font-bold mb-3">{article.title}</h1>
+        <p className="text-gray-600 mb-6">{article.excerpt}</p>
+
+        <div className="flex items-center gap-4 text-sm mb-10">
+          <span>👁 {article.views ?? 0}</span>
+          <button
+            className="px-3 py-1 rounded-full border hover:bg-black hover:text-white transition"
+            onClick={onLike}
+            disabled={likeBusy}
+          >
+            ❤️ {article.likes ?? 0}
           </button>
         </div>
 
-        <header className="mt-8">
-          <div className="flex items-center gap-3 text-sm text-black/60">
-            <span className="font-mono">No.{article.id}</span>
-            <span>·</span>
-            <span>{article.category}</span>
-            {article.createdAt ? (
-              <>
-                <span>·</span>
-                <span>{formatDate(article.createdAt)}</span>
-              </>
+        <div
+          className="prose max-w-none"
+          dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
+        />
+
+        {/* ✅ 댓글 섹션 */}
+        <div className="mt-14 pt-10 border-t">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold">Comments ({comments.length})</h3>
+            <button
+              className="px-3 py-1 rounded-lg bg-black text-white"
+              onClick={onComment}
+              disabled={commentBusy}
+            >
+              {commentBusy ? "등록중…" : "댓글 쓰기"}
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {comments.map((c) => (
+              <div key={c.id} className="p-4 rounded-xl bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-bold">{c.name}</div>
+                  <div className="text-xs text-gray-400">{fmtDateTime(c.createdAt)}</div>
+                </div>
+                <div className="text-sm text-gray-700 whitespace-pre-wrap mt-2">{c.text}</div>
+              </div>
+            ))}
+            {comments.length === 0 ? (
+              <div className="text-sm text-gray-400">첫 댓글을 남겨보세요.</div>
             ) : null}
           </div>
-
-          <h1 className="font-serif font-black text-4xl md:text-6xl leading-tight mt-4">
-            {article.title}
-          </h1>
-
-          {article.excerpt ? (
-            <p className="mt-4 text-lg text-black/70">{article.excerpt}</p>
-          ) : null}
-
-          <div className="flex items-center gap-4 text-sm text-black/60 mt-6">
-            <span>👁 {article.views || 0}</span>
-            <span>♥ {article.likes || 0}</span>
-            <button
-              onClick={like}
-              disabled={busyLike}
-              className="px-4 py-2 rounded-full bg-black text-white font-bold hover:opacity-90 disabled:opacity-50"
-            >
-              Like
-            </button>
-            <button
-              onClick={share}
-              className="px-4 py-2 rounded-full border border-black/15 bg-white font-bold hover:bg-black hover:text-white transition"
-            >
-              Share
-            </button>
-          </div>
-        </header>
-
-        {cover ? (
-          <div className="mt-10 rounded-3xl overflow-hidden border border-black/10 bg-white">
-            <img src={cover} alt="" className="w-full h-auto" />
-          </div>
-        ) : null}
-
-        <article className="mt-12 bg-white rounded-3xl border border-black/10 p-8 md:p-10">
-          <div
-            className="prose prose-lg max-w-none prose-slate"
-            dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
-          />
-        </article>
-
-        {article.mapEmbed ? (
-          <div className="mt-12 bg-white rounded-3xl border border-black/10 p-6">
-            <div
-              className="w-full overflow-hidden rounded-2xl"
-              dangerouslySetInnerHTML={{ __html: article.mapEmbed }}
-            />
-          </div>
-        ) : null}
-
-        <CommentBox comments={comments} onSubmit={submitComment} />
+        </div>
       </div>
     </div>
   );

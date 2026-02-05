@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 
+// ✅ 기존 이름(내가 최근에 쓰던 함수)
 export async function listComments(articleId) {
   const q = query(
     collection(db, "comments"),
@@ -23,8 +24,13 @@ export async function listComments(articleId) {
 export async function addComment(articleId, name, text) {
   await addDoc(collection(db, "comments"), {
     articleId: Number(articleId),
-    name: name || "Anonymous",
-    text: text || "",
+    name: (name || "Anonymous").trim().slice(0, 40),
+    text: (text || "").trim().slice(0, 1000),
     createdAt: serverTimestamp(),
   });
+}
+
+/* ✅ 예전 코드 호환용 alias (Netlify 빌드 깨짐 방지) */
+export async function listCommentsByArticleId(articleId) {
+  return listComments(articleId);
 }
