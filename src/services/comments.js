@@ -1,15 +1,16 @@
-import { db } from "../firebase";
+// src/services/comments.js
 import {
-  addDoc,
   collection,
+  addDoc,
   getDocs,
-  orderBy,
   query,
   where,
+  orderBy,
   serverTimestamp,
 } from "firebase/firestore";
+import { db } from "../firebase";
 
-export async function getCommentsByArticleId(articleId) {
+export async function listComments(articleId) {
   const q = query(
     collection(db, "comments"),
     where("articleId", "==", Number(articleId)),
@@ -19,11 +20,11 @@ export async function getCommentsByArticleId(articleId) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function addComment({ articleId, name, text }) {
+export async function addComment(articleId, name, text) {
   await addDoc(collection(db, "comments"), {
     articleId: Number(articleId),
-    name: (name || "").trim().slice(0, 40),
-    text: (text || "").trim().slice(0, 1000),
+    name: name || "Anonymous",
+    text: text || "",
     createdAt: serverTimestamp(),
   });
 }

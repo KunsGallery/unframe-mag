@@ -28,4 +28,66 @@
   .u-columns {
     flex-direction: column;
   }
+
+  /* 2/3단 편집 가이드 */
+.uf-cols{
+  display:grid;
+  gap:14px;
+  margin:22px 0;
+  padding:12px;
+  border:1px dashed rgba(0,0,0,.25);
+  border-radius:14px;
+  background: rgba(0,0,0,.02);
+}
+.uf-cols-2{ grid-template-columns:1fr 1fr; }
+.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
+.uf-col{
+  min-height:70px;
+  padding:10px;
+  border:1px dashed rgba(0,0,0,.18);
+  border-radius:12px;
+}
+.ProseMirror img.ProseMirror-selectednode{
+  outline: 3px solid #2563eb;
+  border-radius:12px;
+}
+
+/* ✅ TipTap 에디터 */
+.uf-editor .ProseMirror {
+  min-height: 520px;
+  outline: none;
+}
+
+/* ✅ 2/3단 편집 가이드 */
+.uf-cols {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0;
+  padding: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uf-cols-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.uf-cols-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.uf-col {
+  min-height: 70px;
+  padding: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+}
+
+/* ✅ 이미지 선택 표시 */
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid #2563eb;
+  border-radius: 12px;
+}
+
+
 }
