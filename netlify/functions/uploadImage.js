@@ -1,4 +1,4 @@
-// netlify/functions/uploadCover.js
+// netlify/functions/uploadImage.js
 exports.handler = async (event) => {
   try {
     if (event.httpMethod !== "POST") {
@@ -14,22 +14,14 @@ exports.handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || "{}");
-    const dataUrl = body.dataUrl || "";   // "data:image/png;base64,...."
-    const name = body.name || "cover";
+    const dataUrl = body.dataUrl || "";
+    const name = body.name || "image";
 
     if (!dataUrl.includes("base64,")) {
-      return json(400, { ok: false, error: "Invalid dataUrl (expected base64 data URL)" });
+      return json(400, { ok: false, error: "Invalid dataUrl" });
     }
 
-    // ✅ "data:image/xxx;base64," 제거하고 base64만
     const base64 = dataUrl.split("base64,")[1];
-
-    // 너무 큰 파일은 Netlify/브라우저에서 터질 수 있음 (안전 가드)
-    if (base64.length < 50) {
-      return json(400, { ok: false, error: "Image base64 too short" });
-    }
-
-    // imgbb는 base64를 x-www-form-urlencoded로 받는 게 제일 안정적
     const params = new URLSearchParams();
     params.append("image", base64);
     params.append("name", name);
@@ -43,12 +35,7 @@ exports.handler = async (event) => {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok || !data?.success || !data?.data?.url) {
-      return json(502, {
-        ok: false,
-        error: "imgbb upload failed",
-        status: res.status,
-        imgbb: data,
-      });
+      return json(502, { ok: false, error: "imgbb upload failed", status: res.status, imgbb: data });
     }
 
     return json(200, { ok: true, url: data.data.url });
