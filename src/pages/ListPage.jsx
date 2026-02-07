@@ -1,86 +1,95 @@
 // src/pages/ListPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { getPublishedArticles } from "../services/articles";
-import { getSavedIds, isSaved, toggleSaved } from "../services/bookmarks";
-import { go } from "../utils/router";
+import { go, getParam } from "../utils/router";
 
-const MAG_NAME = "U#";
-const BACK_UNFRAME_URL = "https://unframe.imweb.me";
+// ✅ bookmarks (로컬)
+import { getSavedIds, toggleSaved, onSavedChanged } from "../services/bookmarks";
 
-const CATEGORIES = [
-  { key: "Exhibition", label: "Exhibition", no: "CATEGORY 01" },
-  { key: "Project", label: "Project", no: "CATEGORY 02" },
-  { key: "Artist Note", label: "Artist Note", no: "CATEGORY 03" },
-  { key: "News", label: "News", no: "CATEGORY 04" },
-];
+// ✅ Editor’s Pick config
+import { getEditorPickIds } from "../services/config";
 
+// ✅ articles 서비스 (프로젝트에 맞는 함수로 필요 시 이름 수정)
+import { getPublishedArticles } from "../services/articles"; 
+// ⚠️ 만약 listPublishedArticles / getArticlesPublished 등 이름이 다르면 여기만 바꿔주세요.
+
+const MAX_WIDTH = 1200;
 const PAGE_SIZE = 6;
 
-function estimateReadMinFromHTML(html) {
-  const text = (html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  if (!text) return 1;
-  const chars = text.length;
-  return Math.max(1, Math.round(chars / 900));
-}
+// ✅ Hero 이미지 (원하는 이미지로 교체)
+const HERO_BG =
+  "https://images.unsplash.com/photo-1520697222865-7e1da6a5f03c?auto=format&fit=crop&w=2400&q=80";
 
-function formatDate(createdAt) {
+// ✅ 카테고리 4개
+const CATEGORIES = [
+  { key: "Exhibition", label: "Exhibition", sub: "CATEGORY 01" },
+  { key: "Project", label: "Project", sub: "CATEGORY 02" },
+  { key: "Artist Note", label: "Artist Note", sub: "CATEGORY 03" },
+  { key: "News", label: "News", sub: "CATEGORY 04" },
+];
+
+function formatDate(ts) {
   try {
-    if (!createdAt) return "";
-    if (typeof createdAt?.seconds === "number") {
-      const d = new Date(createdAt.seconds * 1000);
-      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-    }
-    const d = new Date(createdAt);
+    if (!ts) return "";
+    const d =
+      typeof ts?.toDate === "function"
+        ? ts.toDate()
+        : typeof ts === "number"
+        ? new Date(ts)
+        : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
-    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+    return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
     return "";
   }
 }
 
-function pickCover(a) {
-  return a.coverThumb || a.cover || "";
+function clampText(s, n = 120) {
+  const t = (s || "").trim();
+  return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
-function normCategory(cat) {
-  return (cat || "").trim();
-}
-
-export default function ListPage() {
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [activeCategory, setActiveCategory] = useState("All"); // All | Exhibition | ... | Saved
-  const [sortMode, setSortMode] = useState("latest"); // latest | popular
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1); // ✅ 페이지 넘버
-
-  const [toast, setToast] = useState(null);
-  const [savedIds, setSavedIdsState] = useState(() => getSavedIds());
-
-  const heroRef = useRef(null);
+export default function ListPage({ theme, toggleTheme }) {
   const archiveRef = useRef(null);
   const subscribeRef = useRef(null);
 
-  const [navTheme, setNavTheme] = useState("light");
+  const [all, setAll] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  function showToast(message, ms = 2400) {
-    setToast(message);
-    window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast(null), ms);
-  }
+  // ✅ Editor’s Pick ids (Firestore config)
+  const [pickIds, setPickIds] = useState([]);
+  const [pickLoading, setPickLoading] = useState(true);
 
+  // ✅ 필터/정렬/검색
+  const [activeCat, setActiveCat] = useState("All");
+  const [sortBy, setSortBy] = useState("latest"); // latest | popular
+  const [q, setQ] = useState("");
+
+  // ✅ Saved
+  const [savedIds, setSavedIds] = useState(() => getSavedIds());
+  const [savedMode, setSavedMode] = useState(false);
+
+  // ✅ 페이지네이션
+  const initialPage = Number(getParam("page") || 1);
+  const [page, setPage] = useState(Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1);
+
+  // 다른 탭에서 Saved 변경 감지
+  useEffect(() => {
+    const off = onSavedChanged((ids) => setSavedIds(ids));
+    return off;
+  }, []);
+
+  // ✅ (1) published 글 목록 불러오기
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-        const list = await getPublishedArticles();
+        const list = await getPublishedArticles(); // ⚠️ 함수명 다르면 여기만 수정!
         if (!alive) return;
-        setArticles(Array.isArray(list) ? list : []);
+        setAll(Array.isArray(list) ? list : []);
       } catch (e) {
         console.error(e);
-        showToast("😵 리스트 로딩에 실패했어요. 잠시 후 다시 시도해주세요.");
+        setAll([]);
       } finally {
         if (alive) setLoading(false);
       }
@@ -90,465 +99,459 @@ export default function ListPage() {
     };
   }, []);
 
-  // ✅ nav 테마 자동 전환
+  // ✅ (2) Editor’s Pick ids 불러오기
   useEffect(() => {
-    const sections = document.querySelectorAll("[data-nav]");
-    if (!sections.length) return;
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0))[0];
-        if (visible?.target) {
-          const theme = visible.target.getAttribute("data-nav");
-          if (theme === "dark" || theme === "light") setNavTheme(theme);
-        }
-      },
-      { root: null, rootMargin: "-20% 0px -70% 0px", threshold: [0.1, 0.2, 0.3, 0.4, 0.5] }
-    );
-
-    sections.forEach((s) => io.observe(s));
-    return () => io.disconnect();
+    let alive = true;
+    (async () => {
+      try {
+        setPickLoading(true);
+        const ids = await getEditorPickIds();
+        if (!alive) return;
+        setPickIds(ids);
+      } catch (e) {
+        console.error(e);
+        setPickIds([]);
+      } finally {
+        if (alive) setPickLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  // ✅ 필터/검색/정렬 바뀌면 페이지 1로 리셋
-  useEffect(() => {
-    setPage(1);
-  }, [activeCategory, sortMode, q]);
-
-  function jumpToCategory(catKey) {
-    setActiveCategory(catKey);
-    setSortMode("latest");
-    setQ("");
-    requestAnimationFrame(() => archiveRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    showToast(`📚 ${catKey} 아카이브로 이동할게요!`);
-  }
-
-  function onNavArchive() {
-    requestAnimationFrame(() => archiveRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function onNavSubscribe() {
-    requestAnimationFrame(() => subscribeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function onNavSaved() {
-    setActiveCategory("Saved");
-    setSortMode("latest");
-    setQ("");
-    requestAnimationFrame(() => archiveRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    showToast("⭐ 저장한 글만 모아서 보여드릴게요!");
-  }
-
-  function onToggleSave(articleId) {
-    const next = toggleSaved(articleId);
-    setSavedIdsState(next);
-
-    if (next.includes(Number(articleId))) {
-      showToast("⭐ 저장했어요! (기기가 바뀌면 저장 목록도 달라질 수 있어요)");
-    } else {
-      showToast("🗑️ 저장을 해제했어요.");
-    }
-  }
-
-  const editorsPick = useMemo(() => {
-    const sorted = [...articles].sort((a, b) => Number(b.likes || 0) - Number(a.likes || 0));
-    return sorted.slice(0, 3);
-  }, [articles]);
-
+  // ✅ 전체 리스트 → 필터/정렬
   const filtered = useMemo(() => {
-    let list = [...articles];
+    const keyword = q.trim().toLowerCase();
+    let list = [...all];
 
-    if (activeCategory === "Saved") {
-      const ids = new Set(savedIds.map(Number));
-      list = list.filter((a) => ids.has(Number(a.id)));
-    } else if (activeCategory !== "All") {
-      list = list.filter((a) => normCategory(a.category) === activeCategory);
+    // saved 모드
+    if (savedMode) {
+      list = list.filter((a) => savedIds.includes(Number(a.id)));
     }
 
-    const qq = q.trim().toLowerCase();
-    if (qq) {
+    // category
+    if (activeCat !== "All") {
+      list = list.filter((a) => a.category === activeCat);
+    }
+
+    // search: title + excerpt + tags
+    if (keyword) {
       list = list.filter((a) => {
-        const title = (a.title || "").toLowerCase();
-        const excerpt = (a.excerpt || "").toLowerCase();
+        const t = String(a.title || "").toLowerCase();
+        const e = String(a.excerpt || "").toLowerCase();
         const tags = Array.isArray(a.tags) ? a.tags.join(" ").toLowerCase() : "";
-        return title.includes(qq) || excerpt.includes(qq) || tags.includes(qq);
+        return t.includes(keyword) || e.includes(keyword) || tags.includes(keyword);
       });
     }
 
-    if (sortMode === "popular") {
-      list.sort((a, b) => Number(b.views || 0) - Number(a.views || 0));
+    // sort
+    if (sortBy === "popular") {
+      list.sort(
+        (x, y) =>
+          Number(y.likes || 0) +
+          Number(y.views || 0) -
+          (Number(x.likes || 0) + Number(x.views || 0))
+      );
     } else {
-      list.sort((a, b) => {
-        const ta = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
-        const tb = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime();
-        return (tb || 0) - (ta || 0);
+      // latest
+      list.sort((x, y) => {
+        const ax = x.createdAt?.toMillis?.() ?? x.createdAt?.seconds?.() * 1000 ?? Number(x.createdAt || 0);
+        const ay = y.createdAt?.toMillis?.() ?? y.createdAt?.seconds?.() * 1000 ?? Number(y.createdAt || 0);
+        return ay - ax;
       });
     }
 
     return list;
-  }, [articles, activeCategory, q, sortMode, savedIds]);
+  }, [all, activeCat, sortBy, q, savedIds, savedMode]);
 
-  // ✅ 페이지 계산
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered.length]);
-  const safePage = Math.min(Math.max(1, page), totalPages);
+  // ✅ 페이지네이션 계산
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  }, [filtered.length]);
 
+  // ✅ page가 범위 밖이면 자동 보정
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+    if (page < 1) setPage(1);
+  }, [page, totalPages]);
+
+  // ✅ 현재 페이지 데이터 슬라이스
   const pageItems = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE;
+    const start = (page - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, safePage]);
+  }, [filtered, page]);
 
-  function onClickTag(tag) {
-    const t = String(tag || "").trim();
-    if (!t) return;
-    setQ(t);
-    showToast(`🔎 #${t} 태그로 찾는 중이에요!`);
+  // ✅ Editor’s Pick 실제 글 데이터 만들기
+  const pickArticles = useMemo(() => {
+    if (!pickIds.length) return [];
+    const map = new Map(all.map((a) => [Number(a.id), a]));
+    return pickIds.map((id) => map.get(id)).filter(Boolean);
+  }, [all, pickIds]);
+
+  function scrollTo(ref) {
+    const el = ref?.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function openArticle(a) {
-    go(`?mode=view&id=${a.id}`);
+  function onClickCategory(catKey) {
+    setSavedMode(false);
+    setActiveCat(catKey);
+    setSortBy("latest");
+    setQ("");
+    setPage(1);
+
+    // ✅ 섹션5로 이동
+    scrollTo(archiveRef);
   }
 
-  function setFilter(cat) {
-    setActiveCategory(cat);
-    showToast(`📌 ${cat === "All" ? "전체" : cat}로 필터했어요!`);
+  function onClickSaved() {
+    setSavedMode(true);
+    setActiveCat("All");
+    setSortBy("latest");
+    setQ("");
+    setPage(1);
+
+    scrollTo(archiveRef);
   }
 
-  // ✅ 페이지 넘버 UI (너무 많아지면 1… 6 7 8 … 마지막 같은 방식으로 개선 가능)
-  const pageNumbers = useMemo(() => {
-    const max = totalPages;
-    const cur = safePage;
-
-    // 간단 버전: 1~max 전부 노출 (나중에 글 많아지면 축약 UI로 바꾸자)
-    return Array.from({ length: max }, (_, i) => i + 1);
-  }, [totalPages, safePage]);
+  // ✅ page를 URL에도 반영하고 싶어서 go 사용
+  function setPageAndUrl(nextPage) {
+    const p = Math.max(1, Math.min(totalPages, nextPage));
+    setPage(p);
+    go(`?mode=list&page=${p}`);
+  }
 
   return (
-    <div className="uf-page">
-      {/* NAV */}
-      <header className={`uf-nav ${navTheme === "dark" ? "uf-nav--dark" : "uf-nav--light"}`}>
-        <div className="uf-nav__inner">
-          <button
-            className="uf-nav__brand"
-            onClick={() => heroRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            title="홈으로"
-          >
-            {MAG_NAME}
-          </button>
+    <div className="u-listRoot">
+      {/* ✅ Top Nav */}
+      <div className="u-topNav">
+        <div className="u-topNav__inner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-brand" onClick={() => go("?mode=list")}>U#</div>
 
-          <nav className="uf-nav__links">
-            <a className="uf-nav__link" href={BACK_UNFRAME_URL} target="_blank" rel="noreferrer">
-              back UNFRAME
+          <div className="u-navRight">
+            <a className="u-navLink" href="https://unframe.imweb.me" target="_blank" rel="noreferrer">
+              Back UNFRAME
             </a>
 
-            <button className="uf-nav__linkBtn" onClick={onNavArchive}>
-              Archive
-            </button>
+            <button className="u-navLinkBtn" onClick={() => scrollTo(archiveRef)}>Archive</button>
+            <button className="u-navLinkBtn" onClick={() => scrollTo(subscribeRef)}>Subscription</button>
 
-            <button className="uf-nav__linkBtn" onClick={onNavSubscribe}>
-              Subscription
-            </button>
-
-            <button className="uf-nav__linkBtn" onClick={onNavSaved}>
+            <button className="u-navLinkBtn u-navLinkBtn--saved" onClick={onClickSaved}>
               Saved ({savedIds.length})
             </button>
-          </nav>
-        </div>
-      </header>
 
-      {toast && <div className="uf-toast">{toast}</div>}
-
-      {/* Section 1 HERO */}
-      <section ref={heroRef} className="uf-sec uf-hero" data-nav="dark">
-        <div className="uf-hero__overlay" />
-        <div className="uf-container uf-hero__content">
-          <div className="uf-hero__kicker">UNFRAME / Independent Art Magazine</div>
-          <h1 className="uf-hero__title">Unframe Your Perspective.</h1>
-          <p className="uf-hero__sub">전시, 프로젝트, 아티스트 노트, 뉴스까지—예술을 프레임 밖에서 기록합니다.</p>
-
-          <div className="uf-hero__ctaRow">
-            <button className="uf-btn uf-btn--primary" onClick={onNavArchive}>
-              Browse Archive →
-            </button>
-            <button className="uf-btn uf-btn--ghost" onClick={onNavSubscribe}>
-              Subscribe ↓
+            {/* ✅ 테마 토글 */}
+            <button className="u-navLinkBtn" onClick={toggleTheme} title="Toggle theme">
+              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ✅ Section 1: Hero */}
+      <section className="u-sec u-hero" style={{ backgroundImage: `url(${HERO_BG})` }}>
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-heroCard">
+            <div className="u-heroKicker">UNFRAME MAGAZINE</div>
+            <h1 className="u-heroTitle">Any Letter That Inspires You.</h1>
+            <p className="u-heroSub">
+              오늘의 전시 · 프로젝트 · 아티스트 노트 · 뉴스.
+              <br />
+              부담 없이, 하지만 깊게—당신의 아트 감각을 업데이트해요.
+            </p>
+
+            <div className="u-heroBtns">
+              <button className="u-btn u-btnPrimary" onClick={() => scrollTo(archiveRef)}>
+                Archive 보기 →
+              </button>
+              <button className="u-btn u-btnGhost" onClick={() => scrollTo(subscribeRef)}>
+                Subscribe →
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="u-heroOverlay" />
       </section>
 
-      {/* Section 2 Categories */}
-      <section className="uf-sec uf-cats" data-nav="light">
-        <div className="uf-container">
-          <div className="uf-sec__head">
-            <h2 className="uf-sec__title">Categories</h2>
-            <p className="uf-sec__desc">카테고리를 선택하면 해당 글만 최신순으로 보여드릴게요.</p>
-          </div>
-
-          <div className="uf-catRail" role="list">
+      {/* ✅ Section 2: Categories interactive */}
+      <section className="u-sec u-secCats">
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-catsRow">
             {CATEGORIES.map((c) => (
-              <button
-                key={c.key}
-                className="uf-catTile"
-                onClick={() => jumpToCategory(c.key)}
-                role="listitem"
-                type="button"
-              >
-                <div className="uf-catTile__meta">{c.no}</div>
-                <div className="uf-catTile__title">{c.label}</div>
-                <div className="uf-catTile__link">View gallery →</div>
+              <button key={c.key} className="u-catCard" onClick={() => onClickCategory(c.key)}>
+                <div className="u-catSub">{c.sub}</div>
+                <div className="u-catTitle">{c.label}</div>
+                <div className="u-catHint">VIEW GALLERY →</div>
               </button>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Section 3 Marquee */}
-      <section className="uf-sec uf-marqueeSec" data-nav="dark">
-        <div className="uf-marquee" aria-hidden="true">
-          <div className="uf-marquee__track">
-            <span>New drop every week • UNFRAME • Curated editorial archive • </span>
-            <span>New drop every week • UNFRAME • Curated editorial archive • </span>
-            <span>New drop every week • UNFRAME • Curated editorial archive • </span>
+      {/* ✅ Section 3: Marquee + mini subscribe */}
+      <section className="u-sec u-secMarquee">
+        <div className="u-marquee">
+          <div className="u-marquee__track">
+            <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
+            <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
+            <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
           </div>
         </div>
 
-        <div className="uf-container uf-miniSub">
-          <div className="uf-miniSub__box">
-            <div className="uf-miniSub__title">Subscribe (mini)</div>
-            <div className="uf-miniSub__desc">짧게, 가볍게—새 글이 나오면 알려드릴게요.</div>
-            <div className="uf-miniSub__row">
-              <input className="uf-input" placeholder="your@email.com" />
-              <button className="uf-btn uf-btn--primary" onClick={() => showToast("💌 구독 기능은 곧 연결할게요!")}>
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-miniSub">
+            <div className="u-miniSub__title">📮 구독하면 매주 좋은 글을 보내드려요</div>
+            <div className="u-miniSub__row">
+              <input className="u-input" placeholder="email@example.com" />
+              <button className="u-btn u-btnPrimary" onClick={() => scrollTo(subscribeRef)}>
                 Subscribe
               </button>
             </div>
+            <div className="u-miniSub__desc">* 지금은 UI만, 추후 실제 연동 예정 ✨</div>
           </div>
         </div>
       </section>
 
-      {/* Section 4 Editor */}
-      <section className="uf-sec uf-editors" data-nav="light">
-        <div className="uf-container">
-          <div className="uf-editorsGrid">
-            <div className="uf-note">
-              <div className="uf-note__kicker">Editor’s Note</div>
-              <h3 className="uf-note__title">Letters to the future.</h3>
-              <p className="uf-note__text">
-                UNFRAME은 “기록”을 디자인합니다. 텍스트와 이미지, 그리고 필요한 만큼의 인터랙션만 남깁니다.
+      {/* ✅ Section 4: Editor’s Note + Editor’s Pick (Firestore config 연결) */}
+      <section className="u-sec u-secPick">
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-grid2">
+            {/* NOTE */}
+            <div className="u-noteBox">
+              <div className="u-boxTitle">Editor’s Note</div>
+              <p className="u-boxText">
+                이 섹션은 “고정 소개글” 느낌으로 운영하기 좋아요.
+                <br />
+                다음 단계에서 Firestore config로 noteText도 연결 가능!
               </p>
-              <button className="uf-btn uf-btn--ghost" onClick={onNavArchive}>
-                Explore Archive →
-              </button>
             </div>
 
-            <div className="uf-picks">
-              <div className="uf-picks__head">
-                <div className="uf-note__kicker">Editor’s Pick</div>
-                <div className="uf-picks__hint">좋아요 기준 TOP 3 (임시)</div>
-              </div>
+            {/* PICK */}
+            <div className="u-pickBox">
+              <div className="u-boxTitle">Editor’s Pick</div>
 
-              <div className="uf-picks__list">
-                {editorsPick.map((a) => {
-                  const mins = estimateReadMinFromHTML(a.contentHTML);
-                  return (
-                    <button key={a.id} className="uf-pickItem" onClick={() => openArticle(a)}>
-                      <div className="uf-pickItem__no">No.{a.id}</div>
-                      <div className="uf-pickItem__title">{a.title}</div>
-                      <div className="uf-pickItem__meta">
-                        <span>📖 {mins} min</span>
-                        <span>♥ {Number(a.likes || 0)}</span>
-                        <span>👁 {Number(a.views || 0)}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-                {!editorsPick.length && <div className="uf-empty">아직 글이 없어요. 첫 번째 글을 발행해볼까요? ✍️</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Section 5 Archive */}
-      <section ref={archiveRef} className="uf-sec uf-archive" data-nav="light">
-        <div className="uf-container">
-          <div className="uf-archiveHead">
-            <h2 className="uf-sec__title">Archive</h2>
-            <p className="uf-sec__desc">카테고리/인기순/최신순/검색으로 탐색해보세요.</p>
-          </div>
-
-          <div className="uf-archiveLayout">
-            <aside className="uf-archiveLeft">
-              <div className="uf-leftBox">
-                <div className="uf-leftBox__title">Filters</div>
-
-                <div className="uf-leftBox__list">
-                  <button className={`uf-leftItem ${activeCategory === "All" ? "is-active" : ""}`} onClick={() => setFilter("All")}>
-                    All
-                  </button>
-
-                  {CATEGORIES.map((c) => (
-                    <button
-                      key={c.key}
-                      className={`uf-leftItem ${activeCategory === c.key ? "is-active" : ""}`}
-                      onClick={() => setFilter(c.key)}
-                    >
-                      {c.label}
+              {pickLoading ? (
+                <div className="u-boxText">로딩 중… ⏳</div>
+              ) : pickArticles.length === 0 ? (
+                <div className="u-boxText">
+                  아직 Pick이 비어 있어요 🥲 <br />
+                  Firestore config/editorPick 문서의 <b>picks</b> 배열에 글 id를 넣어주세요.
+                </div>
+              ) : (
+                <div className="u-pickList">
+                  {pickArticles.slice(0, 3).map((a) => (
+                    <button key={a.id} className="u-pickItem" onClick={() => go(`?mode=view&id=${a.id}`)}>
+                      <span className="u-pickBadge">PICK</span>
+                      <span className="u-pickTitle">{a.title || "(no title)"}</span>
+                      <span className="u-pickMeta">{a.category} · {formatDate(a.createdAt)}</span>
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
+      {/* ✅ Section 5: Archive + Pagination */}
+      <section className="u-sec u-secArchive" ref={archiveRef}>
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-archiveLayout">
+            {/* Left sticky */}
+            <aside className="u-archiveSide">
+              <div className="u-sideBox">
+                <div className="u-sideTitle">Archive</div>
+
+                <button
+                  className={`u-sideItem ${activeCat === "All" && !savedMode ? "is-active" : ""}`}
+                  onClick={() => {
+                    setSavedMode(false);
+                    setActiveCat("All");
+                    setQ("");
+                    setPageAndUrl(1);
+                  }}
+                >
+                  All
+                </button>
+
+                {CATEGORIES.map((c) => (
                   <button
-                    className={`uf-leftItem ${activeCategory === "Saved" ? "is-active" : ""}`}
-                    onClick={() => setFilter("Saved")}
-                    title="이 기기에서 저장한 글"
+                    key={c.key}
+                    className={`u-sideItem ${activeCat === c.key && !savedMode ? "is-active" : ""}`}
+                    onClick={() => {
+                      setSavedMode(false);
+                      setActiveCat(c.key);
+                      setQ("");
+                      setPageAndUrl(1);
+                    }}
                   >
-                    Saved ⭐ ({savedIds.length})
+                    {c.label}
                   </button>
-                </div>
+                ))}
 
-                <div className="uf-leftBox__mini">
-                  <div className="uf-leftBox__miniTitle">Sort</div>
-                  <div className="uf-chipRow">
-                    <button className={`uf-chip ${sortMode === "latest" ? "is-on" : ""}`} onClick={() => setSortMode("latest")}>
-                      Latest
-                    </button>
-                    <button className={`uf-chip ${sortMode === "popular" ? "is-on" : ""}`} onClick={() => setSortMode("popular")}>
-                      Popular
-                    </button>
-                  </div>
-                </div>
-
-                <div className="uf-leftBox__mini">
-                  <div className="uf-leftBox__miniTitle">Search</div>
-                  <input className="uf-input uf-input--dark" value={q} onChange={(e) => setQ(e.target.value)} placeholder="title / excerpt / tag" />
-                  <div className="uf-leftHint">태그를 클릭하면 자동 검색돼요. ✨</div>
-                </div>
+                <button className={`u-sideItem ${savedMode ? "is-active" : ""}`} onClick={onClickSaved}>
+                  Saved
+                </button>
               </div>
             </aside>
 
-            <main className="uf-archiveRight">
-              {loading && <div className="uf-loading">로딩 중… ⏳</div>}
+            {/* Right list */}
+            <div className="u-archiveMain">
+              <div className="u-archiveTopbar">
+                <div className="u-sort">
+                  <button className={`u-chip ${sortBy === "latest" ? "is-active" : ""}`} onClick={() => { setSortBy("latest"); setPageAndUrl(1); }}>
+                    최신순
+                  </button>
+                  <button className={`u-chip ${sortBy === "popular" ? "is-active" : ""}`} onClick={() => { setSortBy("popular"); setPageAndUrl(1); }}>
+                    인기순
+                  </button>
+                </div>
 
-              {!loading && !filtered.length && (
-                <div className="uf-emptyBox">
-                  <div className="uf-emptyBox__title">😮 검색 결과가 없어요</div>
-                  <div className="uf-emptyBox__desc">다른 카테고리로 바꾸거나, 검색어를 조금 줄여볼까요?</div>
+                <input
+                  className="u-input u-search"
+                  value={q}
+                  onChange={(e) => { setQ(e.target.value); setPageAndUrl(1); }}
+                  placeholder="검색 (제목/요약/태그)"
+                />
+              </div>
+
+              {loading ? (
+                <div className="u-empty">로딩 중… ⏳</div>
+              ) : pageItems.length === 0 ? (
+                <div className="u-empty">아직 표시할 글이 없어요 🥲</div>
+              ) : (
+                <div className="u-cards">
+                  {pageItems.map((a) => {
+                    const id = Number(a.id);
+                    const saved = savedIds.includes(id);
+                    const cover = a.coverMedium || a.coverThumb || a.cover || "";
+
+                    return (
+                      <article key={id} className="u-card" onClick={() => go(`?mode=view&id=${id}`)}>
+                        <div className="u-cardImg" style={{ backgroundImage: cover ? `url(${cover})` : "none" }}>
+                          {!cover && <div className="u-cardImg__fallback">No Image</div>}
+                        </div>
+
+                        <div className="u-cardBody">
+                          <div className="u-cardMeta">
+                            <span className="u-badge">{a.category || "Category"}</span>
+                            <span className="u-date">{formatDate(a.createdAt)}</span>
+                          </div>
+
+                          <div className="u-cardTitle">{a.title || "(no title)"}</div>
+                          <div className="u-cardExcerpt">{clampText(a.excerpt || "", 120)}</div>
+
+                          {/* 태그는 카드 아래에만 */}
+                          {Array.isArray(a.tags) && a.tags.length > 0 && (
+                            <div className="u-tags">
+                              {a.tags.slice(0, 4).map((t) => (
+                                <button
+                                  key={t}
+                                  className="u-tag"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    setSavedMode(false);
+                                    setActiveCat("All");
+                                    setQ(t);
+                                    setPageAndUrl(1);
+                                  }}
+                                >
+                                  #{t}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="u-cardBottom">
+                            <div className="u-stats">
+                              <span>👁 {Number(a.views || 0)}</span>
+                              <span>💗 {Number(a.likes || 0)}</span>
+                            </div>
+
+                            <button
+                              className={`u-saveBtn ${saved ? "is-saved" : ""}`}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                const r = toggleSaved(id);
+                                setSavedIds(r.ids);
+                              }}
+                              title="Save"
+                            >
+                              {saved ? "★ Saved" : "☆ Save"}
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               )}
 
-              <div className="uf-cards">
-                {pageItems.map((a) => {
-                  const cover = pickCover(a);
-                  const mins = estimateReadMinFromHTML(a.contentHTML);
-                  const saved = isSaved(a.id);
-
-                  return (
-                    <article key={a.id} className="uf-card">
-                      <button className="uf-card__media" onClick={() => openArticle(a)} type="button">
-                        {cover ? <img src={cover} alt={a.title || "cover"} loading="lazy" /> : <div className="uf-card__ph">No Image</div>}
-                      </button>
-
-                      <div className="uf-card__body">
-                        <div className="uf-card__topline">
-                          <div className="uf-card__cat">{a.category || "Category"}</div>
-                          <div className="uf-card__meta">
-                            <span>{formatDate(a.createdAt)}</span>
-                            <span>📖 {mins} min</span>
-                            <span>♥ {Number(a.likes || 0)}</span>
-                            <span>👁 {Number(a.views || 0)}</span>
-                          </div>
-                        </div>
-
-                        <button className="uf-card__title" onClick={() => openArticle(a)} type="button">
-                          {a.title || `No.${a.id}`}
-                        </button>
-
-                        {a.excerpt ? <div className="uf-card__excerpt">{a.excerpt}</div> : null}
-
-                        {Array.isArray(a.tags) && a.tags.length ? (
-                          <div className="uf-tagRow">
-                            {a.tags.slice(0, 6).map((t) => (
-                              <button key={t} className="uf-tag" onClick={() => onClickTag(t)} type="button">
-                                #{t}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        <div className="uf-card__actions">
-                          <button className="uf-btnMini" onClick={() => openArticle(a)} type="button">
-                            Read →
-                          </button>
-
-                          <button className={`uf-btnMini ${saved ? "is-saved" : ""}`} onClick={() => onToggleSave(a.id)} type="button">
-                            {saved ? "⭐ Saved" : "☆ Save"}
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-
-              {/* ✅ 페이지 넘버 */}
-              {!loading && filtered.length > 0 && (
-                <div className="uf-pageNav">
-                  <button className="uf-btnMini" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              {/* ✅ 페이지네이션 UI */}
+              {filtered.length > PAGE_SIZE && (
+                <div className="u-pager">
+                  <button className="u-pagerBtn" disabled={page <= 1} onClick={() => setPageAndUrl(page - 1)}>
                     ← Prev
                   </button>
 
-                  <div className="uf-pageNums">
-                    {pageNumbers.map((n) => (
-                      <button
-                        key={n}
-                        className={`uf-pageNum ${n === safePage ? "is-on" : ""}`}
-                        onClick={() => setPage(n)}
-                      >
-                        {n}
-                      </button>
-                    ))}
+                  <div className="u-pagerNums">
+                    {Array.from({ length: totalPages }).map((_, i) => {
+                      const p = i + 1;
+                      return (
+                        <button
+                          key={p}
+                          className={`u-pagerNum ${p === page ? "is-active" : ""}`}
+                          onClick={() => setPageAndUrl(p)}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <button className="uf-btnMini" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+                  <button className="u-pagerBtn" disabled={page >= totalPages} onClick={() => setPageAndUrl(page + 1)}>
                     Next →
                   </button>
                 </div>
               )}
-            </main>
-          </div>
-        </div>
-      </section>
 
-      {/* Section 6 Subscription */}
-      <section ref={subscribeRef} className="uf-sec uf-bigSub" data-nav="light">
-        <div className="uf-container">
-          <div className="uf-bigSub__box">
-            <div className="uf-bigSub__kicker">Subscription</div>
-            <h2 className="uf-bigSub__title">Any letter that inspires you.</h2>
-            <p className="uf-bigSub__desc">읽어볼 만한 글을 모아서 보내드릴게요. (지금은 UI만)</p>
-
-            <div className="uf-bigSub__row">
-              <input className="uf-input uf-input--big" placeholder="your@email.com" />
-              <button className="uf-btn uf-btn--primary" onClick={() => showToast("💌 구독 기능은 곧 연결할게요!")}>
-                Subscribe
-              </button>
+              {/* ✅ 페이지네이션 확장 아이디어 */}
+              <div className="u-moreHint">
+                📌 글이 아주 많아지면 “커서 기반 페이지네이션(무한 로딩)”도 가능해요. 지금은 안정적인 번호 페이지 방식 👍
+              </div>
             </div>
-
-            <div className="uf-bigSub__fine">✨ 스팸은 싫어요. 구독 해지는 언제든지 가능하게 만들게요.</div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="uf-footer" data-nav="light">
-        <div className="uf-container uf-footer__inner">
-          <div className="uf-footer__brand">{MAG_NAME} / UNFRAME</div>
-          <div className="uf-footer__copy">© {new Date().getFullYear()} UNFRAME. All rights reserved.</div>
-          <button className="uf-btn uf-btn--ghost" onClick={() => go("?mode=editor")}>
-            Write →
-          </button>
+      {/* ✅ Section 6: Subscription */}
+      <section className="u-sec u-secSubscribe" ref={subscribeRef}>
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-subBig">
+            <h2 className="u-subBigTitle">Subscribe</h2>
+            <p className="u-subBigDesc">
+              새로운 글이 올라오면 놓치지 않게 알려드릴게요.
+              <br />
+              (지금은 UI만, 추후 실제 연동 예정)
+            </p>
+            <div className="u-subBigRow">
+              <input className="u-input" placeholder="email@example.com" />
+              <button className="u-btn u-btnPrimary">Join</button>
+            </div>
+            <div className="u-subBigFine">* 언제든지 구독 해지 가능</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ Footer */}
+      <footer className="u-footer">
+        <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-footerRow">
+            <div>© UNFRAME MAG</div>
+            <div style={{ opacity: 0.7 }}>Made with ♥</div>
+          </div>
         </div>
       </footer>
     </div>
