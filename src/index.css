@@ -99,3 +99,41 @@ button, a {
   background: var(--text);
   border-radius: 10px;
 }
+/* ============================================================================
+  ✅ ViewPage 전용 텍스트 스타일 (Tiptap 출력물용)
+============================================================================ */
+.u-articleBody p {
+  margin-bottom: 2rem;
+  line-height: 1.8;
+  color: #333333;
+}
+
+/* 첫 번째 문단의 첫 글자를 크게 만드는 매거진 효과 (Drop Cap) */
+.u-articleBody p:first-child::first-letter {
+  float: left;
+  font-family: var(--font-serif);
+  font-size: 5rem;
+  line-height: 1;
+  padding-right: 0.7rem;
+  font-weight: bold;
+  color: #111;
+}
+
+/* 이미지와 캡션 스타일 */
+.u-articleBody figure {
+  margin: 4rem 0;
+  text-align: center;
+}
+.u-articleBody figcaption {
+  font-size: 13px;
+  opacity: 0.5;
+  margin-top: 1rem;
+  font-style: italic;
+}
+
+/* 에디터 페이지 설정창 입력 박스 개선 */
+.uf-input:focus, .uf-textarea:focus {
+  border-color: #2563eb;
+  background: white;
+  outline: none;
+}

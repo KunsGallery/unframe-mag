@@ -1,36 +1,16 @@
-// src/pages/ViewPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { go } from "../utils/router";
-
+import { go, getParam } from "../utils/router";
 import { getArticleByIdNumber, bumpLikes, bumpViews } from "../services/articles";
 import { getSavedIds, toggleSaved, onSavedChanged } from "../services/bookmarks";
-import CommentBox from "../components/CommentBox"; // 기존에 있으면 유지, 없으면 네 프로젝트에 맞게 조정
-
-const MAX_WIDTH = 1200;
-
-function formatDate(ts) {
-  try {
-    if (!ts) return "";
-    const d =
-      typeof ts?.toDate === "function"
-        ? ts.toDate()
-        : typeof ts === "number"
-        ? new Date(ts)
-        : new Date(ts);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
-  } catch {
-    return "";
-  }
-}
+import CommentBox from "../components/CommentBox";
 
 export default function ViewPage({ id, theme, toggleTheme }) {
-  const idNum = id ? Number(id) : null;
-
+  /* --------------------------------------------------------------------------
+    ✅ [Logic] 데이터 및 인터랙션 (원본 보존)
+  -------------------------------------------------------------------------- */
+  const idNum = id ? Number(id) : Number(getParam("id"));
   const [a, setA] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // ✅ Saved 상태 (로컬)
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const saved = useMemo(() => savedIds.includes(Number(a?.id)), [savedIds, a?.id]);
 
@@ -39,189 +19,87 @@ export default function ViewPage({ id, theme, toggleTheme }) {
     return off;
   }, []);
 
-  // ✅ 글 로드 + 조회수 bump
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
         if (!idNum) return;
-
         const article = await getArticleByIdNumber(idNum);
-        if (!alive) return;
-
-        if (!article) {
-          setA(null);
-          return;
-        }
-
+        if (!alive || !article) return;
         setA(article);
-
-        // ✅ 조회수는 서비스쪽에서 30분 쿨다운 적용되어 있어야 함
-        try {
-          await bumpViews(idNum);
-        } catch (e) {
-          // 조회수 실패는 UX에 치명적이지 않아서 조용히
-          console.warn("bumpViews failed:", e);
-        }
-      } catch (e) {
-        console.error(e);
-        setA(null);
-      } finally {
-        if (alive) setLoading(false);
-      }
+        try { await bumpViews(idNum); } catch (e) { console.warn(e); }
+      } finally { if (alive) setLoading(false); }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [idNum]);
 
   async function onLike() {
     if (!a?.id) return;
     try {
-      // ✅ likes는 서비스에서 3시간 쿨다운 적용되어 있어야 함
       const next = await bumpLikes(Number(a.id));
-      // bumpLikes가 업데이트된 likes를 반환하면 반영
-      if (typeof next?.likes === "number") {
-        setA((p) => ({ ...p, likes: next.likes }));
-      } else {
-        // 반환이 없다면, 화면만 낙관적 업데이트(선택)
-        setA((p) => ({ ...p, likes: Number(p?.likes || 0) + 1 }));
-      }
-    } catch (e) {
-      // 서비스에서 쿨다운 걸릴 때 throw 한다면 여기서 안내 가능
-      console.warn(e);
-      alert("이 글을 향한 애정은 3시간 뒤에 다시 보내주세요 💛");
-    }
+      if (typeof next?.likes === "number") setA((p) => ({ ...p, likes: next.likes }));
+    } catch (e) { alert("이 글을 향한 애정은 3시간 뒤에 다시 보내주세요 💛"); }
   }
 
-  function onToggleSave() {
-    if (!a?.id) return;
-    const r = toggleSaved(Number(a.id));
-    setSavedIds(r.ids);
-    alert(saved ? "저장 해제했어요 🧹 (기기 변경 시 저장도 사라져요)" : "저장했어요 ★ (기기 변경 시 저장도 사라져요)");
-  }
-
-  if (loading) {
-    return (
-      <div style={{ padding: 80, maxWidth: MAX_WIDTH, margin: "0 auto" }}>
-        로딩 중… ⏳
-      </div>
-    );
-  }
-
-  if (!a) {
-    return (
-      <div style={{ padding: 80, maxWidth: MAX_WIDTH, margin: "0 auto" }}>
-        글을 찾지 못했어요 🥲{" "}
-        <button onClick={() => go("?mode=list")} style={{ textDecoration: "underline" }}>
-          리스트로
-        </button>
-      </div>
-    );
-  }
+  /* --------------------------------------------------------------------------
+    🚀 [Design] 우아한 매거진 기사 레이아웃
+  -------------------------------------------------------------------------- */
+  if (loading) return <div className="py-40 text-center font-serif opacity-30 italic tracking-widest">Opening Archive...</div>;
+  if (!a) return <div className="py-40 text-center font-serif tracking-widest">No Letter Found. <button onClick={() => go("?mode=list")} className="underline">Back</button></div>;
 
   return (
-    <div>
-      {/* ✅ Top Nav */}
-      <div className="u-topNav">
-        <div className="u-topNav__inner" style={{ maxWidth: MAX_WIDTH }}>
-          <div className="u-brand" onClick={() => go("?mode=list")}>
-            U#
-          </div>
-
-          <div className="u-navRight">
-            <button className="u-navLinkBtn" onClick={() => go("?mode=list#archive")}>
-              Archive
-            </button>
-
-            <button className="u-navLinkBtn u-navLinkBtn--saved" onClick={() => go("?mode=list#archive&saved=1")}>
-              Saved ({savedIds.length})
-            </button>
-
-            <button className="u-navLinkBtn" onClick={toggleTheme} title="Toggle theme">
-              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-            </button>
-          </div>
+    <div className="u-viewRoot bg-[#f4f1ea] min-h-screen pb-40 text-[#111]">
+      {/* 1. 상단 이미지 커버 (75vh 높이로 압도적 연출) */}
+      <header className="relative w-full h-[75vh] flex items-center justify-center bg-black overflow-hidden">
+        {(a.coverMedium || a.cover) && (
+          <img src={a.coverMedium || a.cover} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="cover" />
+        )}
+        <div className="relative z-10 text-white text-center px-6">
+          <span className="font-serif italic text-lg mb-6 block tracking-[0.3em] uppercase opacity-70">
+            {a.category} — ISSUE NO.{a.id}
+          </span>
+          <h1 className="font-serif font-bold leading-tight max-w-5xl mx-auto text-[56px] md:text-[72px]">
+            {a.title}
+          </h1>
+          <p className="mt-8 font-mono text-[11px] opacity-40 uppercase tracking-[0.4em]">Published on {new Date(a.createdAt).toLocaleDateString()}</p>
         </div>
-      </div>
+      </header>
 
-      {/* ✅ 본문 영역 */}
-      <div style={{ maxWidth: MAX_WIDTH, margin: "0 auto", padding: "24px 16px" }}>
-        {/* ✅ 종이 카드: 다크모드에서도 글자/버튼이 검정으로 유지되게 .u-paper로 감싼다 */}
-        <div className="u-paper" style={{ padding: "26px 26px" }}>
-          {/* 메타 */}
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(0,0,0,.12)",
-                fontSize: 12,
-                background: "rgba(255,255,255,.6)",
-              }}
-            >
-              {a.category || "Category"}
-            </span>
-            <span className="u-muted" style={{ fontSize: 12 }}>
-              {formatDate(a.createdAt)}
-            </span>
+      {/* 2. 본문 영역 (가독성을 위한 800px 폭) */}
+      <main className="mx-auto px-6 mt-20 max-w-[800px]">
+        {/* 리드문 (Excerpt) */}
+        {a.excerpt && (
+          <div className="border-l-4 border-black pl-10 mb-20 italic text-2xl text-gray-800 leading-relaxed font-serif">
+            {a.excerpt}
           </div>
+        )}
 
-          {/* 타이틀 */}
-          <h1 style={{ fontSize: 42, lineHeight: 1.1, margin: "6px 0 8px" }}>{a.title}</h1>
-          {a.excerpt ? (
-            <p className="u-muted" style={{ marginBottom: 14 }}>
-              {a.excerpt}
-            </p>
-          ) : null}
-
-          {/* 액션 */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
-            <button className="u-paperBtn u-paperBtn--primary" onClick={onLike}>
-              💗 Like
+        {/* 액션 컨트롤러 */}
+        <div className="flex justify-between items-center mb-16 pb-8 border-b border-black/5">
+          <div className="flex gap-4">
+            <button onClick={onLike} className="px-8 py-2 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-all">
+              💗 Like {a.likes || 0}
             </button>
-            <button className="u-paperBtn" onClick={onToggleSave}>
+            <button onClick={() => { toggleSaved(Number(a.id)); setSavedIds(getSavedIds()); }} 
+              className={`px-8 py-2 border border-black rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${saved ? "bg-black text-white" : "hover:bg-black hover:text-white"}`}>
               {saved ? "★ Saved" : "☆ Save"}
             </button>
-
-            {/* ✅ Edit: 에디터는 관리자만 접근 가능(에디터에서 로그인 가드 처리) */}
-            <button className="u-paperBtn" onClick={() => go(`?mode=editor&id=${a.id}`)}>
-              ✏️ Edit
-            </button>
-
-            <div className="u-muted" style={{ fontSize: 12, display: "flex", gap: 10, alignItems: "center" }}>
-              <span>👁 {Number(a.views || 0)}</span>
-              <span>💗 {Number(a.likes || 0)}</span>
-            </div>
           </div>
-
-          {/* 커버 */}
-          {(a.coverMedium || a.coverThumb || a.cover) && (
-            <img
-              src={a.coverMedium || a.coverThumb || a.cover}
-              alt="cover"
-              style={{
-                width: "100%",
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,.10)",
-                marginBottom: 18,
-              }}
-            />
-          )}
-
-          {/* 본문 HTML */}
-          <div
-            className="u-articleBody"
-            dangerouslySetInnerHTML={{ __html: a.contentHTML || "" }}
-          />
-
-          {/* 댓글 */}
-          <div style={{ marginTop: 30 }}>
-            <CommentBox articleId={a.id} />
+          <div className="text-[11px] font-mono opacity-30 uppercase tracking-tighter">
+            Views {a.views || 0}
           </div>
         </div>
-      </div>
+
+        {/* ✅ [Body] 당신의 에디터에서 작성된 실제 HTML */}
+        <div className="u-articleBody ProseMirror text-[19px] leading-[1.9] text-gray-900" 
+          dangerouslySetInnerHTML={{ __html: a.contentHTML || "" }} />
+        
+        {/* 댓글 섹션 */}
+        <div className="mt-32 pt-20 border-t-2 border-black">
+          <CommentBox articleId={a.id} />
+        </div>
+      </main>
     </div>
   );
 }
