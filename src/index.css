@@ -3,235 +3,99 @@
 @tailwind utilities;
 
 /* ============================================================================
-  ✅ 공통 테마 변수
-  - data-theme="light|dark"는 App.jsx에서 이미 적용 중
+  🎨 [PX 단위 커스텀 영역] - 여기서 디자인 수치를 한눈에 조절하세요!
 ============================================================================ */
 :root {
-  --bg: #f4f1ea;
-  --text: #111111;
-  --muted: rgba(0,0,0,.65);
-  --card: rgba(255,255,255,.75);
-  --line: rgba(0,0,0,.12);
+  /* 배경 및 텍스트 컬러 */
+  --bg: #f4f1ea;             /* 매거진 특유의 종이 질감 색상 */
+  --text: #111111;           /* 메인 글자색 */
+  --line: rgba(0,0,0,.12);   /* 경계선 색상 */
+  
+  /* 여백 및 레이아웃 (px) */
+  --max-width: 1200px;       /* 전체 콘텐츠 최대 가로폭 */
+  --nav-height: 70px;        /* 상단 바 높이 */
+  --section-padding: 120px;  /* 섹션 사이의 수직 간격 */
+
+  /* 폰트 설정 */
+  --font-serif: "Playfair Display", "Noto Serif KR", serif; /* 매거진용 세리프 */
+  --font-sans: 'Noto Sans KR', sans-serif; /* 기본 본문용 산세리프 */
 }
 
+/* 다크모드 대응 */
 html[data-theme="dark"] {
   --bg: #0b0d12;
   --text: #f5f6f8;
-  --muted: rgba(255,255,255,.70);
-  --card: rgba(255,255,255,.06);
   --line: rgba(255,255,255,.14);
 }
 
+/* ============================================================================
+  ✅ 기본 레이아웃 및 폰트
+============================================================================ */
 html, body {
   margin: 0;
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Noto Sans KR', sans-serif;
-  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+  scroll-behavior: smooth; /* 부드러운 스크롤 활성화 */
 }
 
 /* ============================================================================
-  ✅ Editor 기본 레이아웃
+  ✅ [Preserved] Editor 스타일 (기존 에디터 기능을 위해 절대 삭제 금지!)
+  - uf-로 시작하는 클래스들은 에디터 페이지에서 사용됩니다.
 ============================================================================ */
-.uf-container {
-  max-width: 1200px;
-  margin: 0 auto;
+.uf-container { max-width: 1200px; margin: 0 auto; }
+.uf-editor { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.75); padding: 14px; }
+.uf-editor .ProseMirror { min-height: 520px; outline: none; }
+.uf-editor .ProseMirror blockquote { margin: 16px 0; padding: 12px 14px; border-left: 4px solid #2563eb; background: rgba(37,99,235,.08); border-radius: 12px; }
+.ProseMirror table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+.ProseMirror td, .ProseMirror th { border: 1px dashed rgba(0,0,0,.25); padding: 10px; }
+
+/* ============================================================================
+  ✅ [New] Magazine UI 전용 스타일 (U# 매거진 전용)
+============================================================================ */
+
+/* 1. 마키(Marquee) 애니메이션: 글자가 흐르는 효과 */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 40s linear infinite; /* 40초 동안 한 바퀴 회전 */
 }
 
-.uf-toast {
+/* 2. 섹션 2: 인터랙티브 카테고리 카드 효과 */
+/* 마우스를 올렸을 때 다른 카드들이 자연스럽게 줄어들도록 설정 */
+.u-secCats > div {
+  transition: flex 0.7s cubic-bezier(0.25, 1, 0.5, 1), filter 0.5s ease;
+}
+
+/* 3. 섹션 5: 아카이브 스티키 사이드바 */
+/* 스크롤을 내려도 좌측 메뉴가 화면에 고정됨 */
+.u-stickySide {
   position: sticky;
-  top: 12px;
-  z-index: 50;
-  margin: 0 auto 12px;
-  max-width: 720px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  backdrop-filter: blur(10px);
+  top: 100px; /* 네비게이션 높이보다 조금 더 아래에 고정 */
+  height: fit-content;
 }
 
-/* 버튼/입력 */
-.uf-btn {
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-.uf-btn--primary {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: white;
-}
-.uf-btn--ghost {
-  background: var(--card);
+/* 4. 공통 세리프 폰트 적용 클래스 */
+.font-serif {
+  font-family: var(--font-serif);
 }
 
-.uf-input, .uf-textarea {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--card);
-  color: var(--text);
-}
-.uf-textarea { min-height: 90px; resize: vertical; }
-
-.uf-label { font-size: 13px; opacity: .75; }
-
-/* 상단/툴바 */
-.uf-editorTop {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
+/* 5. 버튼 및 링크 커스텀 호버 */
+button, a {
+  transition: all 0.3s ease;
 }
 
-.uf-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--card);
+/* 6. 스크롤바 커스텀 (매거진 감성을 위해 얇게 조절) */
+::-webkit-scrollbar {
+  width: 6px;
 }
-
-.uf-tool {
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 13px;
+::-webkit-scrollbar-track {
+  background: var(--bg);
 }
-.uf-toolSep {
-  width: 1px;
-  background: var(--line);
-  margin: 0 6px;
-}
-
-/* 컬러 UI */
-.uf-colorBar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-}
-.uf-colorDot {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-.uf-colorDot > span {
-  display: block;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  margin: 0 auto;
-}
-.uf-colorPicker {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: transparent;
-  cursor: pointer;
-}
-.uf-colorPicker input[type="color"]{
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-/* TipTap editor surface */
-.uf-editor {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--card);
-  padding: 14px;
-}
-
-.uf-editor .ProseMirror {
-  min-height: 520px;
-  outline: none;
-}
-
-/* ============================================================================
-  ✅ Quote(인용) 스타일: "안되는 것처럼 보이는" 문제 해결 핵심
-============================================================================ */
-.uf-editor .ProseMirror blockquote {
-  margin: 16px 0;
-  padding: 12px 14px;
-  border-left: 4px solid rgba(37,99,235,.8);
-  background: rgba(37,99,235,.08);
-  border-radius: 12px;
-  color: var(--text);
-}
-html[data-theme="dark"] .uf-editor .ProseMirror blockquote {
-  background: rgba(37,99,235,.18);
-}
-
-/* ============================================================================
-  ✅ 이미지 선택 표시 (TipTap selection)
-============================================================================ */
-.ProseMirror img.ProseMirror-selectednode{
-  outline: 3px solid #2563eb;
-  border-radius: 12px;
-}
-
-/* ============================================================================
-  ✅ Table 보기 좋게
-============================================================================ */
-.ProseMirror table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 16px 0;
-}
-.ProseMirror td, .ProseMirror th {
-  border: 1px dashed rgba(0,0,0,.25);
-  padding: 10px;
-}
-html[data-theme="dark"] .ProseMirror td,
-html[data-theme="dark"] .ProseMirror th {
-  border-color: rgba(255,255,255,.22);
-}
-
-/* ============================================================================
-  ✅ 2/3단(HTML 삽입 방식) 가이드
-============================================================================ */
-.uf-cols{
-  display:grid;
-  gap:14px;
-  margin:22px 0;
-  padding:12px;
-  border:1px dashed var(--line);
-  border-radius:14px;
-  background: rgba(0,0,0,.02);
-}
-html[data-theme="dark"] .uf-cols{
-  background: rgba(255,255,255,.03);
-}
-.uf-cols-2{ grid-template-columns:1fr 1fr; }
-.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
-.uf-col{
-  min-height:90px;
-  padding:10px;
-  border:1px dashed var(--line);
-  border-radius:12px;
+::-webkit-scrollbar-thumb {
+  background: var(--text);
+  border-radius: 10px;
 }
