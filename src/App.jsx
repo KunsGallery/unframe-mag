@@ -5,19 +5,16 @@ import ListPage from "./pages/ListPage";
 import ViewPage from "./pages/ViewPage";
 import EditorPage from "./pages/EditorPage";
 
-// ✅ getParam은 그대로 사용하되,
-// ✅ URL 변경을 React가 감지하도록 subscribe/getLocationKey를 추가로 사용
-import { getParam, subscribe, getLocationKey } from "./utils/router";
+import { getParam, subscribe } from "./utils/router";
 
 /**
- * ✅ 테마 저장 키 (로컬)
- * - 기기/브라우저별로 저장됨
+ * ============================================================================
+ * ✅ Theme (로컬 저장)
+ * - iframe 환경에서도 localStorage가 막히는 경우가 있어 try/catch 유지
+ * ============================================================================
  */
 const THEME_KEY = "UF_THEME_V1";
 
-/**
- * ✅ prefers-color-scheme(시스템 설정) 반영 + localStorage 우선
- */
 function getInitialTheme() {
   try {
     const saved = localStorage.getItem(THEME_KEY);
@@ -29,45 +26,32 @@ function getInitialTheme() {
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  // ✅ "글 안보임" 같은 사고 방지하려면 기본은 light가 더 안전
+  // ✅ 기본은 light가 안전(글 안보임 방지)
   return prefersDark ? "dark" : "light";
 }
 
 export default function App() {
   /**
-   * ✅ 핵심 상태: locKey
-   * - URL이 바뀔 때마다 locKey가 바뀌게 만들어서
-   *   React가 "URL 변경"을 리렌더 트리거로 인식하게 함
-   *
-   * - locKey 값 자체를 화면에 쓰지 않아도 괜찮고,
-   *   "리렌더 트리거" 역할만 하면 됨
+   * ============================================================================
+   * ✅ routeSearch: "현재 URL의 search 문자열"을 state로 관리
+   * - go()가 pushState + popstate를 발생시키면,
+   *   아래 subscribe()가 routeSearch를 바꿔서 App이 리렌더됨
+   * ============================================================================
    */
-  const [locKey, setLocKey] = useState(() => getLocationKey());
+  const [routeSearch, setRouteSearch] = useState(window.location.search || "");
 
-  /**
-   * ✅ router 구독
-   * - go() / replace() / 뒤로가기(popstate) 등으로 URL이 바뀌면 notify()가 호출되고,
-   *   여기서 locKey가 바뀌면서 App이 즉시 리렌더됨
-   */
   useEffect(() => {
-    return subscribe(setLocKey);
+    const off = subscribe((search) => setRouteSearch(search));
+    return off;
   }, []);
 
-  /**
-   * ✅ URL이 바뀔 때마다 mode/id를 다시 읽어야 하므로
-   * - locKey를 dependency로 둬서 URL 변화에 따라 재계산되게 함
-   */
-  const { mode, id } = useMemo(() => {
-    return {
-      mode: getParam("mode") || "list",
-      id: getParam("id"), // view/editor에서 사용
-    };
-  }, [locKey]);
+  // ✅ routeSearch 기준으로 mode/id 읽기 (중요: window.location.search 직접 읽지 않음)
+  const mode = getParam("mode", routeSearch) || "list";
+  const id = getParam("id", routeSearch);
 
-  // ✅ 테마 전역 상태
+  // ✅ theme 전역 상태
   const [theme, setTheme] = useState(getInitialTheme());
 
-  // ✅ theme 변경될 때마다 <html data-theme="..."> 적용
   useEffect(() => {
     try {
       document.documentElement.setAttribute("data-theme", theme);
@@ -75,13 +59,11 @@ export default function App() {
     } catch {}
   }, [theme]);
 
-  // ✅ 버튼에서 쓰기 편하게 토글 함수 제공
   const toggleTheme = useMemo(() => {
     return () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   }, []);
 
-  // ✅ pages에 theme/toggleTheme를 prop으로 내려주면
-  //    페이지별 TopNav UX 통일 가능
+  // ✅ 페이지 라우팅
   if (mode === "view") return <ViewPage id={id} theme={theme} toggleTheme={toggleTheme} />;
   if (mode === "editor") return <EditorPage id={id} theme={theme} toggleTheme={toggleTheme} />;
   return <ListPage theme={theme} toggleTheme={toggleTheme} />;
