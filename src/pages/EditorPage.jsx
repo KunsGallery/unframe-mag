@@ -743,7 +743,7 @@ export default function EditorPage() {
         <button className="uf-btn uf-btn--ghost" onClick={() => onSave("draft")}>
           Save Draft
         </button>
-        <button className="uf-btn uf-btn--primary" onBClick={() => {}} onClick={() => onSave("published")}>
+        <button className="uf-btn uf-btn--primary" onClick={() => onSave("published")}>
           Publish
         </button>
       </div>
