@@ -54,7 +54,7 @@ import { uploadImage } from "../services/upload";
 import { getParam, go } from "../utils/router";
 
 /* ============================================================================
-  ✅ 관리자 이메일
+  ✅ 관리자 이메일 / 카테고리
 ============================================================================ */
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
@@ -94,10 +94,10 @@ function dedupeExtensions(exts) {
 }
 
 /* ============================================================================
-  ✅ FontSize: textStyle 기반
+  ✅ FontSize: textStyle 기반 (mark 새로 만들지 않고 textStyle 확장)
 ============================================================================ */
 const FontSize = TextStyle.extend({
-  name: "textStyle", // ⚠️ mark를 새로 만들지 않고 textStyle을 확장
+  name: "textStyle",
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -166,8 +166,7 @@ function setSelectedImageAlign(editor, align) {
 
 export default function EditorPage({ theme, toggleTheme }) {
   /* ============================================================================
-    ✅ Hooks는 "항상 같은 순서"로 호출되어야 함 (중요!!)
-    - 아래에서 조기 return 금지
+    ✅ Hooks는 항상 같은 순서로 호출 (중요)
   ============================================================================ */
   const { toast, show } = useToast();
 
@@ -201,12 +200,13 @@ export default function EditorPage({ theme, toggleTheme }) {
   const [imageMode, setImageMode] = useState(false);
 
   /* ============================================================================
-    ✅ Extensions (최종 dedupe로 중복 경고 최소화)
+    ✅ Extensions
+    - blockquote는 StarterKit 기본 포함
+    - “안 되는 느낌”은 거의 CSS 문제라 index.css에서 해결
   ============================================================================ */
   const extensions = useMemo(() => {
     const exts = [
       StarterKit,
-
       TextStyle,
       FontSize,
       Color.configure({ types: ["textStyle"] }),
@@ -232,7 +232,6 @@ export default function EditorPage({ theme, toggleTheme }) {
       Placeholder.configure({ placeholder: "Write something… ✍️" }),
     ];
 
-    // ✅ 여기서 중복 제거
     return dedupeExtensions(exts);
   }, []);
 
@@ -242,7 +241,7 @@ export default function EditorPage({ theme, toggleTheme }) {
   });
 
   /* ============================================================================
-    ✅ Auth 구독
+    ✅ Auth subscribe
   ============================================================================ */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -279,7 +278,7 @@ export default function EditorPage({ theme, toggleTheme }) {
   }
 
   /* ============================================================================
-    ✅ selection 변화에 따라 imageMode 업데이트
+    ✅ selection 변화 → imageMode
   ============================================================================ */
   useEffect(() => {
     if (!editor) return;
@@ -294,11 +293,11 @@ export default function EditorPage({ theme, toggleTheme }) {
   }, [editor]);
 
   /* ============================================================================
-    ✅ 글 로드 (중요: adminOk/ editor 준비되기 전에는 아무것도 하지 않음)
+    ✅ 글 로드 (adminOk + editor 준비된 후)
   ============================================================================ */
   useEffect(() => {
     if (!editor) return;
-    if (!adminOk) return; // ✅ 여기서 가드 (Hook은 이미 호출됨!)
+    if (!adminOk) return;
     let alive = true;
 
     (async () => {
@@ -500,9 +499,14 @@ export default function EditorPage({ theme, toggleTheme }) {
 
   /* ============================================================================
     ✅ 툴 helper
-  ============================================================================ */
+============================================================================ */
   const FONT_SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
-  const COLORS = ["#111111", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
+
+  // ✅ 팔레트는 남겨두되, “완전 자유 색상”은 color picker + hex 입력으로 해결
+  const PALETTE = ["#111111", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6"];
+
+  const [customColor, setCustomColor] = useState("#111111");
+  const [hexText, setHexText] = useState("#111111");
 
   function setLink() {
     const prev = editor.getAttributes("link").href;
@@ -555,9 +559,8 @@ export default function EditorPage({ theme, toggleTheme }) {
   }
 
   /* ============================================================================
-    ✅ 여기부터 렌더 분기 (조기 return이지만, Hook 선언은 이미 끝난 상태!)
+    ✅ 렌더 분기(Hook 선언 이후에만)
   ============================================================================ */
-
   if (checkingAuth) {
     return <div className="uf-container" style={{ padding: "120px 16px" }}>확인 중… ⏳</div>;
   }
@@ -647,6 +650,7 @@ export default function EditorPage({ theme, toggleTheme }) {
             onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))} />
         </div>
 
+        {/* Cover */}
         <div className="uf-formRow">
           <label className="uf-label">Cover</label>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -685,6 +689,7 @@ export default function EditorPage({ theme, toggleTheme }) {
 
             <span className="uf-toolSep" />
 
+            {/* ✅ 폰트 사이즈 */}
             <select className="uf-input" style={{ width: 140, height: 36, padding: "0 10px" }} defaultValue=""
               onChange={(e) => {
                 const v = e.target.value;
@@ -696,14 +701,56 @@ export default function EditorPage({ theme, toggleTheme }) {
               {FONT_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "0 6px" }}>
-              {COLORS.map((c) => (
-                <button key={c} className="uf-tool" style={{ width: 28, height: 28, padding: 0, borderRadius: 999 }}
+            <span className="uf-toolSep" />
+
+            {/* ✅ 컬러 팔레트 + 컬러피커 + HEX 입력 */}
+            <div className="uf-colorBar">
+              {PALETTE.map((c) => (
+                <button key={c} className="uf-colorDot" title={c}
                   onClick={() => editor.chain().focus().setColor(c).run()}>
-                  <span style={{ display: "block", width: 14, height: 14, borderRadius: 999, background: c }} />
+                  <span style={{ background: c }} />
                 </button>
               ))}
-              <button className="uf-tool" onClick={() => editor.chain().focus().unsetColor().run()}>✕</button>
+
+              {/* 완전 자유 컬러 */}
+              <label className="uf-colorPicker" title="Pick any color">
+                🎨
+                <input
+                  type="color"
+                  value={customColor}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomColor(v);
+                    setHexText(v);
+                    editor.chain().focus().setColor(v).run();
+                  }}
+                />
+              </label>
+
+              <input
+                className="uf-input"
+                style={{ width: 120, height: 36 }}
+                value={hexText}
+                onChange={(e) => setHexText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const v = hexText.trim();
+                    if (/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(v)) {
+                      editor.chain().focus().setColor(v).run();
+                      setCustomColor(v.length === 4 ? v : v);
+                      show(`🎨 컬러 적용: ${v}`, 1200);
+                    } else {
+                      show("😵 HEX 형식이 아니에요. 예: #111111", 1800);
+                    }
+                  }
+                }}
+                placeholder="#111111"
+                title="HEX (Enter로 적용)"
+              />
+
+              <button className="uf-tool" onClick={() => editor.chain().focus().unsetColor().run()} title="Unset color">
+                ✕
+              </button>
             </div>
 
             <span className="uf-toolSep" />
@@ -719,8 +766,21 @@ export default function EditorPage({ theme, toggleTheme }) {
 
             <span className="uf-toolSep" />
 
-            <button className="uf-tool" onClick={() => editor.chain().focus().toggleBlockquote().run()}>Quote</button>
-            <button className="uf-tool" onClick={() => editor.chain().focus().setHorizontalRule().run()}>Divider</button>
+            {/* ✅ 인용: “안 되는 느낌”은 CSS가 거의 원인 → index.css에서 확실히 표시 */}
+            <button
+              className="uf-tool"
+              onClick={() => {
+                editor.chain().focus().toggleBlockquote().run();
+                show("💬 인용(Quote) 토글!", 900);
+              }}
+              title="현재 문단에 인용 스타일 적용/해제"
+            >
+              Quote
+            </button>
+
+            <button className="uf-tool" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+              Divider
+            </button>
 
             <span className="uf-toolSep" />
 

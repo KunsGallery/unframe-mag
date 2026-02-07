@@ -3,31 +3,36 @@
 @tailwind utilities;
 
 /* ============================================================================
-  ✅ Theme variables (라이트/다크 모두에서 텍스트 가독성 유지용)
+  ✅ 공통 테마 변수
+  - data-theme="light|dark"는 App.jsx에서 이미 적용 중
 ============================================================================ */
 :root {
-  --uf-bg: #ffffff;
-  --uf-fg: #111111;
-  --uf-muted: rgba(0,0,0,.6);
-  --uf-card: #f6f3ee;
-  --uf-border: rgba(0,0,0,.12);
+  --bg: #f4f1ea;
+  --text: #111111;
+  --muted: rgba(0,0,0,.65);
+  --card: rgba(255,255,255,.75);
+  --line: rgba(0,0,0,.12);
 }
 
 html[data-theme="dark"] {
-  --uf-bg: #0b0b0c;
-  --uf-fg: #f5f5f5;
-  --uf-muted: rgba(255,255,255,.70);
-  --uf-card: #151518;
-  --uf-border: rgba(255,255,255,.14);
+  --bg: #0b0d12;
+  --text: #f5f6f8;
+  --muted: rgba(255,255,255,.70);
+  --card: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.14);
 }
 
-body {
-  background: var(--uf-bg);
-  color: var(--uf-fg);
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  scroll-behavior: smooth;
 }
 
 /* ============================================================================
-  ✅ Editor container (너가 쓰던 uf-* 클래스 기반)
+  ✅ Editor 기본 레이아웃
 ============================================================================ */
 .uf-container {
   max-width: 1200px;
@@ -36,194 +41,197 @@ body {
 
 .uf-toast {
   position: sticky;
-  top: 14px;
+  top: 12px;
   z-index: 50;
-  margin: 0 auto 12px auto;
-  width: fit-content;
-  max-width: 92%;
+  margin: 0 auto 12px;
+  max-width: 720px;
   padding: 10px 14px;
   border-radius: 999px;
-  background: rgba(0,0,0,.78);
-  color: #fff;
-  font-size: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
 }
 
-html[data-theme="dark"] .uf-toast {
-  background: rgba(255,255,255,.14);
+/* 버튼/입력 */
+.uf-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.uf-btn--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+.uf-btn--ghost {
+  background: var(--card);
 }
 
+.uf-input, .uf-textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--card);
+  color: var(--text);
+}
+.uf-textarea { min-height: 90px; resize: vertical; }
+
+.uf-label { font-size: 13px; opacity: .75; }
+
+/* 상단/툴바 */
 .uf-editorTop {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
-/* 버튼/인풋 */
-.uf-btn {
-  border: 1px solid var(--uf-border);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 14px;
-  background: transparent;
-  color: var(--uf-fg);
-}
-
-.uf-btn--primary {
-  background: #111;
-  color: #fff;
-  border-color: #111;
-}
-html[data-theme="dark"] .uf-btn--primary {
-  background: #fff;
-  color: #111;
-  border-color: #fff;
-}
-
-.uf-btn--ghost {
-  background: transparent;
-}
-
-.uf-input, .uf-textarea, select.uf-input {
-  width: 100%;
-  border: 1px solid var(--uf-border);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 14px;
-  background: transparent;
-  color: var(--uf-fg);
-}
-.uf-textarea {
-  min-height: 90px;
-  resize: vertical;
-}
-
-/* 폼 */
-.uf-form { display: grid; gap: 10px; }
-.uf-formRow { display: grid; gap: 6px; }
-.uf-label { font-size: 12px; opacity: .8; }
-
-/* 툴바 */
 .uf-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
   padding: 10px;
-  border: 1px solid var(--uf-border);
-  border-radius: 14px;
-  background: rgba(0,0,0,.03);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
 }
-html[data-theme="dark"] .uf-toolbar { background: rgba(255,255,255,.05); }
 
 .uf-tool {
-  border: 1px solid var(--uf-border);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
   background: transparent;
-  color: var(--uf-fg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
 }
-.uf-tool--file { display: inline-flex; align-items: center; gap: 8px; }
 .uf-toolSep {
   width: 1px;
-  height: 22px;
-  background: var(--uf-border);
-  margin: 0 4px;
+  background: var(--line);
+  margin: 0 6px;
+}
+
+/* 컬러 UI */
+.uf-colorBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+}
+.uf-colorDot {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.uf-colorDot > span {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  margin: 0 auto;
+}
+.uf-colorPicker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+}
+.uf-colorPicker input[type="color"]{
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* TipTap editor surface */
+.uf-editor {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 14px;
+}
+
+.uf-editor .ProseMirror {
+  min-height: 520px;
+  outline: none;
 }
 
 /* ============================================================================
-  ✅ ProseMirror 기본
+  ✅ Quote(인용) 스타일: "안되는 것처럼 보이는" 문제 해결 핵심
 ============================================================================ */
-.uf-editor .ProseMirror {
-  min-height: 520px;
-  padding: 16px;
-  border: 1px solid var(--uf-border);
-  border-radius: 16px;
-  outline: none;
-  background: rgba(0,0,0,.02);
+.uf-editor .ProseMirror blockquote {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-left: 4px solid rgba(37,99,235,.8);
+  background: rgba(37,99,235,.08);
+  border-radius: 12px;
+  color: var(--text);
 }
-html[data-theme="dark"] .uf-editor .ProseMirror {
-  background: rgba(255,255,255,.04);
+html[data-theme="dark"] .uf-editor .ProseMirror blockquote {
+  background: rgba(37,99,235,.18);
 }
 
-/* 선택된 노드 표시(이미지 등) */
-.ProseMirror .ProseMirror-selectednode {
-  outline: 3px solid rgba(37,99,235,.7);
+/* ============================================================================
+  ✅ 이미지 선택 표시 (TipTap selection)
+============================================================================ */
+.ProseMirror img.ProseMirror-selectednode{
+  outline: 3px solid #2563eb;
   border-radius: 12px;
 }
 
-/* 이미지 기본 */
-.ProseMirror img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 14px;
-}
-
 /* ============================================================================
-  ✅ Figure / Caption
+  ✅ Table 보기 좋게
 ============================================================================ */
-.uf-figure {
-  margin: 18px 0;
-  padding: 10px;
-  border: 1px dashed var(--uf-border);
-  border-radius: 16px;
-  background: rgba(0,0,0,.02);
-}
-html[data-theme="dark"] .uf-figure { background: rgba(255,255,255,.03); }
-
-.uf-figure[data-align="left"] { text-align: left; }
-.uf-figure[data-align="center"] { text-align: center; }
-.uf-figure[data-align="right"] { text-align: right; }
-
-.uf-caption {
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--uf-muted);
-}
-
-/* ============================================================================
-  ✅ Embed(YouTube / SoundCloud) 반응형
-============================================================================ */
-.uf-embed {
-  margin: 18px 0;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid var(--uf-border);
-  background: rgba(0,0,0,.02);
-}
-html[data-theme="dark"] .uf-embed { background: rgba(255,255,255,.03); }
-
-.uf-embed iframe {
-  display: block;
+.ProseMirror table {
+  border-collapse: collapse;
   width: 100%;
+  margin: 16px 0;
 }
-
-/* 유튜브는 높이를 자동으로 유지하려면 wrapper가 필요하지만,
-   TipTap Youtube extension은 기본적으로 iframe만 넣어서
-   여기서는 최소 스타일만 적용합니다. */
-
-/* 사운드클라우드는 기본 height=166 권장 */
-.uf-embed--soundcloud iframe { height: 166px; }
+.ProseMirror td, .ProseMirror th {
+  border: 1px dashed rgba(0,0,0,.25);
+  padding: 10px;
+}
+html[data-theme="dark"] .ProseMirror td,
+html[data-theme="dark"] .ProseMirror th {
+  border-color: rgba(255,255,255,.22);
+}
 
 /* ============================================================================
-  ✅ Draft box
+  ✅ 2/3단(HTML 삽입 방식) 가이드
 ============================================================================ */
-.uf-draftBox {
-  border: 1px solid var(--uf-border);
-  border-radius: 16px;
-  padding: 12px;
+.uf-cols{
+  display:grid;
+  gap:14px;
+  margin:22px 0;
+  padding:12px;
+  border:1px dashed var(--line);
+  border-radius:14px;
   background: rgba(0,0,0,.02);
 }
-html[data-theme="dark"] .uf-draftBox { background: rgba(255,255,255,.03); }
-
-.uf-draftBox__title { font-size: 13px; opacity: .8; margin-bottom: 8px; }
-.uf-draftBox__list { display: flex; gap: 8px; flex-wrap: wrap; }
-.uf-draftItem {
-  border: 1px solid var(--uf-border);
-  border-radius: 999px;
-  padding: 8px 10px;
-  font-size: 13px;
-  background: transparent;
-  color: var(--uf-fg);
+html[data-theme="dark"] .uf-cols{
+  background: rgba(255,255,255,.03);
+}
+.uf-cols-2{ grid-template-columns:1fr 1fr; }
+.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
+.uf-col{
+  min-height:90px;
+  padding:10px;
+  border:1px dashed var(--line);
+  border-radius:12px;
 }
