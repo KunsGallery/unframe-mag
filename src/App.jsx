@@ -5,7 +5,9 @@ import ListPage from "./pages/ListPage";
 import ViewPage from "./pages/ViewPage";
 import EditorPage from "./pages/EditorPage";
 
-import { getParam } from "./utils/router";
+// ✅ getParam은 그대로 사용하되,
+// ✅ URL 변경을 React가 감지하도록 subscribe/getLocationKey를 추가로 사용
+import { getParam, subscribe, getLocationKey } from "./utils/router";
 
 /**
  * ✅ 테마 저장 키 (로컬)
@@ -22,19 +24,45 @@ function getInitialTheme() {
     if (saved === "light" || saved === "dark") return saved;
   } catch {}
 
-  // 저장값이 없으면 OS 설정 따르기 (기본값)
   const prefersDark =
     typeof window !== "undefined" &&
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  // ✅ 지금 “글 안보임” 문제를 방지하려면 기본을 light로 두는 게 안전
+  // ✅ "글 안보임" 같은 사고 방지하려면 기본은 light가 더 안전
   return prefersDark ? "dark" : "light";
 }
 
 export default function App() {
-  const mode = getParam("mode") || "list";
-  const id = getParam("id"); // view/editor에서 사용
+  /**
+   * ✅ 핵심 상태: locKey
+   * - URL이 바뀔 때마다 locKey가 바뀌게 만들어서
+   *   React가 "URL 변경"을 리렌더 트리거로 인식하게 함
+   *
+   * - locKey 값 자체를 화면에 쓰지 않아도 괜찮고,
+   *   "리렌더 트리거" 역할만 하면 됨
+   */
+  const [locKey, setLocKey] = useState(() => getLocationKey());
+
+  /**
+   * ✅ router 구독
+   * - go() / replace() / 뒤로가기(popstate) 등으로 URL이 바뀌면 notify()가 호출되고,
+   *   여기서 locKey가 바뀌면서 App이 즉시 리렌더됨
+   */
+  useEffect(() => {
+    return subscribe(setLocKey);
+  }, []);
+
+  /**
+   * ✅ URL이 바뀔 때마다 mode/id를 다시 읽어야 하므로
+   * - locKey를 dependency로 둬서 URL 변화에 따라 재계산되게 함
+   */
+  const { mode, id } = useMemo(() => {
+    return {
+      mode: getParam("mode") || "list",
+      id: getParam("id"), // view/editor에서 사용
+    };
+  }, [locKey]);
 
   // ✅ 테마 전역 상태
   const [theme, setTheme] = useState(getInitialTheme());
@@ -53,7 +81,7 @@ export default function App() {
   }, []);
 
   // ✅ pages에 theme/toggleTheme를 prop으로 내려주면
-  //    페이지별로 TopNav에서 동일 UX를 만들기 쉬움
+  //    페이지별 TopNav UX 통일 가능
   if (mode === "view") return <ViewPage id={id} theme={theme} toggleTheme={toggleTheme} />;
   if (mode === "editor") return <EditorPage id={id} theme={theme} toggleTheme={toggleTheme} />;
   return <ListPage theme={theme} toggleTheme={toggleTheme} />;

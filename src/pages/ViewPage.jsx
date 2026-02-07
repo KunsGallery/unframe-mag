@@ -1,14 +1,12 @@
 // src/pages/ViewPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { go, getParam } from "../utils/router";
+import { go } from "../utils/router";
 
-import { isSaved, toggleSaved, getSavedIds } from "../services/bookmarks";
+import { getArticleByIdNumber, bumpLikes, bumpViews } from "../services/articles";
+import { getSavedIds, toggleSaved, onSavedChanged } from "../services/bookmarks";
+import CommentBox from "../components/CommentBox"; // 기존에 있으면 유지, 없으면 네 프로젝트에 맞게 조정
 
-// ✅ comments 서비스: 너가 준 코드 기준(listComments / addComment)
-import { listComments, addComment } from "../services/comments";
-
-// ✅ articles 서비스: 프로젝트에 맞춰서 이름만 조정 가능
-import { getArticleByIdNumber, bumpViews, bumpLikes } from "../services/articles";
+const MAX_WIDTH = 1200;
 
 function formatDate(ts) {
   try {
@@ -27,246 +25,203 @@ function formatDate(ts) {
 }
 
 export default function ViewPage({ id, theme, toggleTheme }) {
-  const idNum = Number(id ?? getParam("id"));
+  const idNum = id ? Number(id) : null;
 
   const [a, setA] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ 댓글
-  const [comments, setComments] = useState([]);
-  const [cName, setCName] = useState("");
-  const [cText, setCText] = useState("");
-  const [cLoading, setCLoading] = useState(false);
+  // ✅ Saved 상태 (로컬)
+  const [savedIds, setSavedIds] = useState(() => getSavedIds());
+  const saved = useMemo(() => savedIds.includes(Number(a?.id)), [savedIds, a?.id]);
 
-  // ✅ toast
-  const [toast, setToast] = useState("");
-
-  // ✅ saved
-  const [saved, setSaved] = useState(() => isSaved(idNum));
-  const savedCount = useMemo(() => getSavedIds().length, [saved]);
+  useEffect(() => {
+    const off = onSavedChanged((ids) => setSavedIds(ids));
+    return off;
+  }, []);
 
   // ✅ 글 로드 + 조회수 bump
   useEffect(() => {
-    if (!Number.isFinite(idNum)) return;
-
     let alive = true;
     (async () => {
       try {
         setLoading(true);
+        if (!idNum) return;
 
         const article = await getArticleByIdNumber(idNum);
         if (!alive) return;
+
+        if (!article) {
+          setA(null);
+          return;
+        }
+
         setA(article);
 
-        // ✅ 조회수 +1 (너가 30분 쿨다운 로직 이미 구현한 bumpViews를 사용)
-        //    bumpViews 내부에서 “쿨다운/중복방지” 해야 Firestore 룰도 안전함
-        bumpViews?.(idNum).catch(() => {});
+        // ✅ 조회수는 서비스쪽에서 30분 쿨다운 적용되어 있어야 함
+        try {
+          await bumpViews(idNum);
+        } catch (e) {
+          // 조회수 실패는 UX에 치명적이지 않아서 조용히
+          console.warn("bumpViews failed:", e);
+        }
       } catch (e) {
         console.error(e);
-        if (alive) setA(null);
+        setA(null);
       } finally {
         if (alive) setLoading(false);
       }
     })();
-
     return () => {
       alive = false;
     };
   }, [idNum]);
-
-  // ✅ 댓글 로드
-  useEffect(() => {
-    if (!Number.isFinite(idNum)) return;
-
-    let alive = true;
-    (async () => {
-      try {
-        const list = await listComments(idNum);
-        if (!alive) return;
-        setComments(Array.isArray(list) ? list : []);
-      } catch (e) {
-        console.error(e);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [idNum]);
-
-  function showToast(msg) {
-    setToast(msg);
-    window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast(""), 2600);
-  }
 
   async function onLike() {
+    if (!a?.id) return;
     try {
-      // ✅ 좋아요 bump (3시간 쿨다운 로직은 bumpLikes 내부에 있어야 “UI/새로고침” 일관됨)
-      await bumpLikes(idNum);
-      showToast("좋아해주셔서 감사해요💕");
-
-      // ✅ 새로 데이터 반영
-      const article = await getArticleByIdNumber(idNum);
-      setA(article);
+      // ✅ likes는 서비스에서 3시간 쿨다운 적용되어 있어야 함
+      const next = await bumpLikes(Number(a.id));
+      // bumpLikes가 업데이트된 likes를 반환하면 반영
+      if (typeof next?.likes === "number") {
+        setA((p) => ({ ...p, likes: next.likes }));
+      } else {
+        // 반환이 없다면, 화면만 낙관적 업데이트(선택)
+        setA((p) => ({ ...p, likes: Number(p?.likes || 0) + 1 }));
+      }
     } catch (e) {
-      // 쿨다운 메시지 등 bumpLikes에서 throw한 메시지 표시
-      const msg = String(e?.message || e);
-      showToast(msg.includes("cooldown") ? "이 글을 향한 애정은 3시간 뒤에 다시 보내주세요💌" : `앗! 좋아요 실패🥲 (${msg})`);
+      // 서비스에서 쿨다운 걸릴 때 throw 한다면 여기서 안내 가능
+      console.warn(e);
+      alert("이 글을 향한 애정은 3시간 뒤에 다시 보내주세요 💛");
     }
   }
 
-  function onSave() {
-    const r = toggleSaved(idNum);
-    setSaved(r.saved);
-
-    if (r.saved) {
-      showToast("저장했어요⭐ (기기가 바뀌면 북마크도 변경돼요)");
-    } else {
-      showToast("저장을 해제했어요🧹");
-    }
+  function onToggleSave() {
+    if (!a?.id) return;
+    const r = toggleSaved(Number(a.id));
+    setSavedIds(r.ids);
+    alert(saved ? "저장 해제했어요 🧹 (기기 변경 시 저장도 사라져요)" : "저장했어요 ★ (기기 변경 시 저장도 사라져요)");
   }
 
-  async function onSubmitComment() {
-    try {
-      if (!cText.trim()) return showToast("댓글 내용을 적어주세요✍️");
-
-      setCLoading(true);
-      await addComment(idNum, cName, cText);
-      setCText("");
-
-      const list = await listComments(idNum);
-      setComments(Array.isArray(list) ? list : []);
-
-      showToast("댓글이 등록됐어요💬");
-    } catch (e) {
-      console.error(e);
-      showToast("댓글 등록 실패🥲");
-    } finally {
-      setCLoading(false);
-    }
-  }
-
-  if (!Number.isFinite(idNum)) {
+  if (loading) {
     return (
-      <div className="u-page">
-        <div className="u-pageInner">
-          <div className="u-paper">
-            <h2>잘못된 접근이에요 🥲</h2>
-            <button className="u-btn u-btnPrimary" onClick={() => go("?mode=list")}>리스트로</button>
-          </div>
-        </div>
+      <div style={{ padding: 80, maxWidth: MAX_WIDTH, margin: "0 auto" }}>
+        로딩 중… ⏳
+      </div>
+    );
+  }
+
+  if (!a) {
+    return (
+      <div style={{ padding: 80, maxWidth: MAX_WIDTH, margin: "0 auto" }}>
+        글을 찾지 못했어요 🥲{" "}
+        <button onClick={() => go("?mode=list")} style={{ textDecoration: "underline" }}>
+          리스트로
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="u-page">
-      {/* ✅ TopNav (View에서도 유지) */}
-      <div className="u-topNav u-topNav--solid">
-        <div className="u-topNav__inner" style={{ maxWidth: 1200 }}>
-          <div className="u-brand" onClick={() => go("?mode=list")}>U#</div>
+    <div>
+      {/* ✅ Top Nav */}
+      <div className="u-topNav">
+        <div className="u-topNav__inner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-brand" onClick={() => go("?mode=list")}>
+            U#
+          </div>
 
           <div className="u-navRight">
-            <button className="u-navLinkBtn" onClick={() => go("?mode=list")}>Archive</button>
-
-            <button className="u-navLinkBtn u-navLinkBtn--saved" onClick={() => go("?mode=list&page=1")}>
-              Saved ({savedCount})
+            <button className="u-navLinkBtn" onClick={() => go("?mode=list#archive")}>
+              Archive
             </button>
 
-            <button className="u-navLinkBtn" onClick={toggleTheme}>
+            <button className="u-navLinkBtn u-navLinkBtn--saved" onClick={() => go("?mode=list#archive&saved=1")}>
+              Saved ({savedIds.length})
+            </button>
+
+            <button className="u-navLinkBtn" onClick={toggleTheme} title="Toggle theme">
               {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="u-pageInner">
-        <div className="u-paper">
-          {loading ? (
-            <div className="u-empty">로딩 중… ⏳</div>
-          ) : !a ? (
-            <div className="u-empty">글을 찾을 수 없어요 🥲</div>
-          ) : (
-            <>
-              {/* ✅ 상단 메타 */}
-              <div className="u-viewTop">
-                <div className="u-viewMeta">
-                  <span className="u-badge">{a.category || "Category"}</span>
-                  <span className="u-date">{formatDate(a.createdAt)}</span>
-                </div>
+      {/* ✅ 본문 영역 */}
+      <div style={{ maxWidth: MAX_WIDTH, margin: "0 auto", padding: "24px 16px" }}>
+        {/* ✅ 종이 카드: 다크모드에서도 글자/버튼이 검정으로 유지되게 .u-paper로 감싼다 */}
+        <div className="u-paper" style={{ padding: "26px 26px" }}>
+          {/* 메타 */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+            <span
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(0,0,0,.12)",
+                fontSize: 12,
+                background: "rgba(255,255,255,.6)",
+              }}
+            >
+              {a.category || "Category"}
+            </span>
+            <span className="u-muted" style={{ fontSize: 12 }}>
+              {formatDate(a.createdAt)}
+            </span>
+          </div>
 
-                <h1 className="u-viewTitle">{a.title}</h1>
-                {a.excerpt && <p className="u-viewExcerpt">{a.excerpt}</p>}
+          {/* 타이틀 */}
+          <h1 style={{ fontSize: 42, lineHeight: 1.1, margin: "6px 0 8px" }}>{a.title}</h1>
+          {a.excerpt ? (
+            <p className="u-muted" style={{ marginBottom: 14 }}>
+              {a.excerpt}
+            </p>
+          ) : null}
 
-                <div className="u-viewActions">
-                  <button className="u-btn u-btnPrimary" onClick={onLike}>💗 Like</button>
-                  <button className="u-btn" onClick={onSave}>{saved ? "★ Saved" : "☆ Save"}</button>
+          {/* 액션 */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+            <button className="u-paperBtn u-paperBtn--primary" onClick={onLike}>
+              💗 Like
+            </button>
+            <button className="u-paperBtn" onClick={onToggleSave}>
+              {saved ? "★ Saved" : "☆ Save"}
+            </button>
 
-                  {/* ✅ Edit 버튼: EditorPage에서 admin guard가 걸려있으니 일단 열어둠 */}
-                  <button className="u-btn" onClick={() => go(`?mode=editor&id=${a.id}`)}>✏️ Edit</button>
+            {/* ✅ Edit: 에디터는 관리자만 접근 가능(에디터에서 로그인 가드 처리) */}
+            <button className="u-paperBtn" onClick={() => go(`?mode=editor&id=${a.id}`)}>
+              ✏️ Edit
+            </button>
 
-                  <div className="u-stats">
-                    <span>👁 {Number(a.views || 0)}</span>
-                    <span>💗 {Number(a.likes || 0)}</span>
-                  </div>
-                </div>
-              </div>
+            <div className="u-muted" style={{ fontSize: 12, display: "flex", gap: 10, alignItems: "center" }}>
+              <span>👁 {Number(a.views || 0)}</span>
+              <span>💗 {Number(a.likes || 0)}</span>
+            </div>
+          </div>
 
-              {/* ✅ cover */}
-              {(a.cover || a.coverMedium || a.coverThumb) && (
-                <div className="u-viewCover" style={{ backgroundImage: `url(${a.coverMedium || a.coverThumb || a.cover})` }} />
-              )}
-
-              {/* ✅ 본문 */}
-              <div className="u-viewBody" dangerouslySetInnerHTML={{ __html: a.contentHTML || "" }} />
-
-              {/* ✅ 태그: 뷰에는 “필요할 때만” (요청대로 최소화) */}
-              {Array.isArray(a.tags) && a.tags.length > 0 && (
-                <div className="u-tags u-tags--view">
-                  {a.tags.slice(0, 8).map((t) => (
-                    <button key={t} className="u-tag" onClick={() => go(`?mode=list&page=1`)} title="태그 검색은 리스트에서">
-                      #{t}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* ✅ Comments */}
-              <div className="u-comments">
-                <h3 className="u-commentsTitle">Comments</h3>
-
-                <div className="u-commentForm">
-                  <input className="u-input" placeholder="이름 (선택)" value={cName} onChange={(e) => setCName(e.target.value)} />
-                  <textarea className="u-textarea" placeholder="댓글을 남겨주세요…" value={cText} onChange={(e) => setCText(e.target.value)} />
-                  <button className="u-btn u-btnPrimary" onClick={onSubmitComment} disabled={cLoading}>
-                    {cLoading ? "등록 중…" : "댓글 등록 💬"}
-                  </button>
-                </div>
-
-                <div className="u-commentList">
-                  {comments.length === 0 ? (
-                    <div className="u-empty">첫 댓글을 남겨주세요 ✨</div>
-                  ) : (
-                    comments.map((c) => (
-                      <div className="u-comment" key={c.id}>
-                        <div className="u-commentHead">
-                          <b>{c.name || "Anonymous"}</b>
-                          <span className="u-date">{formatDate(c.createdAt)}</span>
-                        </div>
-                        <div className="u-commentText">{c.text}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
+          {/* 커버 */}
+          {(a.coverMedium || a.coverThumb || a.cover) && (
+            <img
+              src={a.coverMedium || a.coverThumb || a.cover}
+              alt="cover"
+              style={{
+                width: "100%",
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,.10)",
+                marginBottom: 18,
+              }}
+            />
           )}
+
+          {/* 본문 HTML */}
+          <div
+            className="u-articleBody"
+            dangerouslySetInnerHTML={{ __html: a.contentHTML || "" }}
+          />
+
+          {/* 댓글 */}
+          <div style={{ marginTop: 30 }}>
+            <CommentBox articleId={a.id} />
+          </div>
         </div>
       </div>
-
-      {/* ✅ toast */}
-      {toast && <div className="uf-toast">{toast}</div>}
     </div>
   );
 }

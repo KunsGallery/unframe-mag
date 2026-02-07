@@ -2,649 +2,228 @@
 @tailwind components;
 @tailwind utilities;
 
-/* =========================================================
-  ✅ THEME SYSTEM
-  - <html data-theme="light"> / <html data-theme="dark">
-  - 색상은 변수로만 만지고, 컴포넌트는 변수만 쓰는 구조가 유지보수 최고예요.
-========================================================= */
-
-/* ✅ 기본값(라이트) */
-:root{
-  --maxw: 1200px;
-  --secH: 80vh;
-  --secMinH: 800px;
-
-  /* 페이지 전체 배경/글자 */
-  --page-bg: #f6f4ef;
-  --page-fg: #111111;
-
-  /* 카드/라인 */
-  --card-bg: rgba(0,0,0,.03);
-  --line: rgba(0,0,0,.12);
-
-  /* 강조 */
-  --accent: #f5d66b;
-
-  /* 버튼/입력 */
-  --btn-bg: rgba(255,255,255,.86);
-  --btn-fg: #111;
-  --btn-line: rgba(0,0,0,.12);
-
-  --input-bg: rgba(255,255,255,.90);
-  --input-fg: #111;
-  --input-line: rgba(0,0,0,.15);
-
-  /* nav */
-  --nav-fg: rgba(0,0,0,.78);
-  --nav-bg: rgba(255,255,255,.55);
+/* ============================================================================
+  ✅ Theme variables (라이트/다크 모두에서 텍스트 가독성 유지용)
+============================================================================ */
+:root {
+  --uf-bg: #ffffff;
+  --uf-fg: #111111;
+  --uf-muted: rgba(0,0,0,.6);
+  --uf-card: #f6f3ee;
+  --uf-border: rgba(0,0,0,.12);
 }
 
-/* ✅ 다크 테마 */
-html[data-theme="dark"]{
-  --page-bg: #0b0b0b;
-  --page-fg: #ffffff;
-
-  --card-bg: rgba(255,255,255,.06);
-  --line: rgba(255,255,255,.16);
-
-  --btn-bg: rgba(255,255,255,.06);
-  --btn-fg: #ffffff;
-  --btn-line: rgba(255,255,255,.18);
-
-  --input-bg: rgba(0,0,0,.25);
-  --input-fg: #ffffff;
-  --input-line: rgba(255,255,255,.18);
-
-  --nav-fg: rgba(255,255,255,.85);
-  --nav-bg: rgba(0,0,0,.35);
+html[data-theme="dark"] {
+  --uf-bg: #0b0b0c;
+  --uf-fg: #f5f5f5;
+  --uf-muted: rgba(255,255,255,.70);
+  --uf-card: #151518;
+  --uf-border: rgba(255,255,255,.14);
 }
 
-body{
-  background: var(--page-bg);
-  color: var(--page-fg);
+body {
+  background: var(--uf-bg);
+  color: var(--uf-fg);
 }
 
-/* =========================================================
-  공통 레이아웃
-========================================================= */
-.u-sec{
-  width: 100%;
-  min-height: var(--secMinH);
-  height: var(--secH);
-  display: flex;
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-}
-.u-secInner{
-  width: 100%;
+/* ============================================================================
+  ✅ Editor container (너가 쓰던 uf-* 클래스 기반)
+============================================================================ */
+.uf-container {
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 16px;
 }
 
-/* =========================================================
-  Top Nav (sticky)
-========================================================= */
-.u-topNav{
+.uf-toast {
   position: sticky;
-  top: 0;
+  top: 14px;
   z-index: 50;
-  width: 100%;
-  background: linear-gradient(to bottom, var(--nav-bg), rgba(0,0,0,0));
-  backdrop-filter: blur(6px);
-}
-.u-topNav--solid{
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--line);
-}
-.u-topNav__inner{
-  margin: 0 auto;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: var(--maxw);
-}
-.u-brand{
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  cursor: pointer;
-  color: var(--nav-fg);
-}
-.u-navRight{
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-.u-navLink, .u-navLinkBtn{
-  font-size: 13px;
-  color: var(--nav-fg);
-  text-decoration: none;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-.u-navLinkBtn--saved{
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-}
-
-/* =========================================================
-  Buttons / Inputs
-========================================================= */
-.u-btn{
-  border: 1px solid var(--btn-line);
-  background: var(--btn-bg);
-  color: var(--btn-fg);
+  margin: 0 auto 12px auto;
+  width: fit-content;
+  max-width: 92%;
   padding: 10px 14px;
   border-radius: 999px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.u-btnPrimary{
-  background: color-mix(in srgb, var(--accent) 18%, var(--btn-bg));
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--btn-line));
-}
-.u-btnGhost{
-  background: color-mix(in srgb, #000 18%, var(--btn-bg));
-}
-
-.u-input{
-  border: 1px solid var(--input-line);
-  background: var(--input-bg);
-  color: var(--input-fg);
-  padding: 10px 12px;
-  border-radius: 12px;
-  font-size: 13px;
-  outline: none;
-}
-.u-input::placeholder{ color: color-mix(in srgb, var(--input-fg) 40%, transparent); }
-
-.u-textarea{
-  border: 1px solid var(--input-line);
-  background: var(--input-bg);
-  color: var(--input-fg);
-  border-radius: 12px;
-  padding: 10px 12px;
-  min-height: 84px;
-  width: 100%;
-}
-
-/* =========================================================
-  Section 1: Hero
-========================================================= */
-.u-hero{
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-.u-heroOverlay{
-  position:absolute;
-  inset:0;
-  background: linear-gradient(90deg, rgba(0,0,0,.70), rgba(0,0,0,.25));
-}
-.u-heroCard{
-  position: relative;
-  z-index: 2;
-  max-width: 720px;
-  padding: 22px 18px;
-}
-.u-heroKicker{
-  font-size: 12px;
-  letter-spacing: 3px;
-  opacity: .78;
-  margin-bottom: 12px;
-  color: rgba(255,255,255,.85);
-}
-.u-heroTitle{
-  font-size: 64px;
-  line-height: 1.03;
-  font-weight: 700;
-  margin-bottom: 14px;
-  color: var(--accent);
-}
-.u-heroSub{
-  font-size: 16px;
-  color: rgba(255,255,255,.88);
-  line-height: 1.6;
-  margin-bottom: 18px;
-}
-.u-heroBtns{ display:flex; gap:10px; flex-wrap: wrap; }
-
-/* =========================================================
-  Section 2: Categories interactive
-========================================================= */
-.u-secCats{
-  background: color-mix(in srgb, var(--page-bg) 90%, #000 10%);
-}
-.u-catsRow{
-  display: flex;
-  height: min(520px, calc(var(--secH) - 120px));
-  min-height: 420px;
-  border-radius: 22px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-}
-.u-catCard{
-  flex: 1;
-  position: relative;
-  border: 0;
-  cursor: pointer;
-  color: var(--page-fg);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 22px;
-  background: var(--card-bg);
-  transition: flex .35s ease, transform .35s ease, filter .35s ease;
-  filter: grayscale(1);
-}
-.u-catCard:hover{
-  flex: 1.6;
-  filter: grayscale(0);
-  transform: scale(1.02);
-  background: color-mix(in srgb, var(--accent) 12%, var(--card-bg));
-}
-.u-catSub{
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  font-size: 12px;
-  letter-spacing: 3px;
-  opacity: .75;
-}
-.u-catTitle{
-  font-size: 42px;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-.u-catHint{ font-size: 12px; opacity: .8; }
-
-/* =========================================================
-  Section 3: Marquee
-========================================================= */
-.u-secMarquee{
-  background: color-mix(in srgb, var(--page-bg) 92%, #000 8%);
-}
-.u-marquee{
-  position:absolute;
-  top: 18px;
-  left: 0;
-  right: 0;
-  opacity: .18;
-  overflow:hidden;
-  white-space: nowrap;
-}
-.u-marquee__track{
-  display:inline-block;
-  padding-left: 100%;
-  animation: marquee 22s linear infinite;
-  font-size: 52px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-@keyframes marquee{
-  0%{ transform: translateX(0); }
-  100%{ transform: translateX(-100%); }
-}
-.u-miniSub{
-  position: relative;
-  z-index: 2;
-  max-width: 520px;
-  padding: 18px;
-  border-radius: 18px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-}
-.u-miniSub__title{ font-size: 16px; font-weight: 700; margin-bottom: 10px; }
-.u-miniSub__row{ display:flex; gap:10px; align-items:center; }
-.u-miniSub__desc{ margin-top: 10px; font-size: 12px; opacity: .7; }
-
-/* =========================================================
-  Section 4: Pick
-========================================================= */
-.u-secPick{ background: color-mix(in srgb, var(--page-bg) 92%, #000 8%); }
-.u-grid2{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-.u-noteBox,.u-pickBox{
-  padding: 22px;
-  border-radius: 22px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-}
-.u-boxTitle{
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 10px;
-}
-.u-boxText{
+  background: rgba(0,0,0,.78);
+  color: #fff;
   font-size: 14px;
-  line-height: 1.7;
-  opacity: .88;
 }
 
-/* ✅ Pick 리스트 */
-.u-pickList{ display:flex; flex-direction: column; gap: 10px; margin-top: 6px; }
-.u-pickItem{
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--card-bg) 80%, transparent);
-  border-radius: 14px;
-  padding: 12px 12px;
-  text-align: left;
-  cursor: pointer;
+html[data-theme="dark"] .uf-toast {
+  background: rgba(255,255,255,.14);
 }
-.u-pickBadge{
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  margin-right: 8px;
-}
-.u-pickTitle{ font-weight: 700; font-size: 14px; }
-.u-pickMeta{ display:block; margin-top: 6px; opacity:.7; font-size: 12px; }
 
-/* =========================================================
-  Section 5: Archive + Cards
-========================================================= */
-.u-secArchive{ background: var(--page-bg); }
-.u-archiveLayout{
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 18px;
-  align-items: start;
-}
-.u-archiveSide{ position: sticky; top: 84px; }
-.u-sideBox{
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  border-radius: 22px;
-  padding: 16px;
-}
-.u-sideTitle{ font-size: 16px; font-weight: 700; margin-bottom: 12px; }
-.u-sideItem{
-  width: 100%;
-  text-align: left;
-  padding: 10px 10px;
-  margin: 4px 0;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: color-mix(in srgb, var(--page-fg) 84%, transparent);
-  cursor: pointer;
-}
-.u-sideItem.is-active{
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-}
-.u-archiveTopbar{
-  display:flex;
-  gap: 10px;
+.uf-editorTop {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-}
-.u-sort{ display:flex; gap: 8px; }
-.u-chip{
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  color: var(--page-fg);
-  cursor:pointer;
-  font-size: 13px;
-}
-.u-chip.is-active{
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 16%, var(--card-bg));
-}
-.u-search{ width: min(380px, 100%); }
-
-.u-empty{
-  padding: 18px;
-  border-radius: 18px;
-  background: var(--card-bg);
-  border: 1px solid var(--line);
-  opacity: .95;
-}
-
-.u-cards{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-.u-card{
-  cursor: pointer;
-  border-radius: 22px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  transition: transform .2s ease, border-color .2s ease;
-}
-.u-card:hover{
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
-}
-.u-cardImg{
-  height: 190px;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-color: var(--card-bg);
-}
-.u-cardImg__fallback{
-  height: 190px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  opacity: .6;
-}
-.u-cardBody{ padding: 14px; }
-.u-cardMeta{
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  margin-bottom: 8px;
-}
-.u-badge{
-  font-size: 11px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--page-bg) 70%, transparent);
-}
-.u-date{ font-size: 12px; opacity: .7; }
-.u-cardTitle{ font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-.u-cardExcerpt{ font-size: 13px; opacity: .86; line-height: 1.55; margin-bottom: 10px; }
-.u-tags{ display:flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.u-tag{
-  font-size: 12px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  color: var(--page-fg);
-  padding: 6px 10px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.u-cardBottom{
-  display:flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.u-stats{
-  display:flex;
-  gap: 10px;
-  font-size: 12px;
-  opacity: .82;
-}
-.u-saveBtn{
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  color: var(--page-fg);
-  padding: 8px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.u-saveBtn.is-saved{
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 14%, var(--card-bg));
-}
-
-/* ✅ 페이지네이션 */
-.u-pager{
-  margin-top: 16px;
-  display:flex;
-  justify-content: center;
-  align-items:center;
   gap: 12px;
 }
-.u-pagerBtn{
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  color: var(--page-fg);
-  padding: 8px 12px;
-  border-radius: 999px;
-  cursor:pointer;
-}
-.u-pagerBtn:disabled{ opacity:.45; cursor:not-allowed; }
-.u-pagerNums{ display:flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.u-pagerNum{
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-  color: var(--page-fg);
-  cursor: pointer;
-}
-.u-pagerNum.is-active{
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 14%, var(--card-bg));
-}
 
-.u-moreHint{ margin-top: 12px; font-size: 12px; opacity: .7; }
-
-/* =========================================================
-  Section 6: Subscribe + Footer
-========================================================= */
-.u-secSubscribe{ background: color-mix(in srgb, var(--page-bg) 92%, #000 8%); }
-.u-subBig{
-  max-width: 720px;
-  border-radius: 24px;
-  padding: 28px;
-  border: 1px solid var(--line);
-  background: var(--card-bg);
-}
-.u-subBigTitle{ font-size: 42px; font-weight: 700; margin-bottom: 10px; }
-.u-subBigDesc{ font-size: 14px; opacity: .88; line-height: 1.6; margin-bottom: 16px; }
-.u-subBigRow{ display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
-.u-subBigFine{ margin-top: 10px; font-size: 12px; opacity: .7; }
-
-.u-footer{
-  background: var(--page-bg);
-  padding: 26px 0;
-  border-top: 1px solid var(--line);
-}
-.u-footerRow{
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  padding: 0 16px;
-}
-
-/* =========================================================
-  ✅ ViewPage “종이(paper)” 컨테이너
-  - 다크 모드에서도 “읽기”가 최우선이라 paper는 밝게 유지(권장)
-  - 나중에 원하면 paper도 다크 버전 만들 수 있음
-========================================================= */
-.u-page{ min-height: 100vh; background: var(--page-bg); }
-.u-pageInner{ max-width: var(--maxw); margin: 0 auto; padding: 24px 16px; }
-
-.u-paper{
-  background: #ffffff;
-  color: #111111;
-  border: 1px solid rgba(0,0,0,.10);
-  border-radius: 22px;
-  padding: 18px;
-}
-
-/* 다크 모드에서도 paper는 읽히도록 유지 */
-html[data-theme="dark"] .u-paper{
-  background: #f7f4ed;
-  color: #111;
-  border-color: rgba(0,0,0,.16);
-}
-
-.u-viewTop{ margin-bottom: 14px; }
-.u-viewMeta{ display:flex; gap: 10px; align-items:center; }
-.u-viewTitle{ font-size: 38px; font-weight: 800; margin: 10px 0 10px; }
-.u-viewExcerpt{ font-size: 14px; opacity:.86; line-height: 1.7; margin-bottom: 12px; }
-
-.u-viewActions{ display:flex; gap: 10px; align-items:center; flex-wrap: wrap; margin-bottom: 12px; }
-
-.u-viewCover{
-  height: 360px;
-  border-radius: 18px;
-  margin: 12px 0 18px;
-  background-size: cover;
-  background-position: center;
-  border: 1px solid rgba(0,0,0,.10);
-}
-
-.u-viewBody{
-  font-size: 15px;
-  line-height: 1.9;
-}
-.u-viewBody img{ max-width: 100%; border-radius: 14px; }
-.u-viewBody h1,.u-viewBody h2,.u-viewBody h3{ margin: 18px 0 10px; }
-.u-viewBody p{ margin: 10px 0; }
-
-.u-tags--view{ margin-top: 14px; }
-
-/* comments */
-.u-comments{ margin-top: 26px; padding-top: 18px; border-top: 1px solid rgba(0,0,0,.10); }
-.u-commentsTitle{ font-size: 18px; font-weight: 800; margin-bottom: 12px; }
-.u-commentForm{ display:flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.u-commentList{ display:flex; flex-direction: column; gap: 10px; }
-.u-comment{
-  border: 1px solid rgba(0,0,0,.10);
-  background: rgba(0,0,0,.02);
-  border-radius: 14px;
-  padding: 12px;
-}
-.u-commentHead{ display:flex; justify-content: space-between; align-items:center; margin-bottom: 6px; }
-.u-commentText{ white-space: pre-wrap; }
-
-/* =========================================================
-  Toast (팝업 메시지)
-========================================================= */
-.uf-toast{
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 9999;
-  background: rgba(0,0,0,.85);
-  color: #fff;
-  padding: 10px 12px;
+/* 버튼/인풋 */
+.uf-btn {
+  border: 1px solid var(--uf-border);
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.18);
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: transparent;
+  color: var(--uf-fg);
 }
 
-/* =========================================================
-  모바일
-========================================================= */
-@media (max-width: 900px){
-  :root{ --secMinH: 680px; }
-  .u-grid2{ grid-template-columns: 1fr; }
-  .u-archiveLayout{ grid-template-columns: 1fr; }
-  .u-archiveSide{ position: relative; top: 0; }
-  .u-cards{ grid-template-columns: 1fr; }
-  .u-heroTitle{ font-size: 44px; }
+.uf-btn--primary {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+html[data-theme="dark"] .uf-btn--primary {
+  background: #fff;
+  color: #111;
+  border-color: #fff;
+}
+
+.uf-btn--ghost {
+  background: transparent;
+}
+
+.uf-input, .uf-textarea, select.uf-input {
+  width: 100%;
+  border: 1px solid var(--uf-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: transparent;
+  color: var(--uf-fg);
+}
+.uf-textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+/* 폼 */
+.uf-form { display: grid; gap: 10px; }
+.uf-formRow { display: grid; gap: 6px; }
+.uf-label { font-size: 12px; opacity: .8; }
+
+/* 툴바 */
+.uf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--uf-border);
+  border-radius: 14px;
+  background: rgba(0,0,0,.03);
+}
+html[data-theme="dark"] .uf-toolbar { background: rgba(255,255,255,.05); }
+
+.uf-tool {
+  border: 1px solid var(--uf-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: transparent;
+  color: var(--uf-fg);
+}
+.uf-tool--file { display: inline-flex; align-items: center; gap: 8px; }
+.uf-toolSep {
+  width: 1px;
+  height: 22px;
+  background: var(--uf-border);
+  margin: 0 4px;
+}
+
+/* ============================================================================
+  ✅ ProseMirror 기본
+============================================================================ */
+.uf-editor .ProseMirror {
+  min-height: 520px;
+  padding: 16px;
+  border: 1px solid var(--uf-border);
+  border-radius: 16px;
+  outline: none;
+  background: rgba(0,0,0,.02);
+}
+html[data-theme="dark"] .uf-editor .ProseMirror {
+  background: rgba(255,255,255,.04);
+}
+
+/* 선택된 노드 표시(이미지 등) */
+.ProseMirror .ProseMirror-selectednode {
+  outline: 3px solid rgba(37,99,235,.7);
+  border-radius: 12px;
+}
+
+/* 이미지 기본 */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+/* ============================================================================
+  ✅ Figure / Caption
+============================================================================ */
+.uf-figure {
+  margin: 18px 0;
+  padding: 10px;
+  border: 1px dashed var(--uf-border);
+  border-radius: 16px;
+  background: rgba(0,0,0,.02);
+}
+html[data-theme="dark"] .uf-figure { background: rgba(255,255,255,.03); }
+
+.uf-figure[data-align="left"] { text-align: left; }
+.uf-figure[data-align="center"] { text-align: center; }
+.uf-figure[data-align="right"] { text-align: right; }
+
+.uf-caption {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--uf-muted);
+}
+
+/* ============================================================================
+  ✅ Embed(YouTube / SoundCloud) 반응형
+============================================================================ */
+.uf-embed {
+  margin: 18px 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--uf-border);
+  background: rgba(0,0,0,.02);
+}
+html[data-theme="dark"] .uf-embed { background: rgba(255,255,255,.03); }
+
+.uf-embed iframe {
+  display: block;
+  width: 100%;
+}
+
+/* 유튜브는 높이를 자동으로 유지하려면 wrapper가 필요하지만,
+   TipTap Youtube extension은 기본적으로 iframe만 넣어서
+   여기서는 최소 스타일만 적용합니다. */
+
+/* 사운드클라우드는 기본 height=166 권장 */
+.uf-embed--soundcloud iframe { height: 166px; }
+
+/* ============================================================================
+  ✅ Draft box
+============================================================================ */
+.uf-draftBox {
+  border: 1px solid var(--uf-border);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(0,0,0,.02);
+}
+html[data-theme="dark"] .uf-draftBox { background: rgba(255,255,255,.03); }
+
+.uf-draftBox__title { font-size: 13px; opacity: .8; margin-bottom: 8px; }
+.uf-draftBox__list { display: flex; gap: 8px; flex-wrap: wrap; }
+.uf-draftItem {
+  border: 1px solid var(--uf-border);
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: transparent;
+  color: var(--uf-fg);
 }
