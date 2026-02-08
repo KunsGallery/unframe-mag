@@ -3,670 +3,436 @@
 @tailwind utilities;
 
 /* =============================================================================
-  ✅ THEME TOKENS (라이트/다크 공통)
-  - 전체 UI는 아래 CSS 변수만 바꾸면 “일괄 변경”됩니다.
-  - px 단위 커스텀하기 쉽게 폰트 크기도 변수로 뒀어요.
+  ✅ Theme Variables
+  - App.jsx에서 <html data-theme="light|dark"> 세팅하는 구조를 그대로 사용
 ============================================================================= */
 :root{
-  --maxw: 1200px;
+  --bg: #f4f1ea;
+  --panel: rgba(255,255,255,0.70);
+  --panel2: rgba(255,255,255,0.50);
+  --text: #101114;
+  --muted: rgba(16,17,20,0.65);
+  --line: rgba(16,17,20,0.12);
 
-  /* 폰트 크기(원하면 px로 조절) */
-  --fz-hero: 54px;
-  --fz-h2: 32px;
-  --fz-body: 16px;
-  --fz-small: 13px;
+  --brand: #2563eb;
+  --brand2: rgba(37,99,235,0.14);
 
-  /* 라이트 기본 */
-  --bg: #f6f3ee;
-  --text: #0f1115;
-  --muted: rgba(15,17,21,.65);
-  --muted2: rgba(15,17,21,.55);
+  --shadow: 0 10px 30px rgba(0,0,0,0.08);
+  --radius: 18px;
 
-  --card: rgba(255,255,255,.78);
-  --card-2: rgba(255,255,255,.55);
-  --border: rgba(15,17,21,.12);
-
-  --primary: #2563eb; /* 버튼/하이라이트 */
-  --primary-2: rgba(37,99,235,.12);
-
-  --shadow: 0 18px 60px rgba(0,0,0,.12);
+  --max: 1200px;
 }
 
 html[data-theme="dark"]{
-  --bg: #0b0d12;
-  --text: #eef1f7;
-  --muted: rgba(238,241,247,.72);
-  --muted2: rgba(238,241,247,.55);
+  --bg: #0b0e14;
+  --panel: rgba(255,255,255,0.06);
+  --panel2: rgba(255,255,255,0.04);
+  --text: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.62);
+  --line: rgba(255,255,255,0.14);
 
-  --card: rgba(255,255,255,.08);
-  --card-2: rgba(255,255,255,.06);
-  --border: rgba(255,255,255,.14);
+  --brand: #60a5fa;
+  --brand2: rgba(96,165,250,0.16);
 
-  --primary: #7aa2ff;
-  --primary-2: rgba(122,162,255,.14);
-
-  --shadow: 0 18px 60px rgba(0,0,0,.45);
+  --shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
 
 /* =============================================================================
-  ✅ Global base
+  ✅ Base
 ============================================================================= */
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  min-height: 100%;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
-  font-family: 'Noto Sans KR', sans-serif;
+html, body{
+  margin:0; padding:0;
+  width:100%; height:100%;
+  overflow-x:hidden;
   background: var(--bg);
   color: var(--text);
+  font-family: "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
-a { color: inherit; text-decoration: none; }
-button { font-family: inherit; }
-
-/* =============================================================================
-  ✅ Layout helpers
-============================================================================= */
-.uf-container, .u-listRoot{
-  background: var(--bg);
-  color: var(--text);
-}
-.u-sec{ padding: 72px 16px; }
-.u-secInner{ margin: 0 auto; }
-
-.u-muted{ color: var(--muted); }
-.u-muted2{ color: var(--muted2); }
+a{ color: inherit; text-decoration: none; }
+button{ font-family: inherit; }
 
 /* =============================================================================
-  ✅ Top Nav (sticky)
+  ✅ Layout Helpers
 ============================================================================= */
-.u-topNav{
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  padding: 12px 16px;
-  backdrop-filter: blur(10px);
-  background: linear-gradient(to bottom, rgba(0,0,0,.10), rgba(0,0,0,0));
-  border-bottom: 1px solid var(--border);
+.uf-page{
+  min-height: 100vh;
 }
-html[data-theme="light"] .u-topNav{
-  background: linear-gradient(to bottom, rgba(255,255,255,.65), rgba(255,255,255,0));
-}
-.u-topNav__inner{
+
+.uf-wrap{
+  max-width: var(--max);
   margin: 0 auto;
+  padding: 0 16px;
+}
+
+.uf-card{
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.uf-card--flat{
+  background: var(--panel2);
+  box-shadow: none;
+}
+
+.uf-row{
   display:flex;
+  gap: 12px;
   align-items:center;
-  justify-content: space-between;
-  gap: 10px;
 }
-.u-brand{
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  cursor: pointer;
-  font-size: 18px;
-}
-.u-navRight{
+
+.uf-stack{
   display:flex;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-.u-navLink{
-  font-size: 13px;
-  opacity: .9;
-}
-.u-navBtn{
-  font-size: 13px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  cursor: pointer;
-}
-.u-navBtn--saved{
-  border-color: rgba(255,193,7,.35);
+  flex-direction:column;
+  gap: 12px;
 }
 
 /* =============================================================================
   ✅ Buttons / Inputs
 ============================================================================= */
-.u-btn{
-  border: 1px solid var(--border);
-  background: var(--card-2);
+.uf-btn{
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
   color: var(--text);
-  padding: 12px 14px;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: transform .15s ease, background .15s ease;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
 }
-.u-btn:hover{ transform: translateY(-1px); }
-.u-btnPrimary{
-  background: var(--primary);
-  border-color: transparent;
-  color: #fff;
+
+.uf-btn:hover{
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.06);
 }
-html[data-theme="dark"] .u-btnPrimary{
-  color: #0b0d12;
+
+.uf-btn:active{ transform: translateY(1px); }
+
+.uf-btn--primary{
+  background: var(--brand);
+  border-color: rgba(0,0,0,0);
+  color: white;
 }
-.u-btnGhost{
+
+html[data-theme="dark"] .uf-btn--primary{
+  color: #0b0e14;
+}
+
+.uf-btn--ghost{
   background: transparent;
 }
-.u-input{
-  width: 100%;
-  border: 1px solid var(--border);
-  background: var(--card);
+
+.uf-input, .uf-textarea, .uf-select{
+  width:100%;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
   color: var(--text);
-  padding: 12px 12px;
-  border-radius: 14px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.uf-textarea{
+  min-height: 92px;
+  resize: vertical;
+}
+
+.uf-label{
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* =============================================================================
+  ✅ Toast
+============================================================================= */
+.uf-toast{
+  position: fixed;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(0,0,0,0.72);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+/* =============================================================================
+  ✅ Topbar (View/Editor 공용으로 사용)
+============================================================================= */
+.uf-topbar{
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+
+.uf-topbar__inner{
+  height: 64px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+}
+
+.uf-brand{
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: 18px;
+  cursor:pointer;
+}
+
+.uf-nav{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+}
+
+/* =============================================================================
+  ✅ View Page
+============================================================================= */
+.uf-hero{
+  position: relative;
+  width:100%;
+  min-height: 52vh;
+  display:flex;
+  align-items:flex-end;
+  overflow:hidden;
+}
+
+.uf-hero__bg{
+  position:absolute;
+  inset:0;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.02);
+}
+
+.uf-hero__overlay{
+  position:absolute;
+  inset:0;
+  background: linear-gradient(
+    to top,
+    rgba(0,0,0,0.65),
+    rgba(0,0,0,0.18),
+    rgba(0,0,0,0.05)
+  );
+}
+
+.uf-hero__content{
+  position: relative;
+  padding: 26px 0 28px;
+  color: white;
+}
+
+.uf-hero__kicker{
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  opacity: .9;
+}
+
+.uf-hero__title{
+  margin: 10px 0 10px;
+  font-size: 36px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 850;
+}
+
+.uf-hero__meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 10px;
+  opacity: .92;
+  font-size: 13px;
+}
+
+.uf-viewBody{
+  padding: 28px 0 56px;
+}
+
+.uf-viewGrid{
+  display:grid;
+  grid-template-columns: 1fr 280px;
+  gap: 18px;
+  align-items:start;
+}
+
+@media (max-width: 980px){
+  .uf-viewGrid{ grid-template-columns: 1fr; }
+}
+
+.uf-side{
+  position: sticky;
+  top: 80px;
+}
+
+@media (max-width: 980px){
+  .uf-side{ position: static; }
+}
+
+.uf-sideBox{
+  padding: 14px;
+  border-radius: var(--radius);
+}
+
+.uf-sideTitle{
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.uf-sideInfo{
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.uf-sideBtns{
+  margin-top: 12px;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+.uf-article{
+  padding: 22px;
+}
+
+@media (max-width: 640px){
+  .uf-article{ padding: 16px; }
+}
+
+.uf-article .ProseMirror{
+  /* View에서는 에디터가 아니라 렌더 영역이지만, 기존 HTML 스타일을 같이 잡아줌 */
   outline: none;
 }
 
 /* =============================================================================
-  ✅ Section 1 Hero
+  ✅ Editor Page Layout
 ============================================================================= */
-.u-hero{
-  position: relative;
-  display:flex;
-  align-items: center;
-}
-.u-heroBg{
-  position:absolute;
-  inset:0;
-  background-size: cover;
-  background-position: center;
-  filter: saturate(1.1) contrast(1.05);
-  opacity: .65;
-}
-html[data-theme="dark"] .u-heroBg{ opacity: .35; }
-
-.u-heroOverlay{
-  position:absolute;
-  inset:0;
-  background:
-    radial-gradient(800px 420px at 20% 30%, rgba(37,99,235,.35), transparent 60%),
-    linear-gradient(to bottom, rgba(0,0,0,.40), rgba(0,0,0,.05));
-  pointer-events: none;
-}
-html[data-theme="light"] .u-heroOverlay{
-  background:
-    radial-gradient(800px 420px at 20% 30%, rgba(37,99,235,.22), transparent 60%),
-    linear-gradient(to bottom, rgba(255,255,255,.55), rgba(255,255,255,0));
-}
-.u-heroCard{
-  position: relative;
-  z-index: 2;
-  max-width: 680px;
-  padding: 26px;
-  border-radius: 22px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-.u-heroKicker{
-  font-size: 12px;
-  letter-spacing: .24em;
-  text-transform: uppercase;
-  opacity: .75;
-}
-.u-heroTitle{
-  margin: 10px 0 8px;
-  font-size: var(--fz-hero);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-}
-.u-heroSub{
-  margin: 0 0 16px;
-  font-size: 16px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-.u-heroBtns{
-  display:flex;
-  gap: 10px;
-  flex-wrap: wrap;
+.uf-editorShell{
+  padding: 22px 0 40px;
 }
 
-/* =============================================================================
-  ✅ Section 2 Categories (interactive width hover)
-============================================================================= */
-.u-secTitleRow{
-  display:flex;
-  align-items:flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-.u-secTitle{
-  font-size: var(--fz-h2);
-  font-weight: 900;
-  letter-spacing: -0.03em;
-}
-.u-secDesc{
-  color: var(--muted);
-  font-size: 13px;
-}
-.u-catsRow{
-  display:flex;
-  gap: 14px;
-  width: 100%;
-}
-.u-catCard{
-  flex: 1;
-  min-width: 0;
-  border-radius: 22px;
-  padding: 22px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--text);
-  cursor: pointer;
-  transition: flex .25s ease, transform .25s ease, background .2s ease;
-  text-align: left;
-  box-shadow: var(--shadow);
-}
-.u-catCard:hover{
-  flex: 1.35;
-  transform: translateY(-2px);
-  background: linear-gradient(180deg, var(--card), var(--primary-2));
-}
-.u-catSub{
-  font-size: 12px;
-  letter-spacing: .20em;
-  opacity: .75;
-}
-.u-catTitle{
-  margin-top: 10px;
-  font-size: 28px;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-}
-.u-catHint{
-  margin-top: 16px;
-  font-size: 12px;
-  opacity: .8;
-}
-@media (max-width: 900px){
-  .u-catsRow{ flex-direction: column; }
-  .u-catCard:hover{ flex: 1; }
-}
-
-/* =============================================================================
-  ✅ Section 3 Marquee
-============================================================================= */
-.u-secMarquee{ position: relative; overflow:hidden; }
-.u-marquee{
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: 16px 0;
-  background: var(--card-2);
-}
-.u-marquee__track{
-  display:flex;
-  gap: 40px;
-  white-space: nowrap;
-  animation: marquee 18s linear infinite;
-  font-weight: 900;
-  letter-spacing: .08em;
-  opacity: .75;
-}
-@keyframes marquee{
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-.u-miniSub{
-  margin-top: 22px;
-  padding: 20px;
-  border-radius: 22px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  box-shadow: var(--shadow);
-}
-.u-miniSub__title{
-  font-weight: 900;
-  margin-bottom: 10px;
-}
-.u-miniSub__row{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-}
-.u-miniSub__desc{
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* =============================================================================
-  ✅ Section 4 Pick
-============================================================================= */
-.u-grid2{
+.uf-editorGrid{
   display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-@media (max-width: 900px){
-  .u-grid2{ grid-template-columns: 1fr; }
-}
-.u-noteBox, .u-pickBox{
-  border-radius: 22px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  padding: 22px;
-  box-shadow: var(--shadow);
-}
-.u-boxTitle{
-  font-weight: 900;
-  font-size: 20px;
-  margin-bottom: 10px;
-}
-.u-boxText{
-  color: var(--muted);
-  line-height: 1.7;
-}
-.u-pickList{
-  display:grid;
-  gap: 10px;
-}
-.u-pickItem{
-  display:grid;
-  gap: 4px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  cursor: pointer;
-  text-align: left;
-}
-.u-pickBadge{
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .18em;
-  opacity: .8;
-}
-.u-pickTitle{ font-weight: 900; }
-.u-pickMeta{ font-size: 12px; color: var(--muted); }
-
-/* =============================================================================
-  ✅ Section 5 Archive layout
-============================================================================= */
-.u-archiveLayout{
-  display:grid;
-  grid-template-columns: 280px 1fr;
-  gap: 16px;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
   align-items:start;
 }
+
 @media (max-width: 980px){
-  .u-archiveLayout{ grid-template-columns: 1fr; }
+  .uf-editorGrid{ grid-template-columns: 1fr; }
 }
-.u-archiveSide{
-  position: sticky;
-  top: 84px;
-}
-.u-sideBox{
-  border-radius: 22px;
-  border: 1px solid var(--border);
-  background: var(--card);
+
+.uf-panel{
   padding: 16px;
-  box-shadow: var(--shadow);
-}
-.u-sideTitle{
-  font-weight: 900;
-  margin-bottom: 10px;
-}
-.u-sideItem{
-  width: 100%;
-  text-align: left;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  padding: 10px 12px;
-  border-radius: 14px;
-  cursor: pointer;
-  margin-bottom: 8px;
-}
-.u-sideItem.is-active{
-  background: var(--primary-2);
-  border-color: rgba(37,99,235,.35);
 }
 
-.u-archiveTopbar{
-  display:flex;
-  gap: 12px;
-  align-items:center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-@media (max-width: 900px){
-  .u-archiveTopbar{ flex-direction: column; align-items: stretch; }
-}
-.u-sort{
-  display:flex;
-  gap: 8px;
-  align-items:center;
-}
-.u-chip{
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  padding: 10px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.u-chip.is-active{
-  background: var(--primary);
-  border-color: transparent;
-  color: #fff;
-}
-html[data-theme="dark"] .u-chip.is-active{ color:#0b0d12; }
-
-.u-search{ max-width: 360px; }
-
-.u-empty{
-  padding: 22px;
-  border: 1px dashed var(--border);
-  border-radius: 22px;
-  color: var(--muted);
-}
-
-/* cards grid */
-.u-cards{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-@media (max-width: 980px){
-  .u-cards{ grid-template-columns: 1fr; }
-}
-.u-card{
-  border-radius: 22px;
-  overflow:hidden;
-  border: 1px solid var(--border);
-  background: var(--card);
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  transition: transform .15s ease;
-}
-.u-card:hover{ transform: translateY(-2px); }
-.u-cardImg{
-  height: 210px;
-  background-size: cover;
-  background-position: center;
-  background-color: rgba(0,0,0,.06);
-}
-.u-cardImg__fallback{
-  height: 100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color: var(--muted);
-  font-weight: 800;
-}
-.u-cardBody{
-  padding: 14px 14px 16px;
-}
-.u-cardMeta{
-  display:flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items:center;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-.u-badge{
-  font-size: 11px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  font-weight: 900;
-}
-.u-cardTitle{
-  font-size: 18px;
+.uf-panelTitle{
   font-weight: 900;
   letter-spacing: -0.02em;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
-.u-cardExcerpt{
+
+.uf-panelHint{
+  font-size: 12px;
   color: var(--muted);
-  line-height: 1.6;
-  margin-bottom: 10px;
+  line-height: 1.4;
+  margin-top: 6px;
 }
-.u-tags{
+
+.uf-toolbar{
+  position: sticky;
+  top: 64px; /* topbar 아래에 붙도록 */
+  z-index: 40;
+  padding: 10px 0;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+}
+
+.uf-toolbar__inner{
   display:flex;
+  flex-wrap:wrap;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-.u-tag{
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  padding: 8px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.u-cardBottom{
-  display:flex;
   align-items:center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.u-stats{
-  display:flex;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.u-saveBtn{
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  padding: 10px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.u-saveBtn.is-saved{
-  border-color: rgba(255,193,7,.55);
 }
 
-/* pager */
-.u-pager{
-  margin-top: 18px;
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
+/* =============================================================================
+  ✅ ProseMirror (Editor)
+============================================================================= */
+.uf-editorBox{
+  padding: 16px;
 }
-.u-pagerBtn{
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  padding: 10px 12px;
-  border-radius: 14px;
-  cursor: pointer;
+
+.uf-editorBox .ProseMirror{
+  min-height: 540px;
+  outline: none;
+  line-height: 1.75;
+  font-size: 16px;
 }
-.u-pagerNums{
-  display:flex;
-  gap: 6px;
-  flex-wrap: wrap;
+
+/* Editor 내부 기본 문단 간격 */
+.uf-editorBox .ProseMirror p{
+  margin: 10px 0;
 }
-.u-pagerNum{
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  padding: 8px 10px;
+
+/* 이미지 선택 표시 */
+.ProseMirror img.ProseMirror-selectednode{
+  outline: 3px solid var(--brand);
   border-radius: 12px;
-  cursor: pointer;
-}
-.u-pagerNum.is-active{
-  background: var(--primary);
-  border-color: transparent;
-  color: #fff;
-}
-html[data-theme="dark"] .u-pagerNum.is-active{ color:#0b0d12; }
-
-.u-moreHint{
-  margin-top: 14px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 /* =============================================================================
-  ✅ Section 6 Subscribe
+  ✅ 2/3단 편집 가이드(HTML 방식)
 ============================================================================= */
-.u-subBig{
-  border-radius: 26px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  padding: 28px;
-  box-shadow: var(--shadow);
+.uf-cols{
+  display:grid;
+  gap:14px;
+  margin:22px 0;
+  padding:12px;
+  border:1px dashed color-mix(in srgb, var(--brand) 45%, transparent);
+  border-radius:14px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
 }
-.u-subBigTitle{
-  font-size: 44px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  margin: 0 0 8px;
-}
-.u-subBigDesc{
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 0 0 16px;
-}
-.u-subBigRow{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-.u-subBigRow .u-input{ max-width: 360px; }
-.u-subBigFine{
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--muted);
+.uf-cols-2{ grid-template-columns:1fr 1fr; }
+.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
+.uf-col{
+  min-height:90px;
+  padding:10px;
+  border:1px dashed var(--line);
+  border-radius:12px;
 }
 
 /* =============================================================================
-  ✅ Footer
+  ✅ TipTap Table 스타일 (만약 테이블 확장이 켜져있을 때만 적용됨)
 ============================================================================= */
-.u-footer{
-  padding: 30px 16px 50px;
-  border-top: 1px solid var(--border);
+.ProseMirror table{
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100% !important;
+  margin: 18px 0;
+  overflow: hidden;
 }
-.u-footerRow{
-  display:flex;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
+.ProseMirror td, .ProseMirror th{
+  min-width: 1em;
+  border: 1px dashed var(--line);
+  padding: 10px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
 }
-
-/* =============================================================================
-  ✅ TipTap (기존 편집 관련 CSS는 프로젝트에 이미 있으면 유지 가능)
-  - 여기서는 리스트 UI 위주로만 넣었습니다.
-============================================================================= */
+.ProseMirror th{
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  font-weight: 800;
+}
