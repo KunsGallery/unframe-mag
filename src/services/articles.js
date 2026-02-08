@@ -1,29 +1,78 @@
 // src/services/articles.js
 import {
   collection,
-  doc,
-  getDoc,
-  getDocs,
   addDoc,
-  updateDoc,
+  getDocs,
   query,
   where,
   orderBy,
   limit,
+  getDoc,
+  doc,
+  updateDoc,
   serverTimestamp,
   increment,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
 /* =============================================================================
-  ✅ 내부 유틸: 글번호(id)로 문서 1개 찾기
-  - 반환: { firebaseId, ...data } 또는 null
+  ✅ 로컬 쿨다운 키
+  - “글별로” 측정되게 id를 키에 포함
 ============================================================================= */
-async function findByIdNumber(idNum) {
-  const n = Number(idNum);
-  if (!n || Number.isNaN(n)) return null;
+const VIEW_KEY = (id) => `UF_VIEW_COOLDOWN_${id}`;
+const LIKE_KEY = (id) => `UF_LIKE_COOLDOWN_${id}`;
 
-  const q = query(collection(db, "articles"), where("id", "==", n), limit(1));
+/* ✅ 쿨다운 시간 */
+const VIEW_COOLDOWN_MS = 30 * 60 * 1000; // 30분
+const LIKE_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3시간
+
+function now() {
+  return Date.now();
+}
+
+function canBump(key, cooldownMs) {
+  try {
+    const last = Number(localStorage.getItem(key) || 0);
+    return now() - last >= cooldownMs;
+  } catch {
+    return true; // localStorage 막힌 환경이면 “허용” (UX 유지)
+  }
+}
+
+function markBump(key) {
+  try {
+    localStorage.setItem(key, String(now()));
+  } catch {}
+}
+
+/* =============================================================================
+  ✅ published 글만 가져오기 (ListPage 용)
+============================================================================= */
+export async function getPublishedArticles() {
+  const q = query(
+    collection(db, "articles"),
+    where("status", "==", "published"),
+    orderBy("createdAt", "desc")
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    firebaseId: d.id,
+    ...d.data(),
+  }));
+}
+
+/* =============================================================================
+  ✅ published 글 1개 (ViewPage public 용)
+  - rules 안전
+============================================================================= */
+export async function getPublishedArticleByIdNumber(idNum) {
+  const q = query(
+    collection(db, "articles"),
+    where("status", "==", "published"),
+    where("id", "==", Number(idNum)),
+    limit(1)
+  );
   const snap = await getDocs(q);
   if (snap.empty) return null;
 
@@ -32,115 +81,157 @@ async function findByIdNumber(idNum) {
 }
 
 /* =============================================================================
-  ✅ (외부 사용) 글번호로 글 가져오기
+  ✅ (관리자용) status 무관하게 id로 1개 가져오기 (EditorPage에서 adminOk로 가드)
 ============================================================================= */
 export async function getArticleByIdNumber(idNum) {
-  return await findByIdNumber(idNum);
+  const q = query(
+    collection(db, "articles"),
+    where("id", "==", Number(idNum)),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+
+  const d = snap.docs[0];
+  return { firebaseId: d.id, ...d.data() };
 }
 
 /* =============================================================================
-  ✅ 다음 글 번호(id) 만들기
+  ✅ 다음 글 id 발급 (가장 큰 id + 1)
+  - 글이 많아도 1개만 읽음
 ============================================================================= */
 export async function getNextArticleId() {
   const q = query(collection(db, "articles"), orderBy("id", "desc"), limit(1));
   const snap = await getDocs(q);
-  return snap.empty ? 1 : Number(snap.docs[0].data().id) + 1;
+  if (snap.empty) return 1;
+
+  const top = snap.docs[0].data();
+  const maxId = Number(top?.id || 0);
+  return (Number.isFinite(maxId) ? maxId : 0) + 1;
 }
 
 /* =============================================================================
-  ✅ published 글 목록 (ListPage 용)
-============================================================================= */
-export async function getPublishedArticles() {
-  const q = query(collection(db, "articles"), where("status", "==", "published"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
-}
-
-/* =============================================================================
-  ✅ draft 글 목록 (EditorPage Draft 박스 용)
-============================================================================= */
-export async function listDraftArticles() {
-  const q = query(collection(db, "articles"), where("status", "==", "draft"), orderBy("id", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
-}
-
-/* =============================================================================
-  ✅ 글 생성
-  - createdAt은 serverTimestamp로 최초 생성
-  - likes/views는 0으로 시작
+  ✅ create (새 글)
+  - rules: isAdmin()만 허용
+  - undefined 금지(Firestore 에러 방지)
 ============================================================================= */
 export async function createArticle(payload) {
-  const clean = stripUndefined(payload);
+  const safe = {
+    id: Number(payload.id),
+    title: String(payload.title || ""),
+    category: String(payload.category || ""),
+    excerpt: String(payload.excerpt || ""),
+    contentHTML: String(payload.contentHTML || ""),
 
-  // createdAt은 "최초 생성" 시에만 설정 (수정에서 건드리지 않기)
-  if (!clean.createdAt) clean.createdAt = serverTimestamp();
+    cover: String(payload.cover || ""),
+    coverThumb: String(payload.coverThumb || ""),
+    coverMedium: String(payload.coverMedium || ""),
 
-  if (typeof clean.likes !== "number") clean.likes = 0;
-  if (typeof clean.views !== "number") clean.views = 0;
+    tags: Array.isArray(payload.tags) ? payload.tags : [],
+    status: String(payload.status || "published"),
 
-  const ref = await addDoc(collection(db, "articles"), clean);
+    likes: Number(payload.likes || 0),
+    views: Number(payload.views || 0),
+
+    // ✅ createdAt: 새 글이면 serverTimestamp()
+    createdAt: payload.createdAt ?? serverTimestamp(),
+  };
+
+  const ref = await addDoc(collection(db, "articles"), safe);
   return ref.id; // firebaseId
 }
 
 /* =============================================================================
-  ✅ 글 수정
-  - createdAt은 절대 변경하지 않는게 목표
+  ✅ update (수정)
+  - rules: isAdmin()만 전체 수정 가능
 ============================================================================= */
 export async function updateArticle(firebaseId, payload) {
-  if (!firebaseId) throw new Error("firebaseId missing");
-  const clean = stripUndefined(payload);
+  if (!firebaseId) throw new Error("missing firebaseId");
 
-  // ✅ createdAt은 수정에서 건드리지 않도록 제거(안전)
-  delete clean.createdAt;
+  const safe = {
+    id: Number(payload.id),
+    title: String(payload.title || ""),
+    category: String(payload.category || ""),
+    excerpt: String(payload.excerpt || ""),
+    contentHTML: String(payload.contentHTML || ""),
 
-  await updateDoc(doc(db, "articles", firebaseId), clean);
+    cover: String(payload.cover || ""),
+    coverThumb: String(payload.coverThumb || ""),
+    coverMedium: String(payload.coverMedium || ""),
+
+    tags: Array.isArray(payload.tags) ? payload.tags : [],
+    status: String(payload.status || "published"),
+
+    // ✅ createdAt 유지
+    createdAt: payload.createdAt ?? null,
+  };
+
+  await updateDoc(doc(db, "articles", firebaseId), safe);
 }
 
 /* =============================================================================
-  ✅ 좋아요 증가
-  - target: (1) firebaseId 문자열 or (2) 글번호 숫자
-  - delta: 기본 1
+  ✅ Draft 목록 (관리자용)
 ============================================================================= */
-export async function bumpLikes(target, delta = 1) {
-  const inc = Number(delta) || 1;
+export async function listDraftArticles() {
+  const q = query(
+    collection(db, "articles"),
+    where("status", "==", "draft"),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
+}
 
-  // 1) firebaseId로 들어오면 바로 업데이트
-  if (typeof target === "string" && target.length > 10) {
-    await updateDoc(doc(db, "articles", target), { likes: increment(inc) });
-    return;
+/* =============================================================================
+  ✅ Views +1 (public)
+  - 30분 쿨다운 (글별)
+  - rules에서 views 증가만 허용하는 조건이 있으니
+    반드시 increment(1)만 수행해야 안전
+============================================================================= */
+export async function bumpViews(articleId) {
+  const id = Number(articleId);
+  const key = VIEW_KEY(id);
+
+  if (!canBump(key, VIEW_COOLDOWN_MS)) {
+    return null; // 조용히 무시
   }
 
-  // 2) 글번호로 들어오면 문서 찾아서 업데이트
-  const a = await findByIdNumber(target);
-  if (!a?.firebaseId) throw new Error("Article not found");
-  await updateDoc(doc(db, "articles", a.firebaseId), { likes: increment(inc) });
-}
+  // published 글의 doc를 찾아서 업데이트
+  const a = await getPublishedArticleByIdNumber(id);
+  if (!a?.firebaseId) return null;
 
-/* =============================================================================
-  ✅ 조회수 증가 (View 진입 시)
-  - target: firebaseId 또는 글번호
-============================================================================= */
-export async function bumpViews(target, delta = 1) {
-  const inc = Number(delta) || 1;
-
-  if (typeof target === "string" && target.length > 10) {
-    await updateDoc(doc(db, "articles", target), { views: increment(inc) });
-    return;
-  }
-
-  const a = await findByIdNumber(target);
-  if (!a?.firebaseId) throw new Error("Article not found");
-  await updateDoc(doc(db, "articles", a.firebaseId), { views: increment(inc) });
-}
-
-/* =============================================================================
-  ✅ undefined 제거 (Firestore는 undefined 저장 불가)
-============================================================================= */
-function stripUndefined(obj) {
-  const out = {};
-  Object.entries(obj || {}).forEach(([k, v]) => {
-    if (v !== undefined) out[k] = v;
+  await updateDoc(doc(db, "articles", a.firebaseId), {
+    views: increment(1),
   });
-  return out;
+
+  markBump(key);
+  return true;
+}
+
+/* =============================================================================
+  ✅ Likes +1 (public)
+  - 3시간 쿨다운 (글별)
+  - UI에서 “눌렀을 때 숫자가 계속 올라가는” 문제를 막기 위해
+    bumpLikes에서 쿨다운 걸리고, ViewPage는 실패 시 UI 업데이트를 하지 않게 설계
+============================================================================= */
+export async function bumpLikes(articleId) {
+  const id = Number(articleId);
+  const key = LIKE_KEY(id);
+
+  if (!canBump(key, LIKE_COOLDOWN_MS)) {
+    // ViewPage에서 이 메시지를 보고 “3시간 뒤에…” 토스트 띄움
+    throw new Error("cooldown");
+  }
+
+  const a = await getPublishedArticleByIdNumber(id);
+  if (!a?.firebaseId) throw new Error("Article not found");
+
+  await updateDoc(doc(db, "articles", a.firebaseId), {
+    likes: increment(1),
+  });
+
+  markBump(key);
+
+  // ✅ 즉시 UI 반영용: “현재 likes + 1” 값을 반환
+  return Number(a.likes || 0) + 1;
 }

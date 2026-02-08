@@ -2,13 +2,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import Topbar from "../components/Topbar";
+
 /* =============================================================================
   ✅ TipTap core
 ============================================================================= */
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
-/* ✅ 너 프로젝트에서 이미 잘 되던 확장들(기본 안정 세트) */
+/* ✅ 안정 세트 */
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -23,7 +25,7 @@ import { auth, googleProvider } from "../firebase";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 
 /* =============================================================================
-  ✅ Services (프로젝트에 이미 있는 함수명 기준)
+  ✅ Services
 ============================================================================= */
 import {
   getNextArticleId,
@@ -35,7 +37,7 @@ import {
 import { uploadImage } from "../services/upload";
 
 /* =============================================================================
-  ✅ Admin emails (rules와 동일하게)
+  ✅ Admin emails
 ============================================================================= */
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
@@ -76,7 +78,7 @@ export default function EditorPage({ theme, toggleTheme }) {
   const { toast, show } = useToast();
 
   /* =============================================================================
-    ✅ 관리자 인증 상태
+    ✅ 관리자 인증
   ============================================================================= */
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -117,11 +119,8 @@ export default function EditorPage({ theme, toggleTheme }) {
   }
 
   /* =============================================================================
-    ✅ TipTap editor (안정 세트)
-    - duplicate extension 경고가 뜨면: StarterKit 내부에 포함된 것을 “추가로 또 넣는 경우”가 원인
-    - Underline은 StarterKit에 없어서 괜찮고, Link도 StarterKit에 기본 포함이 아니라 괜찮지만
-      프로젝트 어딘가에서 두 번 추가되면 경고가 뜰 수 있어요.
-  ============================================================================= */
+    ✅ TipTap (안정 세트)
+============================================================================= */
   const extensions = useMemo(
     () => [
       StarterKit,
@@ -135,17 +134,13 @@ export default function EditorPage({ theme, toggleTheme }) {
     []
   );
 
-  const editor = useEditor({
-    extensions,
-    content: "",
-  });
+  const editor = useEditor({ extensions, content: "" });
 
   /* =============================================================================
-    ✅ 폼/로딩 상태
+    ✅ 상태
   ============================================================================= */
   const [loading, setLoading] = useState(true);
   const [firebaseId, setFirebaseId] = useState(null);
-
   const [drafts, setDrafts] = useState([]);
 
   const [form, setForm] = useState({
@@ -162,11 +157,11 @@ export default function EditorPage({ theme, toggleTheme }) {
   });
 
   /* =============================================================================
-    ✅ 글 로드 (adminOk + editor 준비된 뒤)
+    ✅ 글 로드
   ============================================================================= */
   useEffect(() => {
     if (!editor) return;
-    if (!adminOk) return; // 관리자 아닐 땐 로드 자체를 안 함
+    if (!adminOk) return;
 
     let alive = true;
 
@@ -174,7 +169,7 @@ export default function EditorPage({ theme, toggleTheme }) {
       try {
         setLoading(true);
 
-        // 1) 수정 모드 (/write/:id)
+        // 수정
         if (idNum) {
           const a = await getArticleByIdNumber(idNum);
           if (!alive) return;
@@ -201,9 +196,8 @@ export default function EditorPage({ theme, toggleTheme }) {
 
           editor.commands.setContent(a.contentHTML || "");
           show("🛠️ 글을 불러왔어요! 수정해볼까요?", 1600);
-        }
-        // 2) 새 글 모드 (/write)
-        else {
+        } else {
+          // 새 글
           const nextId = await getNextArticleId();
           if (!alive) return;
 
@@ -224,7 +218,7 @@ export default function EditorPage({ theme, toggleTheme }) {
           show("✨ 새 글을 시작해볼까요?", 1400);
         }
 
-        // 3) Draft 리스트
+        // Drafts
         try {
           const d = await (listDraftArticles?.() ?? Promise.resolve([]));
           if (!alive) return;
@@ -243,10 +237,10 @@ export default function EditorPage({ theme, toggleTheme }) {
     return () => {
       alive = false;
     };
-  }, [editor, adminOk, idNum, nav, show]);
+  }, [editor, adminOk, idNum, nav]); // show는 훅이라 의존성에 넣지 않는게 안전(불필요 재실행 방지)
 
   /* =============================================================================
-    ✅ 커버 업로드
+    ✅ 업로드: 커버
   ============================================================================= */
   async function onPickCover(file) {
     if (!file) return;
@@ -273,7 +267,7 @@ export default function EditorPage({ theme, toggleTheme }) {
   }
 
   /* =============================================================================
-    ✅ 본문 이미지 업로드
+    ✅ 업로드: 본문 이미지
   ============================================================================= */
   async function onPickBodyImage(file) {
     if (!file || !editor) return;
@@ -295,7 +289,9 @@ export default function EditorPage({ theme, toggleTheme }) {
     if (f) onPickBodyImage(f);
   }
 
-  /* ✅ 드래그&드롭 업로드 */
+  /* =============================================================================
+    ✅ 드래그&드롭 업로드
+  ============================================================================= */
   useEffect(() => {
     if (!editor) return;
     const el = document.querySelector(".uf-editorBox .ProseMirror");
@@ -321,7 +317,7 @@ export default function EditorPage({ theme, toggleTheme }) {
   }, [editor]);
 
   /* =============================================================================
-    ✅ 2/3단 (HTML 방식) — 깨질 확률 0에 가깝게
+    ✅ 2/3단 (HTML 방식)
   ============================================================================= */
   function insertColumns(n) {
     if (!editor) return;
@@ -368,24 +364,19 @@ export default function EditorPage({ theme, toggleTheme }) {
         excerpt,
         status: statusType,
         contentHTML: editor.getHTML(),
-
         cover: form.cover || "",
         coverThumb: form.coverThumb || "",
         coverMedium: form.coverMedium || "",
         tags,
-
         createdAt: form.createdAt ?? null,
       };
 
-      // 새 글
       if (!idNum) {
         show(statusType === "draft" ? "📝 드래프트 저장 중…" : "🚀 발행 중…", 1600);
         await createArticle(payload);
         show(statusType === "draft" ? "✅ 드래프트 저장 완료!" : "🎉 발행 완료! 뷰로 이동할게요.", 2200);
         if (statusType !== "draft") nav(`/article/${idVal}`);
-      }
-      // 수정
-      else {
+      } else {
         if (!firebaseId) return show("😵 firebaseId가 없어요. 다시 열어주세요.", 2600);
         show("🛠️ 저장 중…", 1400);
         await updateArticle(firebaseId, payload);
@@ -404,7 +395,7 @@ export default function EditorPage({ theme, toggleTheme }) {
   }
 
   /* =============================================================================
-    ✅ Auth Gate UI
+    ✅ Auth Gate
   ============================================================================= */
   if (checkingAuth) {
     return (
@@ -419,18 +410,12 @@ export default function EditorPage({ theme, toggleTheme }) {
       <div className="uf-page">
         {toast && <div className="uf-toast">{toast}</div>}
 
-        <header className="uf-topbar">
-          <div className="uf-wrap">
-            <div className="uf-topbar__inner">
-              <div className="uf-brand" onClick={() => nav("/")}>U#</div>
-              <div className="uf-nav">
-                <button className="uf-btn" onClick={toggleTheme}>
-                  {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
+        <Topbar
+          theme={theme}
+          toggleTheme={toggleTheme}
+          brandTo="/"
+          right={[{ type: "theme" }]}
+        />
 
         <div className="uf-wrap" style={{ padding: "80px 16px" }}>
           <div className="uf-card uf-panel">
@@ -451,33 +436,23 @@ export default function EditorPage({ theme, toggleTheme }) {
     );
   }
 
-  /* =============================================================================
-    ✅ Main UI
-  ============================================================================= */
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
 
-      {/* Topbar */}
-      <header className="uf-topbar">
-        <div className="uf-wrap">
-          <div className="uf-topbar__inner">
-            <div className="uf-brand" onClick={() => nav("/")}>U#</div>
+      {/* ✅ 공용 Topbar */}
+      <Topbar
+        theme={theme}
+        toggleTheme={toggleTheme}
+        brandTo="/"
+        right={[
+          { type: "link", label: "Archive", to: "/", className: "uf-btn uf-btn--ghost" },
+          { type: "theme" },
+          { type: "button", label: "Logout", onClick: adminLogout, className: "uf-btn uf-btn--ghost" },
+        ]}
+      />
 
-            <div className="uf-nav">
-              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>Archive</button>
-              <button className="uf-btn" onClick={toggleTheme}>
-                {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-              </button>
-              <button className="uf-btn uf-btn--ghost" onClick={adminLogout}>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Toolbar (sticky) */}
+      {/* ✅ Toolbar (sticky) */}
       <div className="uf-toolbar">
         <div className="uf-wrap">
           <div className="uf-toolbar__inner">
@@ -528,18 +503,17 @@ export default function EditorPage({ theme, toggleTheme }) {
         </div>
       </div>
 
-      {/* Main */}
+      {/* ✅ Main Layout */}
       <div className="uf-editorShell">
         <div className="uf-wrap">
           {loading || !editor ? (
             <div style={{ padding: "30px 0" }}>로딩 중… ⏳</div>
           ) : (
             <div className="uf-editorGrid">
-              {/* Left panel (meta) */}
+              {/* Left meta */}
               <aside className="uf-card uf-panel">
                 <div className="uf-panelTitle">Meta</div>
 
-                {/* Drafts */}
                 {drafts?.length > 0 && (
                   <div style={{ marginBottom: 14 }}>
                     <div className="uf-label">Drafts</div>
@@ -555,31 +529,17 @@ export default function EditorPage({ theme, toggleTheme }) {
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">ID</div>
-                  <input
-                    className="uf-input"
-                    value={form.id}
-                    disabled={!!idNum}
-                    onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))}
-                  />
+                  <input className="uf-input" value={form.id} disabled={!!idNum} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Title</div>
-                  <input
-                    className="uf-input"
-                    value={form.title}
-                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                    placeholder="제목"
-                  />
+                  <input className="uf-input" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="제목" />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Category</div>
-                  <select
-                    className="uf-select"
-                    value={form.category}
-                    onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-                  >
+                  <select className="uf-select" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
                     {CATEGORY_OPTIONS.map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -588,25 +548,14 @@ export default function EditorPage({ theme, toggleTheme }) {
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Excerpt</div>
-                  <textarea
-                    className="uf-textarea"
-                    value={form.excerpt}
-                    onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
-                    placeholder="리스트 카드 요약"
-                  />
+                  <textarea className="uf-textarea" value={form.excerpt} onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))} placeholder="리스트 카드 요약" />
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
                   <div className="uf-label">Tags (comma)</div>
-                  <input
-                    className="uf-input"
-                    value={form.tagsText}
-                    onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))}
-                    placeholder="예: 전시, 인사동, 언프레임"
-                  />
+                  <input className="uf-input" value={form.tagsText} onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))} placeholder="예: 전시, 인사동, 언프레임" />
                 </div>
 
-                {/* Cover */}
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Cover</div>
 
@@ -634,11 +583,7 @@ export default function EditorPage({ theme, toggleTheme }) {
                       <img
                         src={form.coverMedium || form.coverThumb || form.cover}
                         alt="cover"
-                        style={{
-                          width: "100%",
-                          borderRadius: 14,
-                          border: "1px solid var(--line)",
-                        }}
+                        style={{ width: "100%", borderRadius: 14, border: "1px solid var(--line)" }}
                       />
                     </div>
                   ) : (
@@ -646,18 +591,15 @@ export default function EditorPage({ theme, toggleTheme }) {
                   )}
                 </div>
 
-                {/* Actions */}
                 <div className="uf-stack" style={{ marginTop: 12 }}>
                   <button className="uf-btn" onClick={() => onSave("draft")}>📝 Save Draft</button>
                   <button className="uf-btn uf-btn--primary" onClick={() => onSave("published")}>🚀 Publish</button>
                 </div>
 
-                <div className="uf-panelHint">
-                  ✅ 본문에는 이미지 드래그&드롭도 가능해요.
-                </div>
+                <div className="uf-panelHint">✅ 본문에는 이미지 드래그&드롭도 가능해요.</div>
               </aside>
 
-              {/* Right panel (editor) */}
+              {/* Right editor */}
               <section className="uf-card uf-editorBox">
                 <EditorContent editor={editor} />
               </section>

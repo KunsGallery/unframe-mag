@@ -198,7 +198,618 @@ html[data-theme="dark"] .uf-btn--primary{
 }
 
 /* =============================================================================
-  ✅ View Page
+  ✅ List Page (🔥 여기부터가 “왼쪽 위로 몰림” 문제를 해결하는 핵심 CSS)
+============================================================================= */
+
+/* 리스트 최상위 래퍼 */
+.uf-listRoot{
+  min-height: 100vh;
+}
+
+/* List TopNav (ListPage 전용) */
+.uf-topNav{
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+
+.uf-topNav__inner{
+  height: 64px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  max-width: var(--max);
+}
+
+.uf-brand{
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+}
+
+.uf-navRight{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+}
+
+.uf-navLink{
+  font-size: 13px;
+  color: var(--muted);
+}
+.uf-navLink:hover{
+  color: var(--text);
+}
+
+.uf-navBtn{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.uf-navBtn:hover{
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.06);
+}
+.uf-navBtn--saved{
+  font-weight: 800;
+}
+
+/* 공통 섹션 */
+.uf-sec{
+  width: 100%;
+  padding: 54px 0;
+}
+@media (max-width: 640px){
+  .uf-sec{ padding: 42px 0; }
+}
+
+/* 섹션 내부 1200px 컨테이너 */
+.uf-secInner{
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* Hero (ListPage) */
+.uf-hero{
+  position: relative;
+  min-height: 80vh; /* ✅ 너가 원했던 80vh 느낌 */
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  background-size: cover;
+  background-position: center;
+}
+
+.uf-heroOverlay{
+  position:absolute;
+  inset:0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.35),
+    rgba(0,0,0,0.45)
+  );
+}
+
+/* Hero 카드 */
+.uf-heroCard{
+  position: relative;
+  z-index: 2;
+  max-width: 680px;
+  padding: 26px 24px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.28);
+  color: white;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.25);
+  backdrop-filter: blur(10px);
+}
+
+.uf-heroKicker{
+  font-size: 12px;
+  letter-spacing: .18em;
+  opacity: .9;
+}
+
+.uf-heroTitle{
+  margin: 10px 0 10px;
+  font-size: 42px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 900;
+}
+
+@media (max-width: 640px){
+  .uf-heroTitle{ font-size: 30px; }
+}
+
+.uf-heroSub{
+  margin: 0 0 16px;
+  font-size: 14px;
+  opacity: .92;
+  line-height: 1.6;
+}
+
+.uf-heroBtns{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 카테고리 인터랙션 */
+.uf-secCats{ padding-top: 34px; }
+
+.uf-catsRow{
+  display:flex;
+  gap: 12px;
+  width: 100%;
+  min-height: 240px;
+}
+
+.uf-catCard{
+  flex: 1;
+  min-height: 240px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  padding: 18px;
+  text-align: left;
+  transition: transform .18s ease, flex .18s ease, filter .18s ease;
+  position: relative;
+  overflow:hidden;
+}
+
+.uf-catCard:hover{
+  flex: 1.4;
+  transform: translateY(-2px);
+  filter: saturate(1.05);
+}
+
+.uf-catSub{
+  font-size: 12px;
+  letter-spacing: .16em;
+  color: var(--muted);
+}
+
+.uf-catTitle{
+  margin-top: 10px;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.uf-catHint{
+  position:absolute;
+  bottom: 16px;
+  left: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Marquee */
+.uf-secMarquee{ padding: 0; }
+.uf-marquee{
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel2);
+  overflow:hidden;
+}
+.uf-marquee__track{
+  display:flex;
+  gap: 40px;
+  padding: 14px 0;
+  white-space: nowrap;
+  animation: uf-marquee 18s linear infinite;
+  color: var(--muted);
+  font-size: 13px;
+}
+@keyframes uf-marquee{
+  0%{ transform: translateX(0); }
+  100%{ transform: translateX(-50%); }
+}
+
+.uf-miniSub{
+  padding: 26px 0 40px;
+}
+.uf-miniSub__title{
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+.uf-miniSub__row{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  max-width: 520px;
+}
+.uf-miniSub__desc{
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Editor Pick 섹션 */
+.uf-grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 980px){
+  .uf-grid2{ grid-template-columns: 1fr; }
+}
+
+.uf-noteBox, .uf-pickBox{
+  padding: 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.uf-boxTitle{
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+.uf-boxText{
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.uf-pickList{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+.uf-pickItem{
+  width:100%;
+  text-align:left;
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  cursor:pointer;
+}
+.uf-pickItem:hover{
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.06);
+}
+.uf-pickBadge{
+  display:inline-block;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(37,99,235,0.12);
+  color: var(--text);
+}
+html[data-theme="dark"] .uf-pickBadge{
+  color: var(--text);
+}
+.uf-pickTitle{
+  display:block;
+  margin-top: 8px;
+  font-weight: 900;
+}
+.uf-pickMeta{
+  display:block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Archive 섹션 (좌 sticky + 우 리스트) */
+.uf-archiveLayout{
+  display:grid;
+  grid-template-columns: 240px 1fr;
+  gap: 18px;
+  align-items:start;
+}
+@media (max-width: 980px){
+  .uf-archiveLayout{ grid-template-columns: 1fr; }
+}
+
+.uf-archiveSide{
+  position: sticky;
+  top: 86px;
+}
+@media (max-width: 980px){
+  .uf-archiveSide{ position: static; }
+}
+
+.uf-sideBox{
+  padding: 14px;
+  border-radius: var(--radius);
+}
+
+.uf-sideTitle{
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.uf-sideItem{
+  width:100%;
+  text-align:left;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor:pointer;
+  color: var(--text);
+}
+.uf-sideItem:hover{
+  background: rgba(37,99,235,0.06);
+  border-color: rgba(37,99,235,0.18);
+}
+.uf-sideItem.is-active{
+  background: rgba(37,99,235,0.12);
+  border-color: rgba(37,99,235,0.30);
+  font-weight: 900;
+}
+
+/* 우측 Topbar */
+.uf-archiveTopbar{
+  display:flex;
+  gap: 12px;
+  align-items:center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+@media (max-width: 640px){
+  .uf-archiveTopbar{
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.uf-sort{
+  display:flex;
+  gap: 8px;
+}
+.uf-chip{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor:pointer;
+}
+.uf-chip.is-active{
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.10);
+  font-weight: 900;
+}
+.uf-search{
+  max-width: 360px;
+}
+
+/* 카드 그리드 */
+.uf-cards{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 980px){
+  .uf-cards{ grid-template-columns: 1fr; }
+}
+
+.uf-card{
+  cursor:pointer;
+}
+.uf-cardImg{
+  height: 180px;
+  border-radius: calc(var(--radius) - 6px);
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--line);
+  margin: 12px;
+}
+.uf-cardImg__fallback{
+  height: 100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.uf-cardBody{
+  padding: 4px 14px 14px;
+}
+.uf-cardMeta{
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 10px;
+}
+.uf-badge{
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(37,99,235,0.10);
+  border: 1px solid rgba(37,99,235,0.18);
+}
+.uf-date{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.uf-cardTitle{
+  margin-top: 10px;
+  font-weight: 900;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.uf-cardExcerpt{
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.uf-tags{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.uf-tag{
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  cursor:pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.uf-tag:hover{
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.06);
+  color: var(--text);
+}
+
+.uf-cardBottom{
+  margin-top: 12px;
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 12px;
+}
+.uf-stats{
+  display:flex;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.uf-saveBtn{
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor:pointer;
+}
+.uf-saveBtn.is-saved{
+  border-color: rgba(245,158,11,0.40);
+  background: rgba(245,158,11,0.10);
+  font-weight: 900;
+}
+
+.uf-empty{
+  padding: 18px;
+  color: var(--muted);
+  border-radius: var(--radius);
+  border: 1px dashed var(--line);
+  background: var(--panel2);
+}
+
+.uf-pager{
+  margin-top: 18px;
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  justify-content:center;
+  flex-wrap: wrap;
+}
+.uf-pagerBtn{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.uf-pagerBtn:disabled{
+  opacity: .5;
+  cursor:not-allowed;
+}
+.uf-pagerNums{
+  display:flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.uf-pagerNum{
+  height: 36px;
+  width: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+}
+.uf-pagerNum.is-active{
+  background: rgba(37,99,235,0.12);
+  border-color: rgba(37,99,235,0.35);
+  font-weight: 900;
+}
+
+.uf-moreHint{
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Subscribe big */
+.uf-subBig{
+  padding: 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  text-align:center;
+}
+.uf-subBigTitle{
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: -0.03em;
+  font-weight: 900;
+}
+.uf-subBigDesc{
+  margin: 12px 0 16px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.uf-subBigRow{
+  display:flex;
+  gap: 10px;
+  justify-content:center;
+  align-items:center;
+  flex-wrap: wrap;
+}
+.uf-subBigRow .uf-input{
+  max-width: 420px;
+}
+.uf-subBigFine{
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Footer */
+.uf-footer{
+  padding: 30px 0;
+  border-top: 1px solid var(--line);
+}
+.uf-footerRow{
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* =============================================================================
+  ✅ View Page (네가 주신 것 그대로 유지)
 ============================================================================= */
 .uf-hero{
   position: relative;
@@ -312,7 +923,6 @@ html[data-theme="dark"] .uf-btn--primary{
 }
 
 .uf-article .ProseMirror{
-  /* View에서는 에디터가 아니라 렌더 영역이지만, 기존 HTML 스타일을 같이 잡아줌 */
   outline: none;
 }
 
@@ -353,7 +963,7 @@ html[data-theme="dark"] .uf-btn--primary{
 
 .uf-toolbar{
   position: sticky;
-  top: 64px; /* topbar 아래에 붙도록 */
+  top: 64px;
   z-index: 40;
   padding: 10px 0;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
@@ -382,7 +992,6 @@ html[data-theme="dark"] .uf-btn--primary{
   font-size: 16px;
 }
 
-/* Editor 내부 기본 문단 간격 */
 .uf-editorBox .ProseMirror p{
   margin: 10px 0;
 }
@@ -415,7 +1024,7 @@ html[data-theme="dark"] .uf-btn--primary{
 }
 
 /* =============================================================================
-  ✅ TipTap Table 스타일 (만약 테이블 확장이 켜져있을 때만 적용됨)
+  ✅ TipTap Table 스타일 (테이블 확장이 켜져있을 때만)
 ============================================================================= */
 .ProseMirror table{
   border-collapse: collapse;
