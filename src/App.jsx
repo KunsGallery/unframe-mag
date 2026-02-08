@@ -1,20 +1,20 @@
 // src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 import ListPage from "./pages/ListPage";
 import ViewPage from "./pages/ViewPage";
 import EditorPage from "./pages/EditorPage";
 
-import { getParam, subscribe } from "./utils/router";
-
 /**
- * ============================================================================
- * ✅ Theme (로컬 저장)
- * - iframe 환경에서도 localStorage가 막히는 경우가 있어 try/catch 유지
- * ============================================================================
+ * ✅ 테마 저장 키 (로컬)
+ * - 기기/브라우저별로 저장됨
  */
 const THEME_KEY = "UF_THEME_V1";
 
+/**
+ * ✅ 시스템 설정 + localStorage 우선
+ */
 function getInitialTheme() {
   try {
     const saved = localStorage.getItem(THEME_KEY);
@@ -26,30 +26,11 @@ function getInitialTheme() {
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  // ✅ 기본은 light가 안전(글 안보임 방지)
   return prefersDark ? "dark" : "light";
 }
 
 export default function App() {
-  /**
-   * ============================================================================
-   * ✅ routeSearch: "현재 URL의 search 문자열"을 state로 관리
-   * - go()가 pushState + popstate를 발생시키면,
-   *   아래 subscribe()가 routeSearch를 바꿔서 App이 리렌더됨
-   * ============================================================================
-   */
-  const [routeSearch, setRouteSearch] = useState(window.location.search || "");
-
-  useEffect(() => {
-    const off = subscribe((search) => setRouteSearch(search));
-    return off;
-  }, []);
-
-  // ✅ routeSearch 기준으로 mode/id 읽기 (중요: window.location.search 직접 읽지 않음)
-  const mode = getParam("mode", routeSearch) || "list";
-  const id = getParam("id", routeSearch);
-
-  // ✅ theme 전역 상태
+  // ✅ 전역 테마
   const [theme, setTheme] = useState(getInitialTheme());
 
   useEffect(() => {
@@ -63,8 +44,19 @@ export default function App() {
     return () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   }, []);
 
-  // ✅ 페이지 라우팅
-  if (mode === "view") return <ViewPage id={id} theme={theme} toggleTheme={toggleTheme} />;
-  if (mode === "editor") return <EditorPage id={id} theme={theme} toggleTheme={toggleTheme} />;
-  return <ListPage theme={theme} toggleTheme={toggleTheme} />;
+  return (
+    <Routes>
+      {/* ✅ List: https://magazine.unframe.kr/ */}
+      <Route path="/" element={<ListPage theme={theme} toggleTheme={toggleTheme} />} />
+
+      {/* ✅ View: https://magazine.unframe.kr/article/123 */}
+      <Route path="/article/:id" element={<ViewPage theme={theme} toggleTheme={toggleTheme} />} />
+
+      {/* ✅ Write: https://magazine.unframe.kr/write?id=123  (id 없으면 새 글) */}
+      <Route path="/write" element={<EditorPage theme={theme} toggleTheme={toggleTheme} />} />
+
+      {/* ✅ 나머지는 홈으로 */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }

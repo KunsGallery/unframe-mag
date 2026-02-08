@@ -1,235 +1,146 @@
 // src/services/articles.js
 import {
   collection,
-  addDoc,
   doc,
-  getDocs,
   getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
   query,
   where,
   orderBy,
   limit,
-  updateDoc,
+  serverTimestamp,
   increment,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
-/* =========================
-   ✅ Cooldown (article별)
-========================= */
-const VIEW_TTL_MS = 30 * 60 * 1000; // 30분
-const LIKE_TTL_MS = 3 * 60 * 60 * 1000; // 3시간
+/* =============================================================================
+  ✅ 내부 유틸: 글번호(id)로 문서 1개 찾기
+  - 반환: { firebaseId, ...data } 또는 null
+============================================================================= */
+async function findByIdNumber(idNum) {
+  const n = Number(idNum);
+  if (!n || Number.isNaN(n)) return null;
 
-function nowMs() {
-  return Date.now();
-}
-function lsGetNum(key) {
-  try {
-    return Number(localStorage.getItem(key) || 0);
-  } catch {
-    return 0;
-  }
-}
-function lsSetNum(key, v) {
-  try {
-    localStorage.setItem(key, String(v));
-  } catch {}
-}
-function cooldownKey(type, idNum) {
-  return `uf:${type}:${Number(idNum)}`;
-}
-
-export function getCooldownRemainingMs(type, idNum) {
-  const ttl = type === "view" ? VIEW_TTL_MS : LIKE_TTL_MS;
-  const key = cooldownKey(type, idNum);
-  const last = lsGetNum(key);
-  if (!last) return 0;
-  const remain = ttl - (nowMs() - last);
-  return remain > 0 ? remain : 0;
-}
-export function canBump(type, idNum) {
-  return getCooldownRemainingMs(type, idNum) === 0;
-}
-function markBumped(type, idNum) {
-  lsSetNum(cooldownKey(type, idNum), nowMs());
-}
-export function formatRemain(ms) {
-  if (!ms) return "";
-  const m = Math.ceil(ms / 60000);
-  if (m < 60) return `${m}분`;
-  const h = Math.ceil(m / 60);
-  return `${h}시간`;
-}
-
-/* =========================
-   ✅ Schema normalize (안전장치)
-========================= */
-export function normalizeArticle(raw = {}, firebaseId = "") {
-  const a = raw || {};
-  return {
-    firebaseId,
-    id: Number(a.id || 0),
-    title: String(a.title || ""),
-    category: String(a.category || "Exhibition"),
-    excerpt: String(a.excerpt || ""),
-    contentHTML: String(a.contentHTML || ""),
-    cover: String(a.cover || ""),
-    coverThumb: String(a.coverThumb || ""),
-    tags: Array.isArray(a.tags) ? a.tags.filter(Boolean).map(String) : [],
-    status: String(a.status || "published"),
-    likes: Number(a.likes || 0),
-    views: Number(a.views || 0),
-    createdAt: a.createdAt ?? null,
-    pollQuestion: a.pollQuestion ?? "",
-    pollOption1: a.pollOption1 ?? "",
-    pollOption2: a.pollOption2 ?? "",
-    pollVotes1: Number(a.pollVotes1 || 0),
-    pollVotes2: Number(a.pollVotes2 || 0),
-    pollFreeAnswer: a.pollFreeAnswer ?? "",
-    mapEmbed: a.mapEmbed ?? "",
-  };
-}
-
-/* =========================
-   ✅ Read time
-========================= */
-export function estimateReadMinutesFromHTML(html) {
-  const text = String(html || "")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const chars = text.length;
-  return Math.max(1, Math.ceil(chars / 900));
-}
-
-/* =========================
-   ✅ 내부: id(글 넘버)로 문서 스냅샷 찾기
-========================= */
-async function getArticleDocSnapByIdNumber(idNum) {
-  const q = query(collection(db, "articles"), where("id", "==", Number(idNum)), limit(1));
+  const q = query(collection(db, "articles"), where("id", "==", n), limit(1));
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  return snap.docs[0];
+
+  const d = snap.docs[0];
+  return { firebaseId: d.id, ...d.data() };
 }
 
-/* =========================
-   ✅ CRUD
-========================= */
+/* =============================================================================
+  ✅ (외부 사용) 글번호로 글 가져오기
+============================================================================= */
+export async function getArticleByIdNumber(idNum) {
+  return await findByIdNumber(idNum);
+}
+
+/* =============================================================================
+  ✅ 다음 글 번호(id) 만들기
+============================================================================= */
 export async function getNextArticleId() {
   const q = query(collection(db, "articles"), orderBy("id", "desc"), limit(1));
   const snap = await getDocs(q);
   return snap.empty ? 1 : Number(snap.docs[0].data().id) + 1;
 }
 
-export async function getArticleByIdNumber(idNum) {
-  const docSnap = await getArticleDocSnapByIdNumber(idNum);
-  if (!docSnap) return null;
-  return normalizeArticle(docSnap.data(), docSnap.id);
-}
-
+/* =============================================================================
+  ✅ published 글 목록 (ListPage 용)
+============================================================================= */
 export async function getPublishedArticles() {
-  const q = query(
-    collection(db, "articles"),
-    where("status", "==", "published"),
-    orderBy("id", "desc")
-  );
+  const q = query(collection(db, "articles"), where("status", "==", "published"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => normalizeArticle(d.data(), d.id));
+  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
 }
 
+/* =============================================================================
+  ✅ draft 글 목록 (EditorPage Draft 박스 용)
+============================================================================= */
 export async function listDraftArticles() {
   const q = query(collection(db, "articles"), where("status", "==", "draft"), orderBy("id", "desc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => normalizeArticle(d.data(), d.id));
+  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
 }
 
+/* =============================================================================
+  ✅ 글 생성
+  - createdAt은 serverTimestamp로 최초 생성
+  - likes/views는 0으로 시작
+============================================================================= */
 export async function createArticle(payload) {
-  const safe = normalizeArticle(payload, "");
-  if (!safe.createdAt) safe.createdAt = new Date();
+  const clean = stripUndefined(payload);
 
-  // ✅ Firestore는 undefined 저장 불가 → firebaseId 필드를 아예 제거
-  const { firebaseId, ...toSave } = safe;
+  // createdAt은 "최초 생성" 시에만 설정 (수정에서 건드리지 않기)
+  if (!clean.createdAt) clean.createdAt = serverTimestamp();
 
-  const docRef = await addDoc(collection(db, "articles"), toSave);
-  return docRef.id;
+  if (typeof clean.likes !== "number") clean.likes = 0;
+  if (typeof clean.views !== "number") clean.views = 0;
+
+  const ref = await addDoc(collection(db, "articles"), clean);
+  return ref.id; // firebaseId
 }
 
+/* =============================================================================
+  ✅ 글 수정
+  - createdAt은 절대 변경하지 않는게 목표
+============================================================================= */
 export async function updateArticle(firebaseId, payload) {
   if (!firebaseId) throw new Error("firebaseId missing");
-  const safe = { ...payload };
-  delete safe.firebaseId;
-  await updateDoc(doc(db, "articles", String(firebaseId)), safe);
+  const clean = stripUndefined(payload);
+
+  // ✅ createdAt은 수정에서 건드리지 않도록 제거(안전)
+  delete clean.createdAt;
+
+  await updateDoc(doc(db, "articles", firebaseId), clean);
 }
 
-/* =========================
-   ✅ bump views/likes
-========================= */
-export async function bumpViews(idNum) {
-  if (!canBump("view", idNum)) return null;
-  const docSnap = await getArticleDocSnapByIdNumber(idNum);
-  if (!docSnap) throw new Error("Article not found");
+/* =============================================================================
+  ✅ 좋아요 증가
+  - target: (1) firebaseId 문자열 or (2) 글번호 숫자
+  - delta: 기본 1
+============================================================================= */
+export async function bumpLikes(target, delta = 1) {
+  const inc = Number(delta) || 1;
 
-  await updateDoc(docSnap.ref, { views: increment(1) });
-  markBumped("view", idNum);
+  // 1) firebaseId로 들어오면 바로 업데이트
+  if (typeof target === "string" && target.length > 10) {
+    await updateDoc(doc(db, "articles", target), { likes: increment(inc) });
+    return;
+  }
 
-  const current = Number(docSnap.data()?.views || 0);
-  return current + 1;
+  // 2) 글번호로 들어오면 문서 찾아서 업데이트
+  const a = await findByIdNumber(target);
+  if (!a?.firebaseId) throw new Error("Article not found");
+  await updateDoc(doc(db, "articles", a.firebaseId), { likes: increment(inc) });
 }
 
-export async function bumpLikes(idNum) {
-  if (!canBump("like", idNum)) return null;
-  const docSnap = await getArticleDocSnapByIdNumber(idNum);
-  if (!docSnap) throw new Error("Article not found");
+/* =============================================================================
+  ✅ 조회수 증가 (View 진입 시)
+  - target: firebaseId 또는 글번호
+============================================================================= */
+export async function bumpViews(target, delta = 1) {
+  const inc = Number(delta) || 1;
 
-  await updateDoc(docSnap.ref, { likes: increment(1) });
-  markBumped("like", idNum);
+  if (typeof target === "string" && target.length > 10) {
+    await updateDoc(doc(db, "articles", target), { views: increment(inc) });
+    return;
+  }
 
-  const current = Number(docSnap.data()?.likes || 0);
-  return current + 1;
+  const a = await findByIdNumber(target);
+  if (!a?.firebaseId) throw new Error("Article not found");
+  await updateDoc(doc(db, "articles", a.firebaseId), { views: increment(inc) });
 }
 
-/* =========================
-   ✅ Prev/Next
-========================= */
-export async function getPrevNextPublished(currentId) {
-  const prevQ = query(
-    collection(db, "articles"),
-    where("status", "==", "published"),
-    where("id", "<", Number(currentId)),
-    orderBy("id", "desc"),
-    limit(1)
-  );
-  const nextQ = query(
-    collection(db, "articles"),
-    where("status", "==", "published"),
-    where("id", ">", Number(currentId)),
-    orderBy("id", "asc"),
-    limit(1)
-  );
-
-  const [prevSnap, nextSnap] = await Promise.all([getDocs(prevQ), getDocs(nextQ)]);
-  const prev = prevSnap.empty ? null : normalizeArticle(prevSnap.docs[0].data(), prevSnap.docs[0].id);
-  const next = nextSnap.empty ? null : normalizeArticle(nextSnap.docs[0].data(), nextSnap.docs[0].id);
-  return { prev, next };
-}
-
-/* =========================
-   ✅ Editor Pick
-========================= */
-export async function getEditorPickId() {
-  const ref = doc(db, "config", "home");
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  const v = snap.data()?.editorPickId;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-export async function getEditorPickArticle() {
-  const idNum = await getEditorPickId();
-  if (!idNum) return null;
-  return await getArticleByIdNumber(idNum);
+/* =============================================================================
+  ✅ undefined 제거 (Firestore는 undefined 저장 불가)
+============================================================================= */
+function stripUndefined(obj) {
+  const out = {};
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    if (v !== undefined) out[k] = v;
+  });
+  return out;
 }

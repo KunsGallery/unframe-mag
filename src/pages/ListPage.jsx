@@ -1,32 +1,33 @@
 // src/pages/ListPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { go, getParam } from "../utils/router";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
-// ✅ bookmarks (로컬)
+import { getPublishedArticles } from "../services/articles";
+import { getEditorPickIds } from "../services/config";
 import { getSavedIds, toggleSaved, onSavedChanged } from "../services/bookmarks";
 
-// ✅ Editor’s Pick config
-// ⚠️ Netlify 빌드에서 "not exported"가 났던 적이 있어서, config.js에서 실제 export 확인 필요.
-//    그래도 여기서는 try/catch로 방어(없어도 앱 안 터지게)
-import { getEditorPickIds } from "../services/config";
+/* =============================================================================
+  ✅ 디자인/레이아웃 상수
+  - MAX_WIDTH: 컨텐츠 최대 폭(요청하신 1200px)
+  - PAGE_SIZE: 섹션5에서 한 페이지에 보여줄 글 개수(요청하신 6개)
+  - SECTION_MIN_H: 섹션 기본 높이 느낌(80vh + 최소 800px 쪽)
+============================================================================= */
+const MAX_WIDTH = 1200;
+const PAGE_SIZE = 6;
+const SECTION_MIN_H = "min(80vh, 900px)"; // ✅ “80vh 느낌” + 너무 작아지지 않게
 
-// ✅ articles 서비스
-import { getPublishedArticles } from "../services/articles";
-
-/* ============================================================================
-  ✅ 커스터마이징 포인트(전역 상수)
-============================================================================ */
-const MAX_WIDTH = 1200; // ✅ 섹션 내부 컨텐츠 최대 가로폭(px)
-const PAGE_SIZE = 6;    // ✅ 섹션5 아티클 리스트에 한 페이지당 보여줄 개수
-
-// ✅ Hero 이미지
-// ⚠️ Unsplash는 가끔 특정 파라미터/환경에서 404 또는 Firefox의 차단 경고가 보일 수 있어요.
-//    - (해결1) URL에 ixlib 파라미터를 추가
-//    - (해결2) 차라리 네가 소유한 이미지(ImgBB/자체 호스팅)로 교체
+/* =============================================================================
+  ✅ Hero 배경
+  - 외부 이미지(Unsplash 등)는 브라우저 정책/플러그인에 따라 ORB가 뜰 수 있어요.
+  - 안정적으로 가려면: public/hero.jpg 만들어서 "/hero.jpg" 로 바꾸면 됩니다.
+============================================================================= */
 const HERO_BG =
-  "https://i.ibb.co/1GcrN63k/Gemini-Generated-Image-6n2lmx6n2lmx6n2l.jpg";
+  "https://i.ibb.co/1GcrN63k/Gemini-Generated-Image-6n2lmx6n2lmx6n2l.jpg"; // ✅ 권장: public/hero.jpg 파일로 교체 (없으면 배경 그라데이션만 보여도 OK)
 
-// ✅ 카테고리 4개 (Editor에서 저장하는 category 값과 “완전히 동일”해야 필터가 먹음)
+/* =============================================================================
+  ✅ 카테고리 4개 (요청한 구성)
+  - key 값은 Firestore의 category 값과 “완전히 동일”해야 필터가 정확합니다.
+============================================================================= */
 const CATEGORIES = [
   { key: "Exhibition", label: "Exhibition", sub: "CATEGORY 01" },
   { key: "Project", label: "Project", sub: "CATEGORY 02" },
@@ -34,20 +35,13 @@ const CATEGORIES = [
   { key: "News", label: "News", sub: "CATEGORY 04" },
 ];
 
-/* ============================================================================
-  ✅ 유틸 함수
-============================================================================ */
-
-// 날짜 출력 (createdAt이 Timestamp/number/string 어떤 형태든 최대한 안전하게 처리)
+/* =============================================================================
+  ✅ 날짜 포맷 (Firestore Timestamp / number / string 모두 대응)
+============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
-    const d =
-      typeof ts?.toDate === "function"
-        ? ts.toDate()
-        : typeof ts === "number"
-        ? new Date(ts)
-        : new Date(ts);
+    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
@@ -55,109 +49,101 @@ function formatDate(ts) {
   }
 }
 
-// 글 요약 줄이기
+/* =============================================================================
+  ✅ 텍스트 자르기 (카드 요약용)
+============================================================================= */
 function clampText(s, n = 120) {
   const t = (s || "").trim();
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
-/* ============================================================================
-  ✅ URL 파라미터를 상태로 반영 / 상태를 URL로 반영하기 위한 작은 헬퍼들
-  - “카테고리 눌렀는데 새로고침” 같은 느낌은 보통:
-    1) <a href> 사용 / window.location.href 사용
-    2) URL 바뀌면서 상태가 다시 초기화
-    3) popstate 처리 안함
-  - 그래서 “URL ↔ 상태 동기화”를 여기서 확실히 잡습니다.
-============================================================================ */
-
-// 안전하게 숫자 파싱
-function toPosInt(v, fallback = 1) {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+/* =============================================================================
+  ✅ HTML -> 텍스트(읽기시간 계산용)
+  - contentHTML에서 태그를 제거하고 단어수로 읽기시간 계산
+============================================================================= */
+function htmlToText(html) {
+  try {
+    const div = document.createElement("div");
+    div.innerHTML = html || "";
+    return (div.textContent || div.innerText || "").replace(/\s+/g, " ").trim();
+  } catch {
+    return "";
+  }
 }
 
-// URL에 반영할 파라미터를 한 번에 만들어 go()로 pushState
-function buildListUrl({ page, cat, sort, q, saved }) {
-  const params = new URLSearchParams();
-  params.set("mode", "list");
-  params.set("page", String(page || 1));
-  if (cat && cat !== "All") params.set("cat", cat);
-  if (sort && sort !== "latest") params.set("sort", sort); // 기본 latest
-  if (q && q.trim()) params.set("q", q.trim());
-  if (saved) params.set("saved", "1");
-  return `?${params.toString()}`;
+/* =============================================================================
+  ✅ 읽기 시간 계산
+  - 대략 220~250 wpm 사용 (여기선 230 wpm)
+  - 최소 1분으로 표기
+============================================================================= */
+function calcReadMin(article) {
+  const text = htmlToText(article?.contentHTML || "") || (article?.excerpt || "");
+  const words = text ? text.split(" ").filter(Boolean).length : 0;
+  const min = Math.max(1, Math.round(words / 230));
+  return min;
 }
 
-// URL 파라미터에서 상태값 읽어오기
-function readListStateFromUrl() {
-  const page = toPosInt(getParam("page"), 1);
-  const cat = getParam("cat") || "All";
-  const sort = getParam("sort") || "latest"; // latest | popular
-  const q = getParam("q") || "";
-  const saved = getParam("saved") === "1";
-  return { page, cat, sort, q, saved };
+/* =============================================================================
+  ✅ URL(Search Params) 헬퍼
+  - React Router에서 상태를 URL에 고정해 “새로고침/공유” 안정성 확보
+============================================================================= */
+function getParam(sp, key, fallback = "") {
+  const v = sp.get(key);
+  return v == null || v === "" ? fallback : v;
+}
+function getParamNum(sp, key, fallback = 1) {
+  const n = Number(sp.get(key));
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 export default function ListPage({ theme, toggleTheme }) {
-  /* ============================================================================
-    ✅ 섹션 스크롤 대상 (ref + id 함께 사용하는 방식)
-    - ref: React에서 직접 scrollIntoView
-    - id : 메뉴에서 getElementById로도 이동 가능 (추후 확장 쉬움)
-  ============================================================================ */
+  const nav = useNavigate();
+  const [sp, setSp] = useSearchParams();
+
+  /* ===========================================================================
+    ✅ 섹션 ref (메뉴 클릭 시 스크롤 이동)
+  =========================================================================== */
   const archiveRef = useRef(null);
   const subscribeRef = useRef(null);
 
-  /* ============================================================================
+  /* ===========================================================================
     ✅ 데이터 상태
-  ============================================================================ */
+  =========================================================================== */
   const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Editor’s Pick ids (Firestore config)
+  // Editor's Pick
   const [pickIds, setPickIds] = useState([]);
   const [pickLoading, setPickLoading] = useState(true);
 
-  /* ============================================================================
-    ✅ 필터/정렬/검색/저장/페이지 상태
-    - “초기값”은 URL에서 읽어오는 것으로 통일
-  ============================================================================ */
-  const initial = useMemo(() => readListStateFromUrl(), []);
-  const [activeCat, setActiveCat] = useState(initial.cat);
-  const [sortBy, setSortBy] = useState(initial.sort);
-  const [q, setQ] = useState(initial.q);
-  const [savedMode, setSavedMode] = useState(initial.saved);
-  const [page, setPage] = useState(initial.page);
-
-  // ✅ Saved ids (localStorage 기반)
+  // Saved(로컬)
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
 
-  // ✅ 다른 탭에서 Saved 변경 감지(동기화)
+  /* ===========================================================================
+    ✅ URL에서 초기 상태 읽기 (라우팅 고정)
+    - cat: All | Exhibition | Project | ...
+    - sort: latest | popular
+    - q: 검색어
+    - page: 페이지 번호
+    - saved: 1이면 saved 모드
+  =========================================================================== */
+  const activeCat = getParam(sp, "cat", "All");
+  const sortBy = getParam(sp, "sort", "latest");
+  const q = getParam(sp, "q", "");
+  const page = getParamNum(sp, "page", 1);
+  const savedMode = getParam(sp, "saved", "0") === "1";
+
+  /* ===========================================================================
+    ✅ Saved 변경 감지(다른 탭/창에서 저장 바뀌는 경우)
+  =========================================================================== */
   useEffect(() => {
     const off = onSavedChanged((ids) => setSavedIds(ids));
     return off;
   }, []);
 
-  /* ============================================================================
-    ✅ popstate(뒤로/앞으로) 처리
-    - go()가 pushState로 URL만 바꿀 때, 컴포넌트는 “자동으로” 상태 갱신이 안됨
-    - 그래서 popstate 이벤트를 듣고 URL 상태를 다시 읽어서 setState 해줌
-  ============================================================================ */
-  useEffect(() => {
-    const onPop = () => {
-      const next = readListStateFromUrl();
-      setActiveCat(next.cat);
-      setSortBy(next.sort);
-      setQ(next.q);
-      setSavedMode(next.saved);
-      setPage(next.page);
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
-  /* ============================================================================
-    ✅ (1) published 글 목록 불러오기
-  ============================================================================ */
+  /* ===========================================================================
+    ✅ (1) published 글 불러오기
+  =========================================================================== */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -167,7 +153,7 @@ export default function ListPage({ theme, toggleTheme }) {
         if (!alive) return;
         setAll(Array.isArray(list) ? list : []);
       } catch (e) {
-        console.error("[ListPage] getPublishedArticles failed:", e);
+        console.error(e);
         setAll([]);
       } finally {
         if (alive) setLoading(false);
@@ -178,20 +164,19 @@ export default function ListPage({ theme, toggleTheme }) {
     };
   }, []);
 
-  /* ============================================================================
+  /* ===========================================================================
     ✅ (2) Editor’s Pick ids 불러오기
-    - config.js export가 없을 수도 있어서 try/catch + 타입 체크로 방어
-  ============================================================================ */
+  =========================================================================== */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setPickLoading(true);
-        const ids = await getEditorPickIds(); // 예: [101, 99, 3]
+        const ids = await getEditorPickIds();
         if (!alive) return;
-        setPickIds(Array.isArray(ids) ? ids.map((x) => Number(x)).filter(Boolean) : []);
+        setPickIds(ids);
       } catch (e) {
-        console.warn("[ListPage] getEditorPickIds unavailable or failed:", e);
+        console.error(e);
         setPickIds([]);
       } finally {
         if (alive) setPickLoading(false);
@@ -202,25 +187,73 @@ export default function ListPage({ theme, toggleTheme }) {
     };
   }, []);
 
-  /* ============================================================================
-    ✅ 필터/정렬: all → filtered
-    - savedMode / category / search / sort 적용
-  ============================================================================ */
+  /* ===========================================================================
+    ✅ 유틸: 특정 섹션으로 부드럽게 스크롤
+  =========================================================================== */
+  function scrollToRef(ref) {
+    const el = ref?.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /* ===========================================================================
+    ✅ URL 업데이트 함수 (상태는 URL이 “진실(SSOT)”)
+    - setSp로 searchParam을 바꾸면 React Router가 rerender됨
+  =========================================================================== */
+  function updateQuery(next) {
+    const cur = Object.fromEntries([...sp.entries()]);
+    const merged = { ...cur, ...next };
+
+    // ✅ 빈 값 정리(깔끔한 URL)
+    Object.keys(merged).forEach((k) => {
+      if (merged[k] === "" || merged[k] == null) delete merged[k];
+    });
+
+    setSp(merged, { replace: false });
+  }
+
+  /* ===========================================================================
+    ✅ Section2 카테고리 버튼 클릭(“섹션5로 내려가며 필터 적용”)
+  =========================================================================== */
+  function onClickCategory(catKey) {
+    updateQuery({ cat: catKey, saved: "0", sort: "latest", q: "", page: "1" });
+    scrollToRef(archiveRef);
+  }
+
+  /* ===========================================================================
+    ✅ Saved 클릭(섹션5로 내려가며 Saved 모드 켬)
+  =========================================================================== */
+  function onClickSaved() {
+    updateQuery({ saved: "1", cat: "All", sort: "latest", q: "", page: "1" });
+    scrollToRef(archiveRef);
+  }
+
+  /* ===========================================================================
+    ✅ 섹션5 왼쪽 카테고리 클릭(새로고침 없이 필터만)
+  =========================================================================== */
+  function onSideCat(catKey) {
+    updateQuery({ cat: catKey, saved: "0", q: "", page: "1" });
+  }
+
+  /* ===========================================================================
+    ✅ 필터 + 정렬 결과
+  =========================================================================== */
   const filtered = useMemo(() => {
-    const keyword = q.trim().toLowerCase();
+    const keyword = (q || "").trim().toLowerCase();
+
     let list = [...all];
 
-    // ✅ saved 모드: 저장된 id만 추림
+    // saved mode
     if (savedMode) {
       list = list.filter((a) => savedIds.includes(Number(a.id)));
     }
 
-    // ✅ category 필터
+    // category
     if (activeCat !== "All") {
       list = list.filter((a) => a.category === activeCat);
     }
 
-    // ✅ search: title + excerpt + tags
+    // search: title + excerpt + tags
     if (keyword) {
       list = list.filter((a) => {
         const t = String(a.title || "").toLowerCase();
@@ -230,244 +263,147 @@ export default function ListPage({ theme, toggleTheme }) {
       });
     }
 
-    // ✅ sort
+    // sort
     if (sortBy === "popular") {
-      // (좋아요+조회수) 합산 기준
-      list.sort(
-        (x, y) =>
-          Number(y.likes || 0) +
-          Number(y.views || 0) -
-          (Number(x.likes || 0) + Number(x.views || 0))
-      );
+      list.sort((x, y) => Number(y.likes || 0) + Number(y.views || 0) - (Number(x.likes || 0) + Number(x.views || 0)));
     } else {
-      // 최신순 (createdAt 우선)
+      // latest
       list.sort((x, y) => {
-        const ax =
-          x.createdAt?.toMillis?.() ??
-          x.createdAt?.seconds?.() * 1000 ??
-          Number(x.createdAt || 0);
-
-        const ay =
-          y.createdAt?.toMillis?.() ??
-          y.createdAt?.seconds?.() * 1000 ??
-          Number(y.createdAt || 0);
-
+        const ax = x.createdAt?.toMillis?.() ?? x.createdAt?.seconds?.() * 1000 ?? Number(x.createdAt || 0);
+        const ay = y.createdAt?.toMillis?.() ?? y.createdAt?.seconds?.() * 1000 ?? Number(y.createdAt || 0);
         return ay - ax;
       });
     }
 
     return list;
-  }, [all, activeCat, sortBy, q, savedIds, savedMode]);
+  }, [all, q, activeCat, savedMode, savedIds, sortBy]);
 
-  /* ============================================================================
+  /* ===========================================================================
     ✅ 페이지네이션 계산
-  ============================================================================ */
+  =========================================================================== */
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered.length]);
 
-  // page가 범위 밖이면 자동 보정
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-    if (page < 1) setPage(1);
-  }, [page, totalPages]);
-
-  // 현재 페이지 데이터 슬라이스
   const pageItems = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
+    const p = Math.max(1, Math.min(totalPages, page));
+    const start = (p - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+  }, [filtered, page, totalPages]);
 
-  /* ============================================================================
-    ✅ Editor’s Pick 실제 글 데이터 구성
-    - pickIds는 숫자 id 배열이므로 all에서 id로 매칭
-  ============================================================================ */
+  function setPage(nextPage) {
+    const p = Math.max(1, Math.min(totalPages, nextPage));
+    updateQuery({ page: String(p) });
+  }
+
+  /* ===========================================================================
+    ✅ Editor’s Pick 글 데이터 매칭
+  =========================================================================== */
   const pickArticles = useMemo(() => {
     if (!pickIds.length) return [];
     const map = new Map(all.map((a) => [Number(a.id), a]));
-    return pickIds.map((id) => map.get(Number(id))).filter(Boolean);
+    return pickIds.map((id) => map.get(id)).filter(Boolean);
   }, [all, pickIds]);
 
-  /* ============================================================================
-    ✅ 스크롤 이동 (ref 기반)
-  ============================================================================ */
-  function scrollTo(ref) {
-    const el = ref?.current;
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  /* ============================================================================
-    ✅ URL 반영 헬퍼
-    - 상태를 바꿀 때는 “setState + go(URL)”를 함께 해서
-      새로고침 없이 주소만 바뀌고, 뒤로/앞으로도 자연스럽게 작동하게 함
-  ============================================================================ */
-  function syncUrl(next) {
-    const url = buildListUrl(next);
-    go(url); // ✅ pushState 기반이면 새로고침 안 됨
-  }
-
-  // ✅ 카테고리 버튼(섹션2) 클릭
-  function onClickCategory(catKey) {
-    // saved 모드 해제 + 카테고리 적용
-    setSavedMode(false);
-    setActiveCat(catKey);
-    setSortBy("latest");
-    setQ("");
-    setPage(1);
-
-    // ✅ URL 반영
-    syncUrl({ page: 1, cat: catKey, sort: "latest", q: "", saved: false });
-
-    // ✅ 섹션5로 이동
-    scrollTo(archiveRef);
-  }
-
-  // ✅ Saved 눌렀을 때
-  function onClickSaved() {
-    setSavedMode(true);
-    setActiveCat("All");
-    setSortBy("latest");
-    setQ("");
-    setPage(1);
-
-    syncUrl({ page: 1, cat: "All", sort: "latest", q: "", saved: true });
-    scrollTo(archiveRef);
-  }
-
-  // ✅ 페이지 이동 (현재 필터/정렬/검색/저장 상태를 URL에도 함께 반영)
-  function setPageAndUrl(nextPage) {
-    const p = Math.max(1, Math.min(totalPages, nextPage));
-    setPage(p);
-    syncUrl({ page: p, cat: activeCat, sort: sortBy, q, saved: savedMode });
-  }
-
-  // ✅ 정렬 변경
-  function setSortAndUrl(nextSort) {
-    setSortBy(nextSort);
-    setPage(1);
-    syncUrl({ page: 1, cat: activeCat, sort: nextSort, q, saved: savedMode });
-  }
-
-  // ✅ 검색 변경 (키 입력 시 계속 pushState 하면 히스토리가 너무 쌓임)
-  //    -> 여기서는 “즉시” 반영하되, 원하면 debounce로 바꿀 수 있어요.
-  function setQueryAndUrl(nextQ) {
-    setQ(nextQ);
-    setPage(1);
-    syncUrl({ page: 1, cat: activeCat, sort: sortBy, q: nextQ, saved: savedMode });
-  }
-
-  // ✅ 좌측 사이드바 카테고리 클릭(섹션5 내부)
-  function setCategoryFromSidebar(catKey) {
-    setSavedMode(false);
-    setActiveCat(catKey);
-    setPage(1);
-    // 검색은 유지할지/지울지 취향인데, 지금은 “유지”로 해둠
-    // 검색을 지우고 싶으면: setQ(""); q: ""
-    syncUrl({ page: 1, cat: catKey, sort: sortBy, q, saved: false });
-  }
-
+  /* ===========================================================================
+    ✅ 렌더
+  =========================================================================== */
   return (
     <div className="u-listRoot">
-      {/* =========================================================================
-        ✅ Top Nav
-        - 버튼들은 반드시 type="button" 지정(예상치 못한 submit/리로드 방지)
-        - 브랜드 클릭은 list로 복귀
-      ========================================================================= */}
-      <div className="u-topNav">
+      {/* ======================================================================
+        ✅ Top Nav (스티키)
+        - 요청하신 메뉴:
+          좌측: U# (홈/리스트)
+          우측: Back UNFRAME / Archive(섹션5) / Subscription(섹션6) / Saved
+          + 테마 토글
+      ====================================================================== */}
+      <header className="u-topNav">
         <div className="u-topNav__inner" style={{ maxWidth: MAX_WIDTH }}>
-          {/* ✅ div 대신 button으로 바꿔도 좋음(접근성). 지금은 네 스타일 유지 */}
-          <div className="u-brand" role="button" tabIndex={0} onClick={() => go(buildListUrl({ page: 1 }))}>
+          <div className="u-brand" onClick={() => nav("/")}>
             U#
           </div>
 
-          <div className="u-navRight">
-            <a className="u-navLink" href="https://unframe.imweb.me" target="_blank" rel="noreferrer">
+          <nav className="u-navRight">
+            <a className="u-navLink" href="https://unframe.kr" target="_blank" rel="noreferrer">
               Back UNFRAME
             </a>
 
-            <button type="button" className="u-navLinkBtn" onClick={() => scrollTo(archiveRef)}>
+            <button className="u-navBtn" type="button" onClick={() => scrollToRef(archiveRef)}>
               Archive
             </button>
 
-            <button type="button" className="u-navLinkBtn" onClick={() => scrollTo(subscribeRef)}>
+            <button className="u-navBtn" type="button" onClick={() => scrollToRef(subscribeRef)}>
               Subscription
             </button>
 
-            <button
-              type="button"
-              className="u-navLinkBtn u-navLinkBtn--saved"
-              onClick={onClickSaved}
-              title="내 기기(브라우저)에 저장된 북마크 목록"
-            >
+            <button className="u-navBtn u-navBtn--saved" type="button" onClick={onClickSaved}>
               Saved ({savedIds.length})
             </button>
 
-            {/* ✅ 테마 토글 */}
-            <button type="button" className="u-navLinkBtn" onClick={toggleTheme} title="Toggle theme">
+            <button className="u-navBtn" type="button" onClick={toggleTheme} title="Toggle theme">
               {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
             </button>
-          </div>
+          </nav>
         </div>
-      </div>
+      </header>
 
-      {/* =========================================================================
-        ✅ Section 1: Hero
-        - backgroundImage는 네가 소유한 이미지로 교체 추천(안정성↑)
-      ========================================================================= */}
-      <section className="u-sec u-hero" style={{ backgroundImage: `url(${HERO_BG})` }}>
+      {/* ======================================================================
+        ✅ Section 1: Hero (강렬한 이미지 + 타이틀)
+        - 높이: 80vh 느낌
+      ====================================================================== */}
+      <section className="u-sec u-hero" style={{ minHeight: SECTION_MIN_H }}>
+        <div className="u-heroBg" style={{ backgroundImage: `url(${HERO_BG})` }} />
+        <div className="u-heroOverlay" />
+
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="u-heroCard">
             <div className="u-heroKicker">UNFRAME MAGAZINE</div>
-            <h1 className="u-heroTitle">Any Letter That Inspires You.</h1>
+            <h1 className="u-heroTitle">A Journal of Art, Space, and People.</h1>
             <p className="u-heroSub">
-              오늘의 전시 · 프로젝트 · 아티스트 노트 · 뉴스.
+              Exhibition · Project · Artist Note · News
               <br />
-              부담 없이, 하지만 깊게—당신의 아트 감각을 업데이트해요.
+              깊지만 부담 없는 읽기 경험을 만듭니다.
             </p>
 
             <div className="u-heroBtns">
-              <button type="button" className="u-btn u-btnPrimary" onClick={() => scrollTo(archiveRef)}>
+              <button className="u-btn u-btnPrimary" type="button" onClick={() => scrollToRef(archiveRef)}>
                 Archive 보기 →
               </button>
-              <button type="button" className="u-btn u-btnGhost" onClick={() => scrollTo(subscribeRef)}>
+              <button className="u-btn u-btnGhost" type="button" onClick={() => scrollToRef(subscribeRef)}>
                 Subscribe →
               </button>
             </div>
           </div>
         </div>
-
-        {/* ✅ 오버레이(어두운 레이어). 텍스트 가독성 조절용 */}
-        <div className="u-heroOverlay" />
       </section>
 
-      {/* =========================================================================
-        ✅ Section 2: Categories interactive
-        - 버튼 hover 애니메이션/폭 변화는 CSS에서 처리
-        - 클릭 시: cat 적용 + 섹션5로 스크롤
-      ========================================================================= */}
-      <section className="u-sec u-secCats">
+      {/* ======================================================================
+        ✅ Section 2: 인터렉티브 카테고리 버튼 4개
+        - 호버 시 폭 넓어짐 + 줌
+        - 클릭하면 섹션5로 스크롤 + 해당 카테고리 필터 적용
+      ====================================================================== */}
+      <section className="u-sec u-secCats" style={{ minHeight: SECTION_MIN_H }}>
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="u-secTitleRow">
+            <div className="u-secTitle">Categories</div>
+            <div className="u-secDesc">마우스를 올려보세요. 그리고 클릭하면 아카이브로 이동해요.</div>
+          </div>
+
           <div className="u-catsRow">
             {CATEGORIES.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                className="u-catCard"
-                onClick={() => onClickCategory(c.key)}
-              >
+              <button key={c.key} className="u-catCard" type="button" onClick={() => onClickCategory(c.key)}>
                 <div className="u-catSub">{c.sub}</div>
                 <div className="u-catTitle">{c.label}</div>
-                <div className="u-catHint">VIEW GALLERY →</div>
+                <div className="u-catHint">VIEW →</div>
               </button>
             ))}
           </div>
         </div>
       </section>
 
-      {/* =========================================================================
-        ✅ Section 3: Marquee + mini subscribe
-        - 이메일 저장/연동은 추후(지금은 UI만)
-      ========================================================================= */}
-      <section className="u-sec u-secMarquee">
+      {/* ======================================================================
+        ✅ Section 3: 오른쪽→왼쪽 흐르는 텍스트(마키) + 미니 구독
+        - "심플 & 모던"
+      ====================================================================== */}
+      <section className="u-sec u-secMarquee" style={{ minHeight: SECTION_MIN_H }}>
         <div className="u-marquee">
           <div className="u-marquee__track">
             <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
@@ -478,36 +414,34 @@ export default function ListPage({ theme, toggleTheme }) {
 
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="u-miniSub">
-            <div className="u-miniSub__title">📮 구독하면 매주 좋은 글을 보내드려요</div>
+            <div className="u-miniSub__title">📮 구독하면 좋은 글을 보내드려요</div>
             <div className="u-miniSub__row">
               <input className="u-input" placeholder="email@example.com" />
-              <button type="button" className="u-btn u-btnPrimary" onClick={() => scrollTo(subscribeRef)}>
+              <button className="u-btn u-btnPrimary" type="button" onClick={() => scrollToRef(subscribeRef)}>
                 Subscribe
               </button>
             </div>
-            <div className="u-miniSub__desc">* 지금은 UI만, 추후 실제 연동 예정 ✨</div>
+            <div className="u-miniSub__desc">* 지금은 UI만 (추후 실제 연동)</div>
           </div>
         </div>
       </section>
 
-      {/* =========================================================================
+      {/* ======================================================================
         ✅ Section 4: Editor’s Note + Editor’s Pick
-        - pickIds는 config에서 가져오고 all과 매칭해서 보여줌
-      ========================================================================= */}
-      <section className="u-sec u-secPick">
+        - Pick은 Firestore config/editorPick 의 picks 배열로 제어
+      ====================================================================== */}
+      <section className="u-sec u-secPick" style={{ minHeight: SECTION_MIN_H }}>
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="u-grid2">
-            {/* NOTE */}
             <div className="u-noteBox">
               <div className="u-boxTitle">Editor’s Note</div>
               <p className="u-boxText">
-                이 섹션은 “고정 소개글” 느낌으로 운영하기 좋아요.
+                이 섹션은 “고정 소개글”로 운영하기 좋아요.
                 <br />
-                다음 단계에서 Firestore config로 noteText도 연결 가능!
+                다음 단계에서 Firestore config로 noteText도 연결할 수 있어요.
               </p>
             </div>
 
-            {/* PICK */}
             <div className="u-pickBox">
               <div className="u-boxTitle">Editor’s Pick</div>
 
@@ -516,16 +450,16 @@ export default function ListPage({ theme, toggleTheme }) {
               ) : pickArticles.length === 0 ? (
                 <div className="u-boxText">
                   아직 Pick이 비어 있어요 🥲 <br />
-                  Firestore config/editorPick 문서의 <b>picks</b> 배열에 글 id를 넣어주세요.
+                  Firestore <b>config/editorPick</b> 문서의 <b>picks</b> 배열에 글 id를 넣어주세요.
                 </div>
               ) : (
                 <div className="u-pickList">
                   {pickArticles.slice(0, 3).map((a) => (
                     <button
                       key={a.id}
-                      type="button"
                       className="u-pickItem"
-                      onClick={() => go(`?mode=view&id=${Number(a.id)}`)} // ✅ 반드시 숫자 id로 이동!
+                      type="button"
+                      onClick={() => nav(`/article/${Number(a.id)}`)}
                     >
                       <span className="u-pickBadge">PICK</span>
                       <span className="u-pickTitle">{a.title || "(no title)"}</span>
@@ -541,15 +475,16 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </section>
 
-      {/* =========================================================================
-        ✅ Section 5: Archive + Pagination
-        - id="archive"를 같이 달아두면, 상단 메뉴에서 id 기반 스크롤도 가능
-        - 좌측 aside는 sticky 스타일로 CSS에서 처리
-      ========================================================================= */}
-      <section className="u-sec u-secArchive" id="archive" ref={archiveRef}>
+      {/* ======================================================================
+        ✅ Section 5: Archive (좌측 스티키 + 우측 6개 카드 + 정렬/검색/페이지네이션)
+        - 좌측: 카테고리 4개 + Saved
+        - 우측: 최신/인기 + 검색창 + 카드
+        - 태그 클릭: 검색창에 태그 자동 적용 (상단 태그 UI 제거)
+      ====================================================================== */}
+      <section className="u-sec u-secArchive" ref={archiveRef}>
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="u-archiveLayout">
-            {/* Left sticky */}
+            {/* ✅ Left sticky menu */}
             <aside className="u-archiveSide">
               <div className="u-sideBox">
                 <div className="u-sideTitle">Archive</div>
@@ -557,11 +492,7 @@ export default function ListPage({ theme, toggleTheme }) {
                 <button
                   type="button"
                   className={`u-sideItem ${activeCat === "All" && !savedMode ? "is-active" : ""}`}
-                  onClick={() => {
-                    setSavedMode(false);
-                    setActiveCat("All");
-                    setPageAndUrl(1);
-                  }}
+                  onClick={() => updateQuery({ cat: "All", saved: "0", q: "", page: "1" })}
                 >
                   All
                 </button>
@@ -571,7 +502,7 @@ export default function ListPage({ theme, toggleTheme }) {
                     key={c.key}
                     type="button"
                     className={`u-sideItem ${activeCat === c.key && !savedMode ? "is-active" : ""}`}
-                    onClick={() => setCategoryFromSidebar(c.key)}
+                    onClick={() => onSideCat(c.key)}
                   >
                     {c.label}
                   </button>
@@ -580,30 +511,28 @@ export default function ListPage({ theme, toggleTheme }) {
                 <button
                   type="button"
                   className={`u-sideItem ${savedMode ? "is-active" : ""}`}
-                  onClick={onClickSaved}
+                  onClick={() => updateQuery({ saved: "1", cat: "All", q: "", page: "1" })}
                 >
                   Saved
                 </button>
               </div>
             </aside>
 
-            {/* Right list */}
+            {/* ✅ Right content */}
             <div className="u-archiveMain">
-              {/* 상단 컨트롤 바: 정렬 + 검색 */}
               <div className="u-archiveTopbar">
                 <div className="u-sort">
                   <button
                     type="button"
                     className={`u-chip ${sortBy === "latest" ? "is-active" : ""}`}
-                    onClick={() => setSortAndUrl("latest")}
+                    onClick={() => updateQuery({ sort: "latest", page: "1" })}
                   >
                     최신순
                   </button>
-
                   <button
                     type="button"
                     className={`u-chip ${sortBy === "popular" ? "is-active" : ""}`}
-                    onClick={() => setSortAndUrl("popular")}
+                    onClick={() => updateQuery({ sort: "popular", page: "1" })}
                   >
                     인기순
                   </button>
@@ -612,12 +541,12 @@ export default function ListPage({ theme, toggleTheme }) {
                 <input
                   className="u-input u-search"
                   value={q}
-                  onChange={(e) => setQueryAndUrl(e.target.value)}
+                  onChange={(e) => updateQuery({ q: e.target.value, page: "1", saved: savedMode ? "1" : "0" })}
                   placeholder="검색 (제목/요약/태그)"
                 />
               </div>
 
-              {/* 리스트 본문 */}
+              {/* ✅ 상태 */}
               {loading ? (
                 <div className="u-empty">로딩 중… ⏳</div>
               ) : pageItems.length === 0 ? (
@@ -625,24 +554,18 @@ export default function ListPage({ theme, toggleTheme }) {
               ) : (
                 <div className="u-cards">
                   {pageItems.map((a) => {
-                    // ✅ 중요: view로 이동할 id는 반드시 a.id(숫자)로 통일
-                    const id = Number(a.id);
-                    const saved = savedIds.includes(id);
+                    const idNum = Number(a.id);
+                    const saved = savedIds.includes(idNum);
 
-                    // ✅ 커버는 가능한 중간 사이즈 우선(리스트 품질용)
-                    //    - coverMedium / coverThumb / cover 순서로 fallback
+                    // ✅ 썸네일 우선순위: medium → thumb → cover
                     const cover = a.coverMedium || a.coverThumb || a.cover || "";
 
+                    // ✅ 읽기시간(요청하신 “3 min read”)
+                    const readMin = calcReadMin(a);
+
                     return (
-                      <article
-                        key={id}
-                        className="u-card"
-                        onClick={() => go(`?mode=view&id=${id}`)} // ✅ 여기 틀리면 "글을 찾을 수 없음" 발생
-                      >
-                        <div
-                          className="u-cardImg"
-                          style={{ backgroundImage: cover ? `url(${cover})` : "none" }}
-                        >
+                      <article key={idNum} className="u-card" onClick={() => nav(`/article/${idNum}`)}>
+                        <div className="u-cardImg" style={{ backgroundImage: cover ? `url(${cover})` : "none" }}>
                           {!cover && <div className="u-cardImg__fallback">No Image</div>}
                         </div>
 
@@ -650,12 +573,13 @@ export default function ListPage({ theme, toggleTheme }) {
                           <div className="u-cardMeta">
                             <span className="u-badge">{a.category || "Category"}</span>
                             <span className="u-date">{formatDate(a.createdAt)}</span>
+                            <span className="u-read">📖 {readMin} min read</span>
                           </div>
 
                           <div className="u-cardTitle">{a.title || "(no title)"}</div>
                           <div className="u-cardExcerpt">{clampText(a.excerpt || "", 120)}</div>
 
-                          {/* ✅ 태그는 카드 아래에만 */}
+                          {/* ✅ 태그는 카드 아래에만(요청) */}
                           {Array.isArray(a.tags) && a.tags.length > 0 && (
                             <div className="u-tags">
                               {a.tags.slice(0, 4).map((t) => (
@@ -664,14 +588,9 @@ export default function ListPage({ theme, toggleTheme }) {
                                   type="button"
                                   className="u-tag"
                                   onClick={(ev) => {
-                                    // ✅ 카드 클릭(뷰 이동) 방지
                                     ev.stopPropagation();
-                                    // ✅ 태그 클릭 시: 검색어로 세팅
-                                    setSavedMode(false);
-                                    setActiveCat("All");
-                                    setQueryAndUrl(String(t)); // URL까지 반영
+                                    updateQuery({ q: t, cat: "All", saved: "0", page: "1" });
                                   }}
-                                  title={`태그 검색: ${t}`}
                                 >
                                   #{t}
                                 </button>
@@ -689,12 +608,11 @@ export default function ListPage({ theme, toggleTheme }) {
                               type="button"
                               className={`u-saveBtn ${saved ? "is-saved" : ""}`}
                               onClick={(ev) => {
-                                // ✅ 카드 클릭(뷰 이동) 방지
                                 ev.stopPropagation();
-                                const r = toggleSaved(id);
-                                setSavedIds(r.ids); // 즉시 UI 반영
+                                const r = toggleSaved(idNum);
+                                setSavedIds(r.ids);
                               }}
-                              title="이 기기에만 저장되는 북마크"
+                              title="Save"
                             >
                               {saved ? "★ Saved" : "☆ Save"}
                             </button>
@@ -706,15 +624,10 @@ export default function ListPage({ theme, toggleTheme }) {
                 </div>
               )}
 
-              {/* ✅ 페이지네이션 UI */}
+              {/* ✅ 페이지네이션 */}
               {filtered.length > PAGE_SIZE && (
                 <div className="u-pager">
-                  <button
-                    type="button"
-                    className="u-pagerBtn"
-                    disabled={page <= 1}
-                    onClick={() => setPageAndUrl(page - 1)}
-                  >
+                  <button className="u-pagerBtn" type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                     ← Prev
                   </button>
 
@@ -726,7 +639,7 @@ export default function ListPage({ theme, toggleTheme }) {
                           key={p}
                           type="button"
                           className={`u-pagerNum ${p === page ? "is-active" : ""}`}
-                          onClick={() => setPageAndUrl(p)}
+                          onClick={() => setPage(p)}
                         >
                           {p}
                         </button>
@@ -734,56 +647,60 @@ export default function ListPage({ theme, toggleTheme }) {
                     })}
                   </div>
 
-                  <button
-                    type="button"
-                    className="u-pagerBtn"
-                    disabled={page >= totalPages}
-                    onClick={() => setPageAndUrl(page + 1)}
-                  >
+                  <button className="u-pagerBtn" type="button" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                     Next →
                   </button>
                 </div>
               )}
 
-              {/* ✅ 확장 아이디어 힌트 */}
+              {/* ✅ 글 많아질 때 아이디어(요청하신 “6개 이상은?”) */}
               <div className="u-moreHint">
-                📌 글이 아주 많아지면 “커서 기반 페이지네이션(무한 로딩)”도 가능해요. 지금은 안정적인 번호 페이지 방식 👍
+                📌 글이 많아지면 다음 중 하나로 확장하면 좋아요:
+                <br />
+                1) 지금처럼 “번호 페이지네이션”(가장 안정적) 유지
+                <br />
+                2) “더 보기” 버튼(페이지+1) 방식
+                <br />
+                3) 무한 스크롤(커서 기반, Firestore paging)
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* =========================================================================
-        ✅ Section 6: Subscription
-        - id="subscribe" 추가해 두면 메뉴에서 id 기반 이동도 쉬움
-      ========================================================================= */}
-      <section className="u-sec u-secSubscribe" id="subscribe" ref={subscribeRef}>
+      {/* ======================================================================
+        ✅ Section 6: Subscription (본격 구독 섹션)
+      ====================================================================== */}
+      <section className="u-sec u-secSubscribe" ref={subscribeRef} style={{ minHeight: SECTION_MIN_H }}>
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="u-subBig">
-            <h2 className="u-subBigTitle">Subscribe</h2>
+            <h2 className="u-subBigTitle">Subscription</h2>
             <p className="u-subBigDesc">
               새로운 글이 올라오면 놓치지 않게 알려드릴게요.
               <br />
-              (지금은 UI만, 추후 실제 연동 예정)
+              (지금은 UI만, 추후 실제 연동)
             </p>
+
             <div className="u-subBigRow">
               <input className="u-input" placeholder="email@example.com" />
-              <button type="button" className="u-btn u-btnPrimary">
+              <button className="u-btn u-btnPrimary" type="button">
                 Join
               </button>
             </div>
+
             <div className="u-subBigFine">* 언제든지 구독 해지 가능</div>
           </div>
         </div>
       </section>
 
-      {/* ✅ Footer */}
+      {/* ======================================================================
+        ✅ Section 7: Footer
+      ====================================================================== */}
       <footer className="u-footer">
         <div className="u-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="u-footerRow">
             <div>© UNFRAME MAG</div>
-            <div style={{ opacity: 0.7 }}>Made with ♥</div>
+            <div className="u-muted">Made with ♥</div>
           </div>
         </div>
       </footer>
