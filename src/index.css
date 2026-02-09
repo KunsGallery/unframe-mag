@@ -8,7 +8,7 @@
 :root{
   --bg: #f4f1ea;
   --panel: rgba(255,255,255,0.72);
-  --panel2: rgba(255,255,255,0.52);
+  --panel2: rgba(255,255,255,0.55);
   --text: #101114;
   --muted: rgba(16,17,20,0.65);
   --line: rgba(16,17,20,0.12);
@@ -18,13 +18,14 @@
 
   --shadow: 0 10px 30px rgba(0,0,0,0.08);
   --radius: 18px;
+
   --max: 1200px;
 }
 
 html[data-theme="dark"]{
   --bg: #0b0e14;
-  --panel: rgba(255,255,255,0.07);
-  --panel2: rgba(255,255,255,0.05);
+  --panel: rgba(255,255,255,0.06);
+  --panel2: rgba(255,255,255,0.04);
   --text: rgba(255,255,255,0.92);
   --muted: rgba(255,255,255,0.62);
   --line: rgba(255,255,255,0.14);
@@ -46,6 +47,7 @@ html, body{
   color: var(--text);
   font-family: "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
+
 a{ color: inherit; text-decoration: none; }
 button{ font-family: inherit; }
 *{ box-sizing: border-box; }
@@ -54,13 +56,28 @@ button{ font-family: inherit; }
   ✅ Layout Helpers
 ============================================================================= */
 .uf-page{ min-height: 100vh; }
-.uf-wrap{ max-width: var(--max); margin: 0 auto; padding: 0 16px; }
+
+.uf-wrap{
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.uf-sec{
+  width: 100%;
+  padding: 64px 0;
+}
 
 .uf-card{
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
+
+.uf-card--flat{
+  background: var(--panel2);
+  box-shadow: none;
 }
 
 .uf-row{ display:flex; gap: 12px; align-items:center; }
@@ -80,15 +97,26 @@ button{ font-family: inherit; }
   align-items:center;
   gap:8px;
   cursor:pointer;
-  transition: transform .08s ease, background .12s ease, border-color .12s ease, opacity .12s ease;
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
 }
+
 .uf-btn:hover{
-  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.06);
 }
+
 .uf-btn:active{ transform: translateY(1px); }
-.uf-btn--primary{ background: var(--brand); border-color: rgba(0,0,0,0); color: white; }
-html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
+
+.uf-btn--primary{
+  background: var(--brand);
+  border-color: rgba(0,0,0,0);
+  color: white;
+}
+
+html[data-theme="dark"] .uf-btn--primary{
+  color: #0b0e14;
+}
+
 .uf-btn--ghost{ background: transparent; }
 
 .uf-input, .uf-textarea, .uf-select{
@@ -100,8 +128,14 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   padding: 10px 12px;
   outline: none;
 }
+
 .uf-textarea{ min-height: 92px; resize: vertical; }
-.uf-label{ font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
+.uf-label{
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
 
 /* =============================================================================
   ✅ Toast
@@ -121,538 +155,657 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
 }
 
 /* =============================================================================
-  ✅ Topbar
+  ✅ Topbar (전 페이지 공용)
 ============================================================================= */
 .uf-topbar{
   position: sticky;
   top: 0;
   z-index: 50;
   backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
   border-bottom: 1px solid var(--line);
 }
+
 .uf-topbar__inner{
   height: 64px;
   display:flex;
   align-items:center;
   justify-content: space-between;
 }
+
 .uf-brand{
   font-weight: 900;
   letter-spacing: -0.02em;
   font-size: 18px;
   cursor:pointer;
+  border: 0;
   background: transparent;
-  border: none;
-  padding: 0;
   color: inherit;
 }
+
 .uf-nav{ display:flex; gap: 8px; align-items:center; }
 
 /* =============================================================================
-  ✅ Editor Layout
+  ✅ List Page (Hero / Cats / Pick / Archive / Cards / Pager)
 ============================================================================= */
-.uf-editorShell{ padding: 22px 0 46px; }
+
+.uf-hero{
+  position: relative;
+  min-height: 80vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.uf-heroBg{
+  position:absolute;
+  inset:0;
+  background-size: cover;
+  background-position:center;
+  transform: scale(1.02);
+  filter: saturate(1.05);
+}
+
+.uf-heroOverlay{
+  position:absolute;
+  inset:0;
+  background: linear-gradient( to bottom, rgba(0,0,0,.20), rgba(0,0,0,.62) );
+}
+
+.uf-heroCard{
+  position: relative;
+  z-index: 2;
+  max-width: 720px;
+  padding: 22px;
+  border-radius: 22px;
+  background: rgba(0,0,0,0.35);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(10px);
+}
+
+.uf-heroKicker{
+  font-size: 12px;
+  letter-spacing: .18em;
+  opacity: .92;
+}
+
+.uf-heroTitle{
+  margin: 10px 0 10px;
+  font-size: 42px;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 900;
+}
+
+.uf-heroSub{
+  margin: 0 0 16px;
+  opacity: .9;
+  line-height: 1.6;
+}
+
+.uf-heroBtns{ display:flex; gap:10px; flex-wrap: wrap; }
+
+/* Categories row */
+.uf-catsRow{
+  display:flex;
+  gap: 12px;
+  width:100%;
+}
+
+@media (max-width: 980px){
+  .uf-catsRow{ flex-direction: column; }
+}
+
+.uf-catCard{
+  flex: 1;
+  min-height: 210px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  text-align: left;
+  cursor:pointer;
+  transition: transform .15s ease, background .15s ease, flex .18s ease;
+}
+
+.uf-catCard:hover{
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--brand) 10%, var(--panel));
+}
+
+.uf-catSub{
+  font-size: 12px;
+  letter-spacing: .12em;
+  color: var(--muted);
+}
+
+.uf-catTitle{
+  margin-top: 10px;
+  font-weight: 900;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.uf-catHint{
+  margin-top: 12px;
+  font-size: 12px;
+  opacity: .7;
+}
+
+/* Pick grid */
+.uf-grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 980px){
+  .uf-grid2{ grid-template-columns: 1fr; }
+}
+
+.uf-boxTitle{ font-weight: 900; margin-bottom: 8px; font-size: 16px; }
+.uf-boxText{ color: var(--muted); line-height: 1.6; }
+
+.uf-noteBox, .uf-pickBox{
+  padding: 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.uf-pickList{ display:flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.uf-pickItem{
+  text-align:left;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  border-radius: 14px;
+  padding: 12px;
+  cursor:pointer;
+}
+
+.uf-pickBadge{
+  display:inline-block;
+  font-size: 11px;
+  letter-spacing: .14em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  margin-right: 8px;
+}
+
+.uf-pickTitle{ font-weight: 900; }
+.uf-pickMeta{ display:block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+
+/* Archive layout */
+.uf-archiveLayout{
+  display:grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items:start;
+}
+
+@media (max-width: 980px){
+  .uf-archiveLayout{ grid-template-columns: 1fr; }
+}
+
+.uf-archiveSide{
+  position: sticky;
+  top: 84px;
+}
+
+@media (max-width: 980px){
+  .uf-archiveSide{ position: static; }
+}
+
+.uf-sideBox{
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.uf-sideTitle{ font-weight: 900; margin-bottom: 10px; }
+
+.uf-sideItem{
+  width:100%;
+  text-align:left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor:pointer;
+  color: inherit;
+}
+
+.uf-sideItem:hover{
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+.uf-sideItem.is-active{
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+.uf-archiveTopbar{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.uf-chip{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor:pointer;
+}
+
+.uf-chip.is-active{
+  border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, var(--panel));
+}
+
+.uf-search{ max-width: 340px; }
+
+/* Cards */
+.uf-cards{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 860px){
+  .uf-cards{ grid-template-columns: 1fr; }
+}
+
+.uf-cardItem{
+  overflow:hidden;
+  cursor:pointer;
+}
+
+.uf-cardImg{
+  height: 190px;
+  background-size: cover;
+  background-position: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.uf-cardBody{ padding: 14px; }
+
+.uf-cardMeta{
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.uf-badge{
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--panel2);
+}
+
+.uf-cardTitle{
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.uf-cardExcerpt{
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.uf-tags{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.uf-tag{
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor:pointer;
+}
+
+.uf-cardBottom{
+  margin-top: 12px;
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 10px;
+}
+
+.uf-stats{
+  display:flex;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.uf-saveBtn{
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor:pointer;
+}
+
+.uf-saveBtn.is-saved{
+  border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, var(--panel));
+}
+
+/* Pager */
+.uf-pager{
+  margin-top: 18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.uf-pagerBtn, .uf-pagerNum{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor:pointer;
+}
+
+.uf-pagerNum.is-active{
+  border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, var(--panel));
+}
+
+.uf-footer{
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* =============================================================================
+  ✅ View Page (Hero / Grid / Side)
+============================================================================= */
+.uf-viewHero{
+  position: relative;
+  width:100%;
+  min-height: 56vh;
+  display:flex;
+  align-items:flex-end;
+  overflow:hidden;
+}
+
+.uf-viewHero__bg{
+  position:absolute;
+  inset:0;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.02);
+  will-change: transform; /* ✅ parallax 준비 */
+}
+
+.uf-viewHero__overlay{
+  position:absolute;
+  inset:0;
+  background: linear-gradient(to top, rgba(0,0,0,.70), rgba(0,0,0,.18), rgba(0,0,0,.06));
+}
+
+.uf-viewHero__content{
+  position: relative;
+  padding: 26px 0 28px;
+  color: white;
+}
+
+.uf-viewHero__kicker{ font-size: 12px; letter-spacing: .18em; opacity: .92; }
+
+.uf-viewHero__title{
+  margin: 10px 0 10px;
+  font-size: 36px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 900;
+}
+
+.uf-viewHero__meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 10px;
+  opacity: .92;
+  font-size: 13px;
+}
+
+.uf-viewBody{ padding: 28px 0 56px; }
+
+.uf-viewGrid{
+  display:grid;
+  grid-template-columns: 1fr 300px;
+  gap: 18px;
+  align-items:start;
+}
+
+@media (max-width: 980px){
+  .uf-viewGrid{ grid-template-columns: 1fr; }
+}
+
+.uf-side{
+  position: sticky;
+  top: 84px;
+}
+
+@media (max-width: 980px){
+  .uf-side{ position: static; }
+}
+
+.uf-article{
+  padding: 22px;
+}
+
+@media (max-width: 640px){
+  .uf-article{ padding: 16px; }
+}
+
+/* 퀵액션(다크모드 포함) 텍스트 안정 */
+.uf-sideBox{
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.uf-sideTitle{ font-weight: 900; margin-bottom: 8px; }
+.uf-sideInfo{ font-size: 13px; color: var(--muted); line-height: 1.5; }
+.uf-sideBtns{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
+
+/* =============================================================================
+  ✅ View: Scene / Reveal / Parallax / Sticky Story
+  - 오늘의 핵심(2번)
+============================================================================= */
+
+/* Scene 래퍼 (뷰에서 자동 생성됨) */
+.uf-scene{
+  margin: 18px 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+/* Reveal 기본 상태: 아래에서 올라오며 페이드 */
+.uf-reveal{
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity .7s ease, transform .7s ease;
+  will-change: opacity, transform;
+}
+
+.uf-reveal.is-in{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 이미지에 parallax 적용할 때 */
+.uf-parallax{
+  will-change: transform;
+  transform: translateY(0px);
+  transition: transform .08s linear;
+}
+
+/* Sticky story (씬 안에 [sticky] 마커가 있으면 적용됨) */
+.uf-stickyStory{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items:start;
+}
+
+@media (max-width: 860px){
+  .uf-stickyStory{ grid-template-columns: 1fr; }
+}
+
+.uf-stickyMedia{
+  position: sticky;
+  top: 92px;
+  border-radius: 16px;
+  overflow:hidden;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+}
+
+@media (max-width: 860px){
+  .uf-stickyMedia{ position: static; }
+}
+
+.uf-stickyMedia img{
+  width: 100%;
+  display:block;
+}
+
+.uf-stickyText{
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  padding: 14px;
+}
+
+/* =============================================================================
+  ✅ Editor Page Layout
+============================================================================= */
+.uf-editorShell{ padding: 22px 0 40px; }
+
 .uf-editorGrid{
   display:grid;
   grid-template-columns: 360px 1fr;
   gap: 18px;
   align-items:start;
 }
+
 @media (max-width: 980px){
   .uf-editorGrid{ grid-template-columns: 1fr; }
 }
-.uf-panel{ padding: 16px; }
-.uf-panelTitle{ font-weight: 950; letter-spacing: -0.02em; margin-bottom: 12px; }
-.uf-panelHint{ font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
 
-/* =============================================================================
-  ✅ Toolbar (친절한 그룹형 디자인)
-============================================================================= */
+.uf-panel{ padding: 16px; }
+.uf-panelTitle{ font-weight: 900; letter-spacing: -0.02em; margin-bottom: 12px; }
+.uf-panelHint{ font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 6px; }
+
+/* Toolbar */
 .uf-toolbar{
   position: sticky;
   top: 64px;
   z-index: 40;
   padding: 10px 0;
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(12px);
 }
-.uf-toolbar__inner{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 10px;
-  align-items:flex-end;
-}
 
-.uf-toolGroup{
+.uf-toolbar__inner{
   display:flex;
   flex-wrap:wrap;
   gap: 8px;
   align-items:center;
-  padding: 10px 10px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 82%, transparent);
-}
-.uf-toolGroupTitle{
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: .12em;
-  font-weight: 900;
-  padding: 0 6px 2px;
-  margin-right: 4px;
 }
 
-.uf-toolBtn{
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-  display:inline-flex;
-  align-items:center;
-  gap: 6px;
-  transition: transform .08s ease, background .12s ease, border-color .12s ease;
-}
-.uf-toolBtn:hover{
-  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
-}
-.uf-toolBtn:active{ transform: translateY(1px); }
-
-.uf-toolDanger{
-  border-color: color-mix(in srgb, #ef4444 45%, var(--line));
-}
-.uf-toolDanger:hover{
-  background: color-mix(in srgb, #ef4444 10%, var(--panel));
-  border-color: color-mix(in srgb, #ef4444 55%, var(--line));
-}
-
-.uf-toolFile{ position: relative; overflow:hidden; }
-.uf-toolSelect{
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.uf-toolSep{
-  width: 1px;
-  height: 44px;
-  background: var(--line);
-  margin: 0 2px;
-}
-.uf-toolMiniSep{
-  width: 1px;
-  height: 24px;
-  background: var(--line);
-  margin: 0 2px;
-}
-
-.uf-colorRow{
-  display:flex;
-  align-items:center;
-  gap: 6px;
-  padding: 0 6px;
-}
-.uf-colorChip{
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.35);
-  outline: 1px solid var(--line);
-  cursor: pointer;
-}
-.uf-colorPickLabel{
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-}
-.uf-colorPicker{
-  width: 26px;
-  height: 20px;
-  border: 0;
-  padding: 0;
-  margin-left: 8px;
-  background: transparent;
-}
-
-/* =============================================================================
-  ✅ Editor Box
-============================================================================= */
-.uf-editorBox{ padding: 16px; }
+/* ProseMirror (Editor) */
+.uf-editorBox{ padding: 16px; min-height: 620px; }
 .uf-editorBox .ProseMirror{
   min-height: 560px;
   outline: none;
-  line-height: 1.8;
+  line-height: 1.75;
   font-size: 16px;
 }
+
+/* Editor 문단 간격 */
 .uf-editorBox .ProseMirror p{ margin: 10px 0; }
+
+/* 선택된 이미지 표시 */
 .ProseMirror img.ProseMirror-selectednode{
   outline: 3px solid var(--brand);
   border-radius: 12px;
 }
 
-.uf-editorHelp{
-  margin-top: 12px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-/* =============================================================================
-  ✅ Scene / Reveal / Sticky / Parallax (뷰에서 효과를 줄 기반)
-============================================================================= */
-
-/* Scene: 씬 경계가 확실히 보이게 */
-.uf-scene{
-  margin: 26px 0;
-  padding: 18px 16px;
-  border-radius: 16px;
-  border: 1px dashed color-mix(in srgb, var(--brand) 42%, var(--line));
-  background: color-mix(in srgb, var(--brand) 6%, var(--panel));
-  position: relative;
-}
-.uf-scene::before{
-  content: "SCENE";
-  position: absolute;
-  top: -10px;
-  left: 14px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  letter-spacing: .16em;
-  font-weight: 900;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  border: 1px solid var(--line);
-  color: var(--muted);
-}
-
-/* Reveal: 기본 숨김 → View에서 is-visible 붙이면 등장 */
-.uf-reveal{
-  opacity: 0.0;
-  transform: translateY(14px);
-  transition: opacity .6s ease, transform .6s ease;
-  will-change: opacity, transform;
-}
-.uf-reveal.is-visible{
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Sticky 구조 */
-.uf-stickyWrap{
-  margin: 28px 0;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  overflow: hidden;
-}
-.uf-sticky{
-  position: sticky;
-  top: 84px;
-  padding: 16px;
-}
-@media (max-width: 980px){
-  .uf-sticky{ position: relative; top: auto; }
-}
-
-/* Parallax: JS가 transform을 업데이트해줄 때 자연스럽게 */
-.uf-parallax{
-  will-change: transform;
-  transform: translateY(0);
-}
-
-/* 캡션 */
-.uf-caption{
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
-}
-.uf-sceneHint{
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
-  margin: 10px 0;
-}
-
-/* =============================================================================
-  ✅ 본문 HTML 기본 타이포 (View에서도 동일하게 적용됨)
-============================================================================= */
-.ProseMirror h1, .ProseMirror h2, .ProseMirror h3{
-  letter-spacing: -0.02em;
-  margin: 18px 0 10px;
-}
-.ProseMirror h1{ font-size: 28px; font-weight: 950; }
-.ProseMirror h2{ font-size: 22px; font-weight: 950; }
-.ProseMirror h3{ font-size: 18px; font-weight: 900; }
-
-.ProseMirror blockquote{
+/* ✅ 에디터에서 “Scene Break = HR”을 눈에 띄게 */
+.uf-editorBox .ProseMirror hr{
+  border: 0;
+  border-top: 2px dashed color-mix(in srgb, var(--brand) 70%, transparent);
   margin: 18px 0;
-  padding: 12px 14px;
-  border-left: 4px solid color-mix(in srgb, var(--brand) 55%, var(--line));
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
-  border-radius: 14px;
-  color: var(--text);
-}
-.ProseMirror hr{
-  border: none;
-  height: 1px;
-  background: var(--line);
-  margin: 22px 0;
-}
-.ProseMirror img{
-  max-width: 100%;
-  border-radius: 16px;
-  border: 1px solid var(--line);
+  position: relative;
+  opacity: .95;
 }
 
-/* =============================================================================
-  ✅ 다크모드 대비 안전장치
-============================================================================= */
-.uf-card, .uf-panel{
-  color: var(--text);
-}
-
-.uf-editor .ProseMirror {
-  min-height: 520px;
-  outline: none;
-}
-
-/* ✅ 노드 방식 컬럼 스타일 */
-.uf-cols{
-  display:grid;
-  gap:14px;
-  margin:22px 0;
-  padding:12px;
-  border:1px dashed rgba(255,255,255,.40);
-  border-radius:14px;
-  background:rgba(255,255,255,.03);
-}
-.uf-cols-2{ grid-template-columns:1fr 1fr; }
-.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
-
-.uf-col{
-  min-height:90px;
-  padding:10px;
-  border:1px dashed rgba(255,255,255,.22);
-  border-radius:12px;
-}
-
-/* 선택 표시 */
-.ProseMirror .ProseMirror-selectednode{
-  outline:3px solid rgba(37,99,235,.7);
-  border-radius:14px;
-}
-
-/* =============================================================================
-  ✅ Editor Help Panel (B: ? toggle)
-============================================================================= */
-.uf-helpWrap{
-  position: sticky;
-  top: 64px; /* uf-topbar 높이 아래 */
-  z-index: 45;
-  padding: 10px 0;
-}
-
-.uf-help{
-  padding: 14px;
-}
-
-.uf-help__top{
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.uf-help__title{
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  font-size: 16px;
-}
-
-.uf-help__grid{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-@media (max-width: 860px){
-  .uf-help__grid{ grid-template-columns: 1fr; }
-}
-
-.uf-help__item{
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px;
-  background: var(--panel2);
-}
-
-.uf-help__kicker{
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-.uf-help__text{
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.uf-help__bottom{
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-/* =============================================================================
-  ✅ Toolbar small select + color dots
-============================================================================= */
-.uf-select--mini{
-  width: 88px;
-  height: 40px;
-  padding: 0 10px;
+.uf-editorBox .ProseMirror hr::after{
+  content: "SCENE BREAK";
+  position: absolute;
+  left: 0;
+  top: -10px;
+  font-size: 11px;
+  letter-spacing: .14em;
+  padding: 4px 8px;
   border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 14%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--text);
 }
 
-.uf-colorRow{
-  display:flex;
-  align-items:center;
-  gap: 6px;
-  padding: 0 6px;
-}
-
+/* Toolbar color dots */
+.uf-colorRow{ display:flex; align-items:center; gap: 6px; padding: 0 6px; }
 .uf-colorDot{
-  width: 22px;
-  height: 22px;
+  width: 22px; height: 22px;
   border-radius: 999px;
   border: 1px solid var(--line);
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(0,0,0,0.06);
 }
+html[data-theme="dark"] .uf-colorDot{ box-shadow: 0 10px 18px rgba(0,0,0,0.35); }
 
-html[data-theme="dark"] .uf-colorDot{
-  box-shadow: 0 10px 18px rgba(0,0,0,0.35);
-}
-
-/* =============================================================================
-  ✅ Scene / Sticky / Reveal visualization (Editor에서 "보이게"!)
-  - 여기 덕분에 “설명 읽어도 모르겠다”가 확 줄어들어요.
-============================================================================= */
-
-/* Scene 공통 박스 */
-.uf-scene{
-  margin: 18px 0;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px dashed color-mix(in srgb, var(--brand) 55%, transparent);
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
-}
-
-.uf-scene__header{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.uf-scene__badge{
-  font-size: 11px;
-  letter-spacing: .12em;
-  padding: 6px 10px;
+.uf-select--mini{
+  width: 92px;
+  height: 40px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand) 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
-}
-
-.uf-scene__title{
-  font-weight: 900;
-  letter-spacing: -0.02em;
-}
-
-.uf-scene__body{
-  border-top: 1px dashed color-mix(in srgb, var(--brand) 35%, transparent);
-  padding-top: 10px;
-}
-
-/* Sticky는 더 강하게 보여주기 */
-.uf-sticky{
-  border-style: solid;
-  border-width: 1px;
-}
-
-.uf-stickyGrid{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-@media (max-width: 860px){
-  .uf-stickyGrid{ grid-template-columns: 1fr; }
-}
-
-.uf-stickyMedia, .uf-stickyText{
-  border: 1px dashed var(--line);
-  border-radius: 14px;
-  padding: 12px;
-  background: var(--panel2);
-}
-
-/* Reveal 클래스는 ViewPage에서 애니메이션 대상으로 쓰는 "마커"인데,
-   Editor에서도 "이 블록은 Reveal 된다" 느낌으로 아주 살짝 표시 */
-.uf-reveal{
-  position: relative;
-}
-
-.uf-reveal::after{
-  content: "reveal";
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
-  pointer-events: none;
-}
-
-/* =============================================================================
-  ✅ ViewPage reveal 애니메이션 (혹시 아직 없으면)
-  - ViewPage에서 IntersectionObserver가 .is-visible을 붙여줌
-============================================================================= */
-.uf-reveal{
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity .55s ease, transform .55s ease;
-}
-
-.uf-reveal.is-visible{
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* =============================================================================
-  ✅ Parallax 이미지 기본 (ViewPage에서 img.uf-parallax에 transform 적용)
-============================================================================= */
-img.uf-parallax{
-  will-change: transform;
-  transition: transform .08s linear;
 }
