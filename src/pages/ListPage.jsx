@@ -2,17 +2,32 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import Topbar from "../components/Topbar";
-
+/** ✅ bookmarks (로컬) */
 import { getSavedIds, toggleSaved, onSavedChanged } from "../services/bookmarks";
+
+/** ✅ Editor’s Pick config */
 import { getEditorPickIds } from "../services/config";
+
+/** ✅ published 글만 가져오기 */
 import { getPublishedArticles } from "../services/articles";
 
-const MAX_WIDTH = 1200;
-const PAGE_SIZE = 6;
+/* =============================================================================
+  ✅ 레이아웃 상수
+  - 숫자만 바꾸면 전체 밸런스가 같이 변합니다.
+============================================================================= */
+const MAX_WIDTH = 1200; // ✅ 섹션 컨텐츠 최대 폭
+const PAGE_SIZE = 6;    // ✅ 아카이브 섹션에서 한 페이지에 보여줄 카드 수
 
+/* =============================================================================
+  ✅ Hero 배경
+  - 가장 안정적인 방법은 /public/hero.jpg 를 쓰는 것
+  - (외부 링크는 광고차단/추적방지 등에 의해 로딩 경고가 날 수 있음)
+============================================================================= */
 const HERO_BG = "/hero.jpg";
 
+/* =============================================================================
+  ✅ 카테고리 4개 (프로젝트 고정)
+============================================================================= */
 const CATEGORIES = [
   { key: "Exhibition", label: "Exhibition", sub: "CATEGORY 01" },
   { key: "Project", label: "Project", sub: "CATEGORY 02" },
@@ -20,6 +35,9 @@ const CATEGORIES = [
   { key: "News", label: "News", sub: "CATEGORY 04" },
 ];
 
+/* =============================================================================
+  ✅ util: 날짜 포맷
+============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
@@ -36,38 +54,71 @@ function formatDate(ts) {
   }
 }
 
+/* =============================================================================
+  ✅ util: 텍스트 줄임
+============================================================================= */
 function clampText(s, n = 120) {
   const t = (s || "").trim();
   return t.length > n ? t.slice(0, n) + "…" : t;
+}
+
+/* =============================================================================
+  ✅ Reading time
+  - HTML에서 텍스트만 뽑아서 대략 분(min) 계산
+  - 한국어 기준 근사치로 "1분당 900자" 가정 (원하면 숫자만 바꾸면 됨)
+============================================================================= */
+function estimateReadMinutesFromHTML(html) {
+  const plain = String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const chars = plain.length;
+  const charsPerMin = 900; // ✅ 여기만 조절하면 전체 read time 성향이 바뀜
+  const mins = Math.max(1, Math.round(chars / charsPerMin));
+  return mins;
 }
 
 export default function ListPage({ theme, toggleTheme }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  /** ✅ 섹션 스크롤용 ref */
   const archiveRef = useRef(null);
   const subscribeRef = useRef(null);
 
+  /** ✅ 데이터 */
   const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /** ✅ Editor’s Pick ids */
   const [pickIds, setPickIds] = useState([]);
   const [pickLoading, setPickLoading] = useState(true);
 
+  /** ✅ Saved */
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
+  const [savedMode, setSavedMode] = useState(false);
 
-  // ✅ URL 파생 상태
-  const activeCat = searchParams.get("cat") || "All";
-  const sortBy = searchParams.get("sort") || "latest";
+  /* =============================================================================
+    ✅ URL query 상태 (필터/정렬/검색/페이지)
+    - URL과 UI를 동기화해서 "뒤로가기/공유/새로고침"에 강함
+  ============================================================================= */
+  const activeCat = searchParams.get("cat") || "All";    // All | Exhibition | ...
+  const sortBy = searchParams.get("sort") || "latest";   // latest | popular
   const q = searchParams.get("q") || "";
   const page = Math.max(1, Number(searchParams.get("page") || 1) || 1);
-  const savedMode = searchParams.get("saved") === "1";
 
+  /** ✅ 다른 탭에서 Saved 변경 감지 */
   useEffect(() => {
     const off = onSavedChanged((ids) => setSavedIds(ids));
     return off;
   }, []);
 
+  /* =============================================================================
+    ✅ (1) published 글만 불러오기
+  ============================================================================= */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -88,6 +139,9 @@ export default function ListPage({ theme, toggleTheme }) {
     };
   }, []);
 
+  /* =============================================================================
+    ✅ (2) Editor’s Pick ids 불러오기
+  ============================================================================= */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -108,36 +162,43 @@ export default function ListPage({ theme, toggleTheme }) {
     };
   }, []);
 
+  /* =============================================================================
+    ✅ URL query 업데이트 helper
+    - 필요한 것만 덮어써서 UX가 안정적
+  ============================================================================= */
   function setQuery(next) {
-    const nextCat = String(next.cat ?? activeCat);
-    const nextSort = String(next.sort ?? sortBy);
-    const nextQ = String(next.q ?? q);
-    const nextPage = String(next.page ?? page);
-    const nextSaved = String(next.saved ?? (savedMode ? "1" : "0"));
-
-    const params = {};
-    if (nextSaved === "1") params.saved = "1";
-    if (nextCat && nextCat !== "All") params.cat = nextCat;
-    if (nextSort && nextSort !== "latest") params.sort = nextSort;
-    if (nextQ && nextQ.trim()) params.q = nextQ;
-    if (nextPage && nextPage !== "1") params.page = nextPage;
-
-    setSearchParams(params);
+    const merged = {
+      page: String(next.page ?? page),
+      cat: String(next.cat ?? activeCat),
+      sort: String(next.sort ?? sortBy),
+      q: String(next.q ?? q),
+    };
+    setSearchParams(merged);
   }
 
+  /* =============================================================================
+    ✅ 섹션 스크롤
+  ============================================================================= */
   function scrollTo(ref) {
     const el = ref?.current;
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /* =============================================================================
+    ✅ 필터/정렬 적용된 전체 리스트
+  ============================================================================= */
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
     let list = [...all];
 
+    // (A) Saved 모드
     if (savedMode) list = list.filter((a) => savedIds.includes(Number(a.id)));
+
+    // (B) Category
     if (activeCat !== "All") list = list.filter((a) => a.category === activeCat);
 
+    // (C) Search: title + excerpt + tags
     if (keyword) {
       list = list.filter((a) => {
         const t = String(a.title || "").toLowerCase();
@@ -147,12 +208,24 @@ export default function ListPage({ theme, toggleTheme }) {
       });
     }
 
+    // (D) Sort
     if (sortBy === "popular") {
-      list.sort((x, y) => Number(y.likes || 0) + Number(y.views || 0) - (Number(x.likes || 0) + Number(x.views || 0)));
+      list.sort(
+        (x, y) =>
+          Number(y.likes || 0) +
+          Number(y.views || 0) -
+          (Number(x.likes || 0) + Number(x.views || 0))
+      );
     } else {
       list.sort((x, y) => {
-        const ax = x.createdAt?.toMillis?.() ?? (x.createdAt?.seconds ? x.createdAt.seconds * 1000 : 0) ?? Number(x.createdAt || 0);
-        const ay = y.createdAt?.toMillis?.() ?? (y.createdAt?.seconds ? y.createdAt.seconds * 1000 : 0) ?? Number(y.createdAt || 0);
+        const ax =
+          x.createdAt?.toMillis?.() ??
+          (x.createdAt?.seconds ? x.createdAt.seconds * 1000 : 0) ??
+          Number(x.createdAt || 0);
+        const ay =
+          y.createdAt?.toMillis?.() ??
+          (y.createdAt?.seconds ? y.createdAt.seconds * 1000 : 0) ??
+          Number(y.createdAt || 0);
         return ay - ax;
       });
     }
@@ -160,27 +233,41 @@ export default function ListPage({ theme, toggleTheme }) {
     return list;
   }, [all, activeCat, sortBy, q, savedIds, savedMode]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered.length]);
-  const safePage = Math.max(1, Math.min(totalPages, page));
+  /* =============================================================================
+    ✅ 페이지네이션 계산
+  ============================================================================= */
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)),
+    [filtered.length]
+  );
 
   const pageItems = useMemo(() => {
+    const safePage = Math.max(1, Math.min(totalPages, page));
     const start = (safePage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, safePage]);
+  }, [filtered, page, totalPages]);
 
+  /* =============================================================================
+    ✅ Pick 글 데이터 매핑
+  ============================================================================= */
   const pickArticles = useMemo(() => {
     if (!pickIds.length) return [];
     const map = new Map(all.map((a) => [Number(a.id), a]));
     return pickIds.map((id) => map.get(Number(id))).filter(Boolean);
   }, [all, pickIds]);
 
+  /* =============================================================================
+    ✅ 이벤트 핸들러들
+  ============================================================================= */
   function onClickSaved() {
-    setQuery({ saved: "1", cat: "All", sort: "latest", q: "", page: 1 });
+    setSavedMode(true);
+    setQuery({ cat: "All", sort: "latest", q: "", page: 1 });
     scrollTo(archiveRef);
   }
 
   function onClickCategory(catKey) {
-    setQuery({ saved: "0", cat: catKey, sort: "latest", q: "", page: 1 });
+    setSavedMode(false);
+    setQuery({ cat: catKey, sort: "latest", q: "", page: 1 });
     scrollTo(archiveRef);
   }
 
@@ -195,22 +282,42 @@ export default function ListPage({ theme, toggleTheme }) {
 
   return (
     <div className="uf-listRoot">
-      {/* ✅ 공용 Topbar로 교체 */}
-      <Topbar
-        theme={theme}
-        toggleTheme={toggleTheme}
-        brandTo="/"
-        right={[
-          { type: "external", label: "Back UNFRAME", href: "https://unframe.kr", className: "uf-btn uf-btn--ghost" },
-          { type: "button", label: "Archive", onClick: () => scrollTo(archiveRef), className: "uf-btn uf-btn--ghost" },
-          { type: "button", label: "Subscription", onClick: () => scrollTo(subscribeRef), className: "uf-btn uf-btn--ghost" },
-          { type: "button", label: `Saved (${savedIds.length})`, onClick: onClickSaved, className: "uf-btn uf-btn--ghost" },
-          { type: "theme" },
-        ]}
-      />
+      {/* =============================================================================
+        ✅ Top Nav (sticky)
+      ============================================================================= */}
+      <header className="uf-topNav">
+        <div className="uf-topNav__inner" style={{ maxWidth: MAX_WIDTH }}>
+          <button className="uf-brand" type="button" onClick={() => navigate("/")}>
+            U#
+          </button>
 
-      {/* --- 이하 섹션들은 네 구조 그대로 유지 --- */}
-      <section className="uf-sec uf-hero" style={{ backgroundImage: `url(${HERO_BG})` }}>
+          <nav className="uf-navRight">
+            <a className="uf-navLink" href="https://unframe.kr" target="_blank" rel="noreferrer">
+              Back UNFRAME
+            </a>
+
+            <button className="uf-navBtn" type="button" onClick={() => scrollTo(archiveRef)}>
+              Archive
+            </button>
+            <button className="uf-navBtn" type="button" onClick={() => scrollTo(subscribeRef)}>
+              Subscription
+            </button>
+
+            <button className="uf-navBtn uf-navBtn--saved" type="button" onClick={onClickSaved}>
+              Saved ({savedIds.length})
+            </button>
+
+            <button className="uf-navBtn" type="button" onClick={toggleTheme} title="Toggle theme">
+              {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* =============================================================================
+        ✅ Section 1: Hero (80vh 느낌은 CSS에서)
+      ============================================================================= */}
+      <section className="uf-sec uf-heroList" style={{ backgroundImage: `url(${HERO_BG})` }}>
         <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="uf-heroCard">
             <div className="uf-heroKicker">UNFRAME MAGAZINE</div>
@@ -234,6 +341,9 @@ export default function ListPage({ theme, toggleTheme }) {
         <div className="uf-heroOverlay" />
       </section>
 
+      {/* =============================================================================
+        ✅ Section 2: Categories (hover 인터랙션은 CSS에서)
+      ============================================================================= */}
       <section className="uf-sec uf-secCats">
         <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="uf-catsRow">
@@ -248,6 +358,35 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </section>
 
+      {/* =============================================================================
+        ✅ Section 3: Marquee + mini subscribe (UI만)
+      ============================================================================= */}
+      <section className="uf-sec uf-secMarquee">
+        <div className="uf-marquee">
+          <div className="uf-marquee__track">
+            <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
+            <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
+            <span>UNFRAME • EXHIBITION • PROJECT • ARTIST NOTE • NEWS • </span>
+          </div>
+        </div>
+
+        <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
+          <div className="uf-miniSub">
+            <div className="uf-miniSub__title">📮 구독하면 좋은 글을 보내드려요</div>
+            <div className="uf-miniSub__row">
+              <input className="uf-input" placeholder="email@example.com" />
+              <button className="uf-btn uf-btn--primary" type="button" onClick={() => scrollTo(subscribeRef)}>
+                Subscribe
+              </button>
+            </div>
+            <div className="uf-miniSub__desc">* 지금은 UI만, 추후 실제 연동 예정 ✨</div>
+          </div>
+        </div>
+      </section>
+
+      {/* =============================================================================
+        ✅ Section 4: Editor’s Note + Editor’s Pick
+      ============================================================================= */}
       <section className="uf-sec uf-secPick">
         <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="uf-grid2">
@@ -272,13 +411,23 @@ export default function ListPage({ theme, toggleTheme }) {
                 </div>
               ) : (
                 <div className="uf-pickList">
-                  {pickArticles.slice(0, 3).map((a) => (
-                    <button key={a.id} type="button" className="uf-pickItem" onClick={() => openArticle(Number(a.id))}>
-                      <span className="uf-pickBadge">PICK</span>
-                      <span className="uf-pickTitle">{a.title || "(no title)"}</span>
-                      <span className="uf-pickMeta">{a.category} · {formatDate(a.createdAt)}</span>
-                    </button>
-                  ))}
+                  {pickArticles.slice(0, 3).map((a) => {
+                    const mins = estimateReadMinutesFromHTML(a.contentHTML || "");
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="uf-pickItem"
+                        onClick={() => openArticle(Number(a.id))}
+                      >
+                        <span className="uf-pickBadge">PICK</span>
+                        <span className="uf-pickTitle">{a.title || "(no title)"}</span>
+                        <span className="uf-pickMeta">
+                          {a.category} · {formatDate(a.createdAt)} · ☕ {mins} min read
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -286,9 +435,13 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </section>
 
+      {/* =============================================================================
+        ✅ Section 5: Archive (좌측 sticky + 우측 카드 + pagination)
+      ============================================================================= */}
       <section className="uf-sec uf-secArchive" ref={archiveRef}>
         <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="uf-archiveLayout">
+            {/* Left sticky */}
             <aside className="uf-archiveSide">
               <div className="uf-sideBox">
                 <div className="uf-sideTitle">Archive</div>
@@ -296,7 +449,10 @@ export default function ListPage({ theme, toggleTheme }) {
                 <button
                   type="button"
                   className={`uf-sideItem ${activeCat === "All" && !savedMode ? "is-active" : ""}`}
-                  onClick={() => setQuery({ saved: "0", cat: "All", q: "", page: 1 })}
+                  onClick={() => {
+                    setSavedMode(false);
+                    setQuery({ cat: "All", q: "", page: 1 });
+                  }}
                 >
                   All
                 </button>
@@ -306,7 +462,10 @@ export default function ListPage({ theme, toggleTheme }) {
                     key={c.key}
                     type="button"
                     className={`uf-sideItem ${activeCat === c.key && !savedMode ? "is-active" : ""}`}
-                    onClick={() => setQuery({ saved: "0", cat: c.key, q: "", page: 1 })}
+                    onClick={() => {
+                      setSavedMode(false);
+                      setQuery({ cat: c.key, q: "", page: 1 });
+                    }}
                   >
                     {c.label}
                   </button>
@@ -318,18 +477,32 @@ export default function ListPage({ theme, toggleTheme }) {
               </div>
             </aside>
 
+            {/* Right list */}
             <div className="uf-archiveMain">
               <div className="uf-archiveTopbar">
                 <div className="uf-sort">
-                  <button type="button" className={`uf-chip ${sortBy === "latest" ? "is-active" : ""}`} onClick={() => setQuery({ sort: "latest", page: 1 })}>
+                  <button
+                    type="button"
+                    className={`uf-chip ${sortBy === "latest" ? "is-active" : ""}`}
+                    onClick={() => setQuery({ sort: "latest", page: 1 })}
+                  >
                     최신순
                   </button>
-                  <button type="button" className={`uf-chip ${sortBy === "popular" ? "is-active" : ""}`} onClick={() => setQuery({ sort: "popular", page: 1 })}>
+                  <button
+                    type="button"
+                    className={`uf-chip ${sortBy === "popular" ? "is-active" : ""}`}
+                    onClick={() => setQuery({ sort: "popular", page: 1 })}
+                  >
                     인기순
                   </button>
                 </div>
 
-                <input className="uf-input uf-search" value={q} onChange={(e) => setQuery({ q: e.target.value, page: 1 })} placeholder="검색 (제목/요약/태그)" />
+                <input
+                  className="uf-input uf-search"
+                  value={q}
+                  onChange={(e) => setQuery({ q: e.target.value, page: 1 })}
+                  placeholder="검색 (제목/요약/태그)"
+                />
               </div>
 
               {loading ? (
@@ -342,22 +515,42 @@ export default function ListPage({ theme, toggleTheme }) {
                     const id = Number(a.id);
                     const saved = savedIds.includes(id);
                     const cover = a.coverMedium || a.coverThumb || a.cover || "";
+                    const mins = estimateReadMinutesFromHTML(a.contentHTML || "");
 
                     return (
-                      <article key={id} className="uf-card" onClick={() => openArticle(id)}>
-                        <div className="uf-cardImg" style={{ backgroundImage: cover ? `url(${cover})` : "none" }}>
-                          {!cover && <div className="uf-cardImg__fallback">No Image</div>}
+                      <article key={id} className="uf-articleCard" onClick={() => openArticle(id)}>
+                        <div className="uf-cardMedia">
+                          <div className="uf-cardImg" style={{ backgroundImage: cover ? `url(${cover})` : "none" }}>
+                            {!cover && <div className="uf-cardImg__fallback">No Image</div>}
+                          </div>
                         </div>
 
                         <div className="uf-cardBody">
-                          <div className="uf-cardMeta">
-                            <span className="uf-badge">{a.category || "Category"}</span>
-                            <span className="uf-date">{formatDate(a.createdAt)}</span>
+                          <div className="uf-cardTop">
+                            <div className="uf-cardMeta">
+                              <span className="uf-badge">{a.category || "Category"}</span>
+                              <span className="uf-date">{formatDate(a.createdAt)}</span>
+                              <span className="uf-read">☕ {mins} min read</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              className={`uf-saveBtn ${saved ? "is-saved" : ""}`}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                const r = toggleSaved(id);
+                                setSavedIds(r.ids);
+                              }}
+                              title="Save"
+                            >
+                              {saved ? "★" : "☆"}
+                            </button>
                           </div>
 
                           <div className="uf-cardTitle">{a.title || "(no title)"}</div>
-                          <div className="uf-cardExcerpt">{clampText(a.excerpt || "", 120)}</div>
+                          <div className="uf-cardExcerpt">{clampText(a.excerpt || "", 130)}</div>
 
+                          {/* 태그는 카드 아래에만 */}
                           {Array.isArray(a.tags) && a.tags.length > 0 && (
                             <div className="uf-tags">
                               {a.tags.slice(0, 4).map((t) => (
@@ -367,7 +560,8 @@ export default function ListPage({ theme, toggleTheme }) {
                                   className="uf-tag"
                                   onClick={(ev) => {
                                     ev.stopPropagation();
-                                    setQuery({ saved: "0", cat: "All", q: t, page: 1 });
+                                    setSavedMode(false);
+                                    setQuery({ cat: "All", q: t, page: 1 });
                                   }}
                                 >
                                   #{t}
@@ -382,17 +576,8 @@ export default function ListPage({ theme, toggleTheme }) {
                               <span>💗 {Number(a.likes || 0)}</span>
                             </div>
 
-                            <button
-                              type="button"
-                              className={`uf-saveBtn ${saved ? "is-saved" : ""}`}
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                const r = toggleSaved(id);
-                                setSavedIds(r.ids);
-                              }}
-                              title="Save"
-                            >
-                              {saved ? "★ Saved" : "☆ Save"}
+                            <button className="uf-cardCta" type="button">
+                              Read →
                             </button>
                           </div>
                         </div>
@@ -402,9 +587,10 @@ export default function ListPage({ theme, toggleTheme }) {
                 </div>
               )}
 
+              {/* Pagination */}
               {filtered.length > PAGE_SIZE && (
                 <div className="uf-pager">
-                  <button className="uf-pagerBtn" type="button" disabled={safePage <= 1} onClick={() => goPage(safePage - 1)}>
+                  <button className="uf-pagerBtn" type="button" disabled={page <= 1} onClick={() => goPage(page - 1)}>
                     ← Prev
                   </button>
 
@@ -412,25 +598,35 @@ export default function ListPage({ theme, toggleTheme }) {
                     {Array.from({ length: totalPages }).map((_, i) => {
                       const p = i + 1;
                       return (
-                        <button key={p} type="button" className={`uf-pagerNum ${p === safePage ? "is-active" : ""}`} onClick={() => goPage(p)}>
+                        <button
+                          key={p}
+                          type="button"
+                          className={`uf-pagerNum ${p === page ? "is-active" : ""}`}
+                          onClick={() => goPage(p)}
+                        >
                           {p}
                         </button>
                       );
                     })}
                   </div>
 
-                  <button className="uf-pagerBtn" type="button" disabled={safePage >= totalPages} onClick={() => goPage(safePage + 1)}>
+                  <button className="uf-pagerBtn" type="button" disabled={page >= totalPages} onClick={() => goPage(page + 1)}>
                     Next →
                   </button>
                 </div>
               )}
 
-              <div className="uf-moreHint">📌 글이 많아지면: 번호 페이지 / 더보기 / 무한스크롤로 확장 가능</div>
+              <div className="uf-moreHint">
+                📌 글이 많아지면: (1) 번호 페이지 유지 (2) 더보기 버튼 (3) 무한스크롤로 확장 가능해요.
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* =============================================================================
+        ✅ Section 6: Subscribe
+      ============================================================================= */}
       <section className="uf-sec uf-secSubscribe" ref={subscribeRef}>
         <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="uf-subBig">
@@ -442,13 +638,16 @@ export default function ListPage({ theme, toggleTheme }) {
             </p>
             <div className="uf-subBigRow">
               <input className="uf-input" placeholder="email@example.com" />
-              <button className="uf-btn uf-btn--primary" type="button">Join</button>
+              <button className="uf-btn uf-btn--primary" type="button">
+                Join
+              </button>
             </div>
             <div className="uf-subBigFine">* 언제든지 구독 해지 가능</div>
           </div>
         </div>
       </section>
 
+      {/* Footer */}
       <footer className="uf-footer">
         <div className="uf-secInner" style={{ maxWidth: MAX_WIDTH }}>
           <div className="uf-footerRow">
