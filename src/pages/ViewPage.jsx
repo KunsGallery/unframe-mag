@@ -2,17 +2,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import {
-  bumpLikes,
-  bumpViews,
-  getPublishedArticleByIdNumber,
-} from "../services/articles";
-
+import { bumpLikes, bumpViews, getPublishedArticleByIdNumber } from "../services/articles";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import CommentBox from "../components/CommentBox";
 
 /* =============================================================================
-  ✅ 날짜 포맷(타임스탬프/숫자/문자열 대응)
+  ✅ 날짜 포맷
 ============================================================================= */
 function formatDate(ts) {
   try {
@@ -24,18 +19,14 @@ function formatDate(ts) {
         ? new Date(ts)
         : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
+    return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
     return "";
   }
 }
 
 /* =============================================================================
-  ✅ 토스트(친근한 UX)
+  ✅ Toast
 ============================================================================= */
 function useToast() {
   const [toast, setToast] = useState(null);
@@ -45,6 +36,89 @@ function useToast() {
     return () => clearTimeout(t);
   }, [toast]);
   return { toast, show: (msg) => setToast(msg) };
+}
+
+/* =============================================================================
+  ✅ Reveal + Parallax enhancer
+  - contentHTML이 렌더된 뒤 DOM을 잡아 IntersectionObserver로 reveal 처리
+  - sticky 섹션은 CSS가 담당(아래 index.css 참고)
+  - parallax는 requestAnimationFrame로 아주 약하게만 적용
+============================================================================= */
+function useSceneEffects(deps = []) {
+  useEffect(() => {
+    // -------------------------------------------------------------
+    // 1) Reveal: 관찰할 타겟을 찾고 uf-reveal 클래스를 부여
+    // -------------------------------------------------------------
+    const root = document.querySelector(".uf-articleBody");
+    if (!root) return;
+
+    const scenes = Array.from(root.querySelectorAll("section[data-uf-scene]"));
+
+    // scene 내부에서 "리빌" 할 요소들(과하면 부담, 미디엄 느낌은 절제)
+    const revealTargets = [];
+    for (const sc of scenes) {
+      const els = Array.from(
+        sc.querySelectorAll("h1,h2,h3,p,blockquote,figure,ul,ol,table")
+      );
+      els.forEach((el) => {
+        el.classList.add("uf-reveal");
+        revealTargets.push(el);
+      });
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const ent of entries) {
+          if (ent.isIntersecting) ent.target.classList.add("is-visible");
+        }
+      },
+      { root: null, threshold: 0.12 }
+    );
+
+    revealTargets.forEach((el) => io.observe(el));
+
+    // -------------------------------------------------------------
+    // 2) Parallax: sticky scene 안의 첫 이미지(또는 figure)만 아주 약하게 이동
+    // -------------------------------------------------------------
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const stickyScenes = Array.from(
+          root.querySelectorAll('section[data-uf-scene][data-variant="sticky"]')
+        );
+
+        for (const sc of stickyScenes) {
+          const parallax = Number(sc.getAttribute("data-parallax") || "0.18");
+          const img = sc.querySelector("img");
+          if (!img) continue;
+
+          const rect = sc.getBoundingClientRect();
+          const vh = window.innerHeight || 800;
+
+          // progress: 0(진입) → 1(통과)
+          const progress = Math.min(1, Math.max(0, (vh - rect.top) / (vh + rect.height)));
+
+          // translateY 범위: -20px ~ +20px 정도(강도는 parallax로 제어)
+          const max = 120 * parallax; // parallax=0.18이면 ~21px
+          const y = (progress - 0.5) * 2 * max;
+
+          img.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
+          img.style.willChange = "transform";
+        }
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    return () => {
+      io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }
 
 export default function ViewPage({ theme, toggleTheme }) {
@@ -57,15 +131,11 @@ export default function ViewPage({ theme, toggleTheme }) {
   const [loading, setLoading] = useState(true);
   const [article, setArticle] = useState(null);
 
-  // ✅ Saved(북마크)
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const saved = savedIds.includes(idNum);
 
-  // ✅ 좋아요 연타 방지(버튼 잠깐 disable)
-  const [liking, setLiking] = useState(false);
-
   /* =============================================================================
-    ✅ 글 로드 + 조회수 1회 증가
+    ✅ 글 로드 + 조회수 증가
   ============================================================================= */
   useEffect(() => {
     let alive = true;
@@ -74,6 +144,7 @@ export default function ViewPage({ theme, toggleTheme }) {
       try {
         setLoading(true);
 
+        // ✅ public 뷰는 published만 가져오는 함수 사용(권한 안전)
         const a = await getPublishedArticleByIdNumber(idNum);
         if (!alive) return;
 
@@ -85,7 +156,6 @@ export default function ViewPage({ theme, toggleTheme }) {
 
         setArticle(a);
 
-        // ✅ 조회수 bump는 실패해도 UX 치명적이지 않아서 조용히 처리
         try {
           await bumpViews(idNum);
         } catch (e) {
@@ -105,66 +175,46 @@ export default function ViewPage({ theme, toggleTheme }) {
     };
   }, [idNum]);
 
+  // ✅ contentHTML이 바뀌면(=글이 로드되면) scene effects 적용
+  useSceneEffects([article?.contentHTML]);
+
   /* =============================================================================
-    ✅ 좋아요(3시간 쿨다운)
+    ✅ 좋아요 (services에서 쿨다운/중복방지 꼭 처리하는 구조가 이상적)
   ============================================================================= */
   async function onLike() {
-    if (liking) return; // ✅ 연타 방지
-    setLiking(true);
-
     try {
-      const nextLikes = await bumpLikes(idNum);
-
-      // ✅ UI 즉시 반영(낙관적)
-      setArticle((p) => (p ? { ...p, likes: nextLikes } : p));
-
+      const next = await bumpLikes(idNum);
+      setArticle((p) => (p ? { ...p, likes: next } : p));
       show("좋아해주셔서 감사해요💕");
     } catch (e) {
-      const code = e?.code || "";
       const msg = String(e?.message || "");
-
-      if (code === "COOLDOWN" || msg.includes("cooldown")) {
-        show("⏳ 이 글을 향한 애정은 3시간 뒤에 다시 보내주세요");
-      } else if (msg.includes("Article not found")) {
-        show("😮 글을 찾지 못했어요");
-      } else {
-        show("😵 좋아요 처리에 실패했어요");
-      }
-    } finally {
-      setLiking(false);
+      if (msg.includes("cooldown")) show("⏳ 3시간 뒤에 다시 좋아요 가능해요");
+      else show("😵 좋아요 처리 실패");
     }
   }
 
-  /* =============================================================================
-    ✅ 저장(북마크)
-  ============================================================================= */
   function onToggleSave() {
     const r = toggleSaved(idNum);
     setSavedIds(r.ids);
-    show(r.saved ? "★ 저장했어요! (기기별로 저장돼요)" : "☆ 저장을 해제했어요");
+    show(r.saved ? "★ 저장했어요! (기기별 저장)" : "☆ 저장 해제");
   }
 
-  const cover =
-    article?.coverMedium || article?.coverThumb || article?.cover || "";
+  // ✅ 커버: object or string 호환
+  const coverUrl =
+    (article?.cover && typeof article.cover === "object" ? article.cover.url : article?.cover) || "";
 
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
 
-      {/* ✅ Topbar */}
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner">
             <div className="uf-brand" onClick={() => nav("/")}>U#</div>
 
             <div className="uf-nav">
-              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>
-                Archive
-              </button>
-              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/saved")}>
-                Saved
-              </button>
-
+              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>Archive</button>
+              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/saved")}>Saved</button>
               <button className="uf-btn" onClick={toggleTheme}>
                 {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
               </button>
@@ -173,7 +223,6 @@ export default function ViewPage({ theme, toggleTheme }) {
         </div>
       </header>
 
-      {/* ✅ Loading / Not Found */}
       {loading ? (
         <div className="uf-wrap" style={{ padding: "80px 16px" }}>
           로딩 중… ⏳
@@ -181,26 +230,22 @@ export default function ViewPage({ theme, toggleTheme }) {
       ) : !article ? (
         <div className="uf-wrap" style={{ padding: "80px 16px" }}>
           <div className="uf-card uf-panel">
-            <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>
-              😮 글을 찾지 못했어요
-            </div>
+            <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>😮 글을 찾지 못했어요</div>
             <div style={{ color: "var(--muted)", marginBottom: 14 }}>
               주소가 잘못됐거나 삭제된 글일 수 있어요.
             </div>
-            <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>
-              리스트로 돌아가기
-            </button>
+            <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>리스트로 돌아가기</button>
           </div>
         </div>
       ) : (
         <>
-          {/* ✅ Hero */}
+          {/* Hero */}
           <section className="uf-hero">
             <div
               className="uf-hero__bg"
               style={{
-                backgroundImage: cover
-                  ? `url(${cover})`
+                backgroundImage: coverUrl
+                  ? `url(${coverUrl})`
                   : "linear-gradient(135deg, rgba(37,99,235,.55), rgba(0,0,0,.15))",
               }}
             />
@@ -219,66 +264,48 @@ export default function ViewPage({ theme, toggleTheme }) {
             </div>
           </section>
 
-          {/* ✅ Body */}
+          {/* Body */}
           <section className="uf-viewBody">
             <div className="uf-wrap">
               <div className="uf-viewGrid">
-                {/* Main */}
                 <main className="uf-card uf-article">
                   {article.excerpt ? (
-                    <div
-                      style={{
-                        color: "var(--muted)",
-                        fontSize: 14,
-                        lineHeight: 1.6,
-                        marginBottom: 14,
-                      }}
-                    >
+                    <div style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>
                       {article.excerpt}
                     </div>
                   ) : null}
 
+                  {/* ✅ 핵심: section[data-uf-scene] 기반으로 연출이 적용될 영역 */}
                   <div
-                    className="ProseMirror"
+                    className="uf-articleBody"
                     dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
                   />
 
                   <div style={{ marginTop: 26 }}>
-                    {/* ✅ 댓글은 articleId 기반으로 */}
                     <CommentBox articleId={idNum} />
                   </div>
                 </main>
 
-                {/* Side */}
                 <aside className="uf-side">
                   <div className="uf-card uf-sideBox">
                     <div className="uf-sideTitle">Quick Actions</div>
-
                     <div className="uf-sideInfo">
-                      ✨ 좋아요/조회수는 “글별 쿨다운”으로 정확도를 높여요.
+                      ✨ 좋아요/저장은 로컬/쿨다운 기준으로 동작해요.
                       <br />
-                      ★ Saved는 로컬 저장이라 기기가 바뀌면 달라질 수 있어요.
+                      * 기기가 바뀌면 저장 목록도 달라질 수 있어요.
                     </div>
 
                     <div className="uf-sideBtns">
-                      <button
-                        className="uf-btn uf-btn--primary"
-                        onClick={onLike}
-                        disabled={liking}
-                        title="3시간 쿨다운"
-                      >
-                        💗 Like {liking ? "…" : ""}
+                      <button className="uf-btn uf-btn--primary" onClick={onLike}>
+                        💗 Like
                       </button>
 
                       <button className="uf-btn" onClick={onToggleSave}>
                         {saved ? "★ Saved" : "☆ Save"}
                       </button>
 
-                      {/* ✅ Edit: /write/:id */}
-                      <button
-                        className="uf-btn uf-btn--ghost"
-                        onClick={() => nav(`/write/${idNum}`)}
-                      >
+                      {/* ✅ Edit은 /write/:id 로 */}
+                      <button className="uf-btn uf-btn--ghost" onClick={() => nav(`/write/${idNum}`)}>
                         ✍️ Edit
                       </button>
 

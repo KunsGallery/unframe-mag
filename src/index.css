@@ -1056,3 +1056,79 @@ html[data-theme="dark"] .uf-pickBadge{
   color: var(--text);
 }
 
+/* =============================================================================
+  ✅ Scene 기반 Scrollytelling MVP 스타일
+  - Editor에서 삽입된 <section data-uf-scene ...> 를 뷰에서 연출하기 위한 CSS
+============================================================================= */
+
+.uf-articleBody{
+  /* 본문 안쪽 기본 */
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+/* Scene 기본 간격 (미디엄 느낌: 섹션 간 여백이 중요) */
+.uf-articleBody section[data-uf-scene]{
+  margin: 34px 0;
+  padding: 0;
+}
+
+/* Scene 내부 기본 타이포 */
+.uf-articleBody p{ margin: 12px 0; }
+.uf-articleBody h2{ margin: 22px 0 10px; font-size: 22px; letter-spacing: -0.02em; }
+.uf-articleBody blockquote{
+  margin: 18px 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--brand);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  border-radius: 12px;
+  color: var(--text);
+}
+
+/* 이미지 */
+.uf-articleBody img{
+  max-width: 100%;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  display: block;
+}
+
+/* =============================================================================
+  ✅ Sticky Scene
+  - "sticky" scene에서는 이미지가 화면 상단에 붙게 만들고 싶음
+  - MVP: 섹션 안에 이미지가 1개 들어가있다는 가정으로 가장 단순하게 적용
+============================================================================= */
+.uf-articleBody section[data-uf-scene][data-variant="sticky"]{
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 980px){
+  .uf-articleBody section[data-uf-scene][data-variant="sticky"]{
+    grid-template-columns: 1fr;
+  }
+}
+
+/* sticky 효과: 이미지가 상단에 붙어서 따라다님 */
+.uf-articleBody section[data-uf-scene][data-variant="sticky"] img{
+  position: sticky;
+  top: 86px; /* topbar(64px) + 여백 */
+}
+
+/* =============================================================================
+  ✅ Reveal 효과
+============================================================================= */
+.uf-reveal{
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition: opacity .6s ease, transform .6s ease;
+}
+
+.uf-reveal.is-visible{
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
