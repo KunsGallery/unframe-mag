@@ -1,12 +1,14 @@
 // src/services/articles.js
 // -----------------------------------------------------------------------------
 // ✅ Articles service
-// - published 글 목록/단건 조회
-// - 관리자용: create/update/getNextId 등
-// - 공개용: bumpViews/bumpLikes (쿨다운 포함)  ← 오늘의 핵심
+// - 공개용: published 목록/단건 조회
+// - 관리자용: create/update/getNextId/draft list
+// - 공개용 통계: bumpViews/bumpLikes (쿨다운 포함)
 //
-// ⚠️ Firestore rules에서 일반 유저 update를 likes/views 증가만 허용하는 구조라면
-//    updateDoc({ likes: increment(1) }) 같은 "부분 업데이트"가 가장 안전합니다.
+// ✅ 이번 수정의 핵심
+// 1) cover는 URL string을 유지(리스트/뷰 호환) + coverMeta에 object 저장
+// 2) contentJSON 저장/유지 (scrollytelling/scene 확장용 초석)
+// 3) getArticleByIdNumber는 draft 포함 조회(에디터가 사용)
 // -----------------------------------------------------------------------------
 
 import {
@@ -16,7 +18,6 @@ import {
   where,
   orderBy,
   limit,
-  getDoc,
   doc,
   addDoc,
   updateDoc,
@@ -41,7 +42,25 @@ function safeSet(key, val) {
   } catch {}
 }
 
-/** ✅ 글 하나를 "id(Number)"로 찾는 공통 헬퍼 (published만) */
+/* =============================================================================
+  ✅ 내부 유틸: 타입 안전 변환
+============================================================================= */
+function asNumber(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function asString(v) {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function isPlainObject(x) {
+  return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+/* =============================================================================
+  ✅ id(Number)로 published 문서 찾기 (공개용)
+============================================================================= */
 async function findPublishedDocByIdNumber(idNum) {
   const q = query(
     collection(db, "articles"),
@@ -52,6 +71,21 @@ async function findPublishedDocByIdNumber(idNum) {
   const snap = await getDocs(q);
   if (snap.empty) return null;
   return snap.docs[0]; // QueryDocumentSnapshot
+}
+
+/* =============================================================================
+  ✅ id(Number)로 "draft 포함" 문서 찾기 (관리자/에디터용)
+  - Firestore rules에서 draft 읽기는 관리자만 허용되어 있어야 함.
+============================================================================= */
+async function findAnyDocByIdNumber(idNum) {
+  const q = query(
+    collection(db, "articles"),
+    where("id", "==", Number(idNum)),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return snap.docs[0];
 }
 
 /* =============================================================================
@@ -77,13 +111,13 @@ export async function getPublishedArticleByIdNumber(idNum) {
 }
 
 /* =============================================================================
-  ✅ (에디터에서도 재사용 가능) id number로 글 조회
-  - draft까지 보려면 별도 admin 쿼리 필요하지만
-  - 네가 지금은 보통 editor는 관리자만 들어오니까, 기존 로직대로 유지해도 됨
+  ✅ Editor: id number로 글 조회 (draft 포함)
+  - 에디터가 이 함수 사용하면 "Edit에서 내용 못 불러옴" 문제 해결됨.
 ============================================================================= */
 export async function getArticleByIdNumber(idNum) {
-  // 여기서는 published만 가져오게 해둠 (안전)
-  return getPublishedArticleByIdNumber(idNum);
+  const d = await findAnyDocByIdNumber(idNum);
+  if (!d) return null;
+  return { firebaseId: d.id, ...d.data() };
 }
 
 /* =============================================================================
@@ -92,21 +126,25 @@ export async function getArticleByIdNumber(idNum) {
 export async function getNextArticleId() {
   const q = query(collection(db, "articles"), orderBy("id", "desc"), limit(1));
   const snap = await getDocs(q);
-  return snap.empty ? 1 : Number(snap.docs[0].data().id) + 1;
+  return snap.empty ? 1 : asNumber(snap.docs[0].data().id, 0) + 1;
 }
 
 /* =============================================================================
   ✅ Editor: create/update
   - createdAt은 새 글에서만 serverTimestamp()
   - 수정 시 createdAt은 유지(절대 변경 금지)
+  - ✅ contentJSON 저장
+  - ✅ coverMeta 저장 + cover는 URL string 유지(리스트/뷰 호환)
 ============================================================================= */
 export async function createArticle(payload) {
-  // ✅ undefined 금지(룰/데이터 깨짐 방지)
   const clean = sanitizeArticlePayload(payload, { isCreate: true });
 
   const ref = await addDoc(collection(db, "articles"), {
     ...clean,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+
+    // 통계 기본값(없으면 bump에서 increment가 동작하지만, 기본 세팅이 더 깔끔)
     likes: 0,
     views: 0,
   });
@@ -116,48 +154,118 @@ export async function createArticle(payload) {
 
 export async function updateArticle(firebaseId, payload) {
   if (!firebaseId) throw new Error("firebaseId missing");
+
   const clean = sanitizeArticlePayload(payload, { isCreate: false });
 
-  // ✅ createdAt 절대 건드리지 않기: update payload에서 제거
-  // (룰에서 createdAt 동일성 검사하는 경우가 많아서 안정적)
+  // ✅ createdAt 절대 건드리지 않기
   delete clean.createdAt;
+
+  // ✅ 수정시간 기록(선택)
+  clean.updatedAt = serverTimestamp();
 
   await updateDoc(doc(db, "articles", firebaseId), clean);
 }
 
-/** ✅ payload 정리(undefined 제거 + 필드 안전화) */
+/* =============================================================================
+  ✅ payload 정리(undefined 제거 + 필드 안전화 + 호환성
+  ------------------------------------------------------------
+  cover 처리(중요):
+  - 입력이 string이면: cover = string, coverMeta = null/유지
+  - 입력이 object({url, publicId, width...})이면:
+      cover = url string (기존 UI 호환)
+      coverMeta = object (추후 parallax/ratio 등에 사용)
+  ------------------------------------------------------------
+  contentJSON 처리(중요):
+  - TipTap getJSON() 결과를 그대로 저장(맵/배열 구조 Firestore OK)
+============================================================================= */
 function sanitizeArticlePayload(payload, { isCreate }) {
   const p = payload || {};
-  const out = {
-    id: Number(p.id),
-    title: String(p.title || "").trim(),
-    category: String(p.category || "Exhibition"),
-    excerpt: String(p.excerpt || "").trim(),
-    status: p.status === "draft" ? "draft" : "published",
-    contentHTML: String(p.contentHTML || ""),
 
-    cover: String(p.cover || ""),
-    coverThumb: String(p.coverThumb || ""),
-    coverMedium: String(p.coverMedium || ""),
+  const id = asNumber(p.id, 0);
+  const title = asString(p.title).trim();
+  const category = asString(p.category || "Exhibition");
+  const excerpt = asString(p.excerpt).trim();
 
-    tags: Array.isArray(p.tags) ? p.tags.map(String).filter(Boolean).slice(0, 30) : [],
-  };
+  // status
+  const status = p.status === "draft" ? "draft" : "published";
 
-  // 수정/생성 공통: createdAt은 create에서만 서버타임으로 넣고, update에서는 유지하므로 굳이 안 넣음
-  if (!isCreate) {
-    // out.createdAt은 넣지 않음(업데이트에서 건드리지 않기)
+  // content
+  const contentHTML = asString(p.contentHTML || "");
+  const contentJSON = isPlainObject(p.contentJSON) ? p.contentJSON : null;
+
+  // cover: (string or object)
+  // ✅ 절대 cover 필드를 object로 저장하지 말자(리스트/기존 코드 호환 깨짐)
+  let cover = "";
+  let coverMeta = null;
+
+  if (typeof p.cover === "string") {
+    cover = p.cover;
+  } else if (isPlainObject(p.cover) && typeof p.cover.url === "string") {
+    cover = p.cover.url;
+    // meta는 필요한 것만 저장(불필요 데이터 폭증 방지)
+    coverMeta = {
+      url: p.cover.url,
+      publicId: asString(p.cover.publicId || ""),
+      width: asNumber(p.cover.width || 0, 0),
+      height: asNumber(p.cover.height || 0, 0),
+      format: asString(p.cover.format || ""),
+      bytes: asNumber(p.cover.bytes || 0, 0),
+    };
+  } else if (typeof p.coverUrl === "string") {
+    // 혹시 payload에서 coverUrl로 올 수도 있으면 대응
+    cover = p.coverUrl;
   }
 
-  // ✅ undefined 제거(Firestore가 싫어함)
+  // 기존 필드 유지(너 프로젝트가 coverThumb/coverMedium을 쓰고 있으면 계속 지원)
+  const coverThumb = asString(p.coverThumb || "");
+  const coverMedium = asString(p.coverMedium || "");
+
+  // tags
+  const tags = Array.isArray(p.tags)
+    ? p.tags.map((x) => asString(x)).filter(Boolean).slice(0, 30)
+    : [];
+
+  const out = {
+    id,
+    title,
+    category,
+    excerpt,
+    status,
+    contentHTML,
+
+    // ✅ scrollytelling 초석: JSON도 함께 저장
+    // - null이면 저장 안 해도 되지만, update에서 지워지지 않게 null 저장은 비추
+    ...(contentJSON ? { contentJSON } : {}),
+
+    // ✅ cover는 URL string
+    cover,
+    coverThumb,
+    coverMedium,
+
+    // ✅ coverMeta는 object (있을 때만)
+    ...(coverMeta ? { coverMeta } : {}),
+
+    tags,
+  };
+
+  // ✅ undefined 제거(Firestore 싫어함)
   Object.keys(out).forEach((k) => {
     if (out[k] === undefined) delete out[k];
   });
+
+  // create 시 최소 유효성 검사(원하면 더 강하게)
+  if (isCreate) {
+    if (!id || Number.isNaN(id)) throw new Error("Invalid id");
+    if (!title) throw new Error("Title required");
+  }
 
   return out;
 }
 
 /* =============================================================================
   ✅ Draft 목록 (optional)
+  - draft에도 createdAt이 없으면 orderBy에서 에러가 나므로
+    create 시 createdAt을 무조건 넣는 현재 구조가 안전
 ============================================================================= */
 export async function listDraftArticles() {
   const q = query(
@@ -171,8 +279,6 @@ export async function listDraftArticles() {
 
 /* =============================================================================
   ✅ 핵심 1) Views 증가 (30분 쿨다운)
-  - 글마다 별도 키를 사용 → 1번 글이 2번 글에 영향 X
-  - 성공했을 때만 localStorage 기록(정확도↑)
 ============================================================================= */
 const VIEW_COOLDOWN_MS = 30 * 60 * 1000;
 
@@ -181,33 +287,28 @@ export async function bumpViews(idNum) {
   if (!id || Number.isNaN(id)) throw new Error("Invalid id");
 
   const key = `UF_VIEW_AT_V1_${id}`;
-  const last = Number(safeGet(key) || 0);
+  const last = asNumber(safeGet(key) || 0, 0);
   const now = Date.now();
 
-  // ✅ 쿨다운 안 지났으면 아무것도 안 함(조용히)
+  // ✅ 쿨다운 안 지났으면 조용히 스킵
   if (last && now - last < VIEW_COOLDOWN_MS) {
     return { ok: true, skipped: true };
   }
 
-  // ✅ 문서 찾기
+  // ✅ published만 대상으로 증가(공개 글만 통계 증가)
   const d = await findPublishedDocByIdNumber(id);
   if (!d) throw new Error("Article not found");
 
-  // ✅ 부분 업데이트: views만 +1
   await updateDoc(doc(db, "articles", d.id), {
     views: increment(1),
   });
 
-  // ✅ 성공했을 때만 기록
   safeSet(key, String(now));
-
   return { ok: true, skipped: false };
 }
 
 /* =============================================================================
   ✅ 핵심 2) Likes 증가 (3시간 쿨다운)
-  - 성공했을 때만 localStorage 기록
-  - 반환값: "다음 likes 수(낙관적)" 를 ViewPage에서 UI에 바로 반영 가능
 ============================================================================= */
 const LIKE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
 
@@ -216,11 +317,10 @@ export async function bumpLikes(idNum) {
   if (!id || Number.isNaN(id)) throw new Error("Invalid id");
 
   const key = `UF_LIKE_AT_V1_${id}`;
-  const last = Number(safeGet(key) || 0);
+  const last = asNumber(safeGet(key) || 0, 0);
   const now = Date.now();
 
   if (last && now - last < LIKE_COOLDOWN_MS) {
-    // ✅ ViewPage에서 이 메시지를 보고 "3시간 뒤" 토스트 띄울 수 있게
     const e = new Error("cooldown");
     e.code = "COOLDOWN";
     throw e;
@@ -229,7 +329,7 @@ export async function bumpLikes(idNum) {
   const d = await findPublishedDocByIdNumber(id);
   if (!d) throw new Error("Article not found");
 
-  const currentLikes = Number(d.data()?.likes || 0);
+  const currentLikes = asNumber(d.data()?.likes || 0, 0);
 
   await updateDoc(doc(db, "articles", d.id), {
     likes: increment(1),
@@ -237,6 +337,6 @@ export async function bumpLikes(idNum) {
 
   safeSet(key, String(now));
 
-  // ✅ 낙관적 next
+  // ✅ 낙관적 next (레이스가 있어도 UX엔 충분)
   return currentLikes + 1;
 }
