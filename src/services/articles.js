@@ -1,9 +1,20 @@
 // src/services/articles.js
+// -----------------------------------------------------------------------------
+// ✅ Articles service
+// - published 글 목록/단건 조회
+// - 관리자용: create/update/getNextId 등
+// - 공개용: bumpViews/bumpLikes (쿨다운 포함)  ← 오늘의 핵심
+//
+// ⚠️ Firestore rules에서 일반 유저 update를 likes/views 증가만 허용하는 구조라면
+//    updateDoc({ likes: increment(1) }) 같은 "부분 업데이트"가 가장 안전합니다.
+// -----------------------------------------------------------------------------
+
 import {
   collection,
   getDocs,
   query,
   where,
+  orderBy,
   limit,
   getDoc,
   doc,
@@ -15,178 +26,217 @@ import {
 import { db } from "../firebase";
 
 /* =============================================================================
-  ✅ published 글만 가져오기 (ListPage 용)
-  - ⚠️ where + orderBy 조합은 "인덱스" 없으면 실패할 수 있음
-  - 그래서 여기서는 orderBy를 DB에서 하지 않고,
-    가져온 뒤 프론트에서 createdAt 기준으로 정렬해줌.
+  ✅ 내부 유틸: localStorage (쿨다운 기록)
 ============================================================================= */
-export async function getPublishedArticles() {
-  const q = query(
-    collection(db, "articles"),
-    where("status", "==", "published")
-    // ❌ orderBy("createdAt","desc") 제거 (인덱스 필요해져서 리스트가 통째로 안 뜰 수 있음)
-  );
-
-  const snap = await getDocs(q);
-
-  const list = snap.docs.map((d) => ({
-    firebaseId: d.id,
-    ...d.data(),
-  }));
-
-  // ✅ 프론트에서 createdAt desc 정렬 (인덱스 불필요)
-  list.sort((a, b) => {
-    const ax = a?.createdAt?.toMillis?.() ?? (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0) ?? 0;
-    const bx = b?.createdAt?.toMillis?.() ?? (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0) ?? 0;
-    return bx - ax;
-  });
-
-  return list;
+function safeGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function safeSet(key, val) {
+  try {
+    localStorage.setItem(key, val);
+  } catch {}
 }
 
-/* =============================================================================
-  ✅ id(Number)로 published 글 1개 가져오기 (ViewPage public 용)
-============================================================================= */
-export async function getPublishedArticleByIdNumber(idNum) {
+/** ✅ 글 하나를 "id(Number)"로 찾는 공통 헬퍼 (published만) */
+async function findPublishedDocByIdNumber(idNum) {
   const q = query(
     collection(db, "articles"),
     where("status", "==", "published"),
     where("id", "==", Number(idNum)),
     limit(1)
   );
-
   const snap = await getDocs(q);
   if (snap.empty) return null;
-
-  const d = snap.docs[0];
-  return { firebaseId: d.id, ...d.data() };
+  return snap.docs[0]; // QueryDocumentSnapshot
 }
 
 /* =============================================================================
-  ✅ (관리자 편집용) firebaseId로 직접 가져오기 (Editor용)
+  ✅ ListPage: published 글 목록
 ============================================================================= */
-export async function getArticleByFirebaseId(firebaseId) {
-  const ref = doc(db, "articles", firebaseId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return { firebaseId: snap.id, ...snap.data() };
-}
-
-/* =============================================================================
-  ✅ (관리자 편집용) 글 번호(id)로 글 가져오기
-  - EditorPage에서 수정 모드(/write/:id)로 들어올 때 사용
-============================================================================= */
-export async function getArticleByIdNumber(idNum) {
-  // 관리자/비관리자 모두 쓸 수 있지만, rules에서 draft는 admin만 read 가능
+export async function getPublishedArticles() {
   const q = query(
     collection(db, "articles"),
-    where("id", "==", Number(idNum)),
-    limit(1)
+    where("status", "==", "published"),
+    orderBy("createdAt", "desc")
   );
   const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
+  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
+}
+
+/* =============================================================================
+  ✅ ViewPage: published 글 단건 조회 (id number)
+============================================================================= */
+export async function getPublishedArticleByIdNumber(idNum) {
+  const d = await findPublishedDocByIdNumber(idNum);
+  if (!d) return null;
   return { firebaseId: d.id, ...d.data() };
 }
 
 /* =============================================================================
-  ✅ 다음 글 id 생성 (간단 버전)
-  - config에 counter를 두는 방식이 더 안전하지만,
-    지금 프로젝트 흐름 유지용으로 "최댓값 + 1" 방식을 제공.
+  ✅ (에디터에서도 재사용 가능) id number로 글 조회
+  - draft까지 보려면 별도 admin 쿼리 필요하지만
+  - 네가 지금은 보통 editor는 관리자만 들어오니까, 기존 로직대로 유지해도 됨
+============================================================================= */
+export async function getArticleByIdNumber(idNum) {
+  // 여기서는 published만 가져오게 해둠 (안전)
+  return getPublishedArticleByIdNumber(idNum);
+}
+
+/* =============================================================================
+  ✅ Editor: 다음 글 id 발급
 ============================================================================= */
 export async function getNextArticleId() {
-  // ✅ published/draft 전부 가져와서 max id 계산
-  const snap = await getDocs(collection(db, "articles"));
-  let maxId = 0;
-  snap.docs.forEach((d) => {
-    const id = Number(d.data()?.id || 0);
-    if (id > maxId) maxId = id;
-  });
-  return maxId + 1;
+  const q = query(collection(db, "articles"), orderBy("id", "desc"), limit(1));
+  const snap = await getDocs(q);
+  return snap.empty ? 1 : Number(snap.docs[0].data().id) + 1;
 }
 
 /* =============================================================================
-  ✅ 글 생성
-  - firebaseId는 문서ID(d.id)
-  - createdAt은 serverTimestamp()로 넣고,
-    rules가 요구하는 필드 누락/undefined 방지
+  ✅ Editor: create/update
+  - createdAt은 새 글에서만 serverTimestamp()
+  - 수정 시 createdAt은 유지(절대 변경 금지)
 ============================================================================= */
 export async function createArticle(payload) {
-  const safe = {
-    ...payload,
-    likes: Number(payload?.likes || 0),
-    views: Number(payload?.views || 0),
-    createdAt: payload?.createdAt ?? serverTimestamp(),
-  };
+  // ✅ undefined 금지(룰/데이터 깨짐 방지)
+  const clean = sanitizeArticlePayload(payload, { isCreate: true });
 
-  const ref = await addDoc(collection(db, "articles"), safe);
-  return ref.id; // ✅ firebaseId 반환
+  const ref = await addDoc(collection(db, "articles"), {
+    ...clean,
+    createdAt: serverTimestamp(),
+    likes: 0,
+    views: 0,
+  });
+
+  return ref.id; // firebaseId 리턴
 }
 
-/* =============================================================================
-  ✅ 글 업데이트
-============================================================================= */
 export async function updateArticle(firebaseId, payload) {
-  const safe = {
-    ...payload,
-    likes: Number(payload?.likes || 0),
-    views: Number(payload?.views || 0),
-    // createdAt은 수정 시에도 유지 (payload.createdAt이 null이면 그대로 두고 싶으면 EditorPage에서 유지 전달)
+  if (!firebaseId) throw new Error("firebaseId missing");
+  const clean = sanitizeArticlePayload(payload, { isCreate: false });
+
+  // ✅ createdAt 절대 건드리지 않기: update payload에서 제거
+  // (룰에서 createdAt 동일성 검사하는 경우가 많아서 안정적)
+  delete clean.createdAt;
+
+  await updateDoc(doc(db, "articles", firebaseId), clean);
+}
+
+/** ✅ payload 정리(undefined 제거 + 필드 안전화) */
+function sanitizeArticlePayload(payload, { isCreate }) {
+  const p = payload || {};
+  const out = {
+    id: Number(p.id),
+    title: String(p.title || "").trim(),
+    category: String(p.category || "Exhibition"),
+    excerpt: String(p.excerpt || "").trim(),
+    status: p.status === "draft" ? "draft" : "published",
+    contentHTML: String(p.contentHTML || ""),
+
+    cover: String(p.cover || ""),
+    coverThumb: String(p.coverThumb || ""),
+    coverMedium: String(p.coverMedium || ""),
+
+    tags: Array.isArray(p.tags) ? p.tags.map(String).filter(Boolean).slice(0, 30) : [],
   };
 
-  await updateDoc(doc(db, "articles", firebaseId), safe);
+  // 수정/생성 공통: createdAt은 create에서만 서버타임으로 넣고, update에서는 유지하므로 굳이 안 넣음
+  if (!isCreate) {
+    // out.createdAt은 넣지 않음(업데이트에서 건드리지 않기)
+  }
+
+  // ✅ undefined 제거(Firestore가 싫어함)
+  Object.keys(out).forEach((k) => {
+    if (out[k] === undefined) delete out[k];
+  });
+
+  return out;
 }
 
 /* =============================================================================
-  ✅ Draft 목록 (선택 UI용)
+  ✅ Draft 목록 (optional)
 ============================================================================= */
 export async function listDraftArticles() {
   const q = query(
     collection(db, "articles"),
-    where("status", "==", "draft")
-    // ⚠️ orderBy 쓰면 인덱스 필요할 수 있어서 생략
+    where("status", "==", "draft"),
+    orderBy("createdAt", "desc")
   );
   const snap = await getDocs(q);
-
-  const list = snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
-
-  // createdAt desc 정렬
-  list.sort((a, b) => {
-    const ax = a?.createdAt?.toMillis?.() ?? (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0) ?? 0;
-    const bx = b?.createdAt?.toMillis?.() ?? (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0) ?? 0;
-    return bx - ax;
-  });
-
-  return list;
+  return snap.docs.map((d) => ({ firebaseId: d.id, ...d.data() }));
 }
 
 /* =============================================================================
-  ✅ likes/views bump (네 rules가 허용하는 범위에서 증가만)
-  - 여기서는 간단 버전 (쿨다운/로컬키 기반은 네 기존 로직이 있으면 유지)
+  ✅ 핵심 1) Views 증가 (30분 쿨다운)
+  - 글마다 별도 키를 사용 → 1번 글이 2번 글에 영향 X
+  - 성공했을 때만 localStorage 기록(정확도↑)
 ============================================================================= */
-export async function bumpLikes(idNum) {
-  // ⚠️ 기존 프로젝트에 쿨다운 로직이 있으면 그걸 유지하고,
-  // 아래는 "증가"만 확실히 되도록 최소 구현.
-  const q = query(collection(db, "articles"), where("id", "==", Number(idNum)), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) throw new Error("Article not found");
-
-  const d = snap.docs[0];
-  const ref = doc(db, "articles", d.id);
-
-  await updateDoc(ref, { likes: increment(1) });
-
-  const next = Number(d.data()?.likes || 0) + 1;
-  return next;
-}
+const VIEW_COOLDOWN_MS = 30 * 60 * 1000;
 
 export async function bumpViews(idNum) {
-  const q = query(collection(db, "articles"), where("id", "==", Number(idNum)), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) return;
+  const id = Number(idNum);
+  if (!id || Number.isNaN(id)) throw new Error("Invalid id");
 
-  const d = snap.docs[0];
-  const ref = doc(db, "articles", d.id);
+  const key = `UF_VIEW_AT_V1_${id}`;
+  const last = Number(safeGet(key) || 0);
+  const now = Date.now();
 
-  await updateDoc(ref, { views: increment(1) });
+  // ✅ 쿨다운 안 지났으면 아무것도 안 함(조용히)
+  if (last && now - last < VIEW_COOLDOWN_MS) {
+    return { ok: true, skipped: true };
+  }
+
+  // ✅ 문서 찾기
+  const d = await findPublishedDocByIdNumber(id);
+  if (!d) throw new Error("Article not found");
+
+  // ✅ 부분 업데이트: views만 +1
+  await updateDoc(doc(db, "articles", d.id), {
+    views: increment(1),
+  });
+
+  // ✅ 성공했을 때만 기록
+  safeSet(key, String(now));
+
+  return { ok: true, skipped: false };
+}
+
+/* =============================================================================
+  ✅ 핵심 2) Likes 증가 (3시간 쿨다운)
+  - 성공했을 때만 localStorage 기록
+  - 반환값: "다음 likes 수(낙관적)" 를 ViewPage에서 UI에 바로 반영 가능
+============================================================================= */
+const LIKE_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+
+export async function bumpLikes(idNum) {
+  const id = Number(idNum);
+  if (!id || Number.isNaN(id)) throw new Error("Invalid id");
+
+  const key = `UF_LIKE_AT_V1_${id}`;
+  const last = Number(safeGet(key) || 0);
+  const now = Date.now();
+
+  if (last && now - last < LIKE_COOLDOWN_MS) {
+    // ✅ ViewPage에서 이 메시지를 보고 "3시간 뒤" 토스트 띄울 수 있게
+    const e = new Error("cooldown");
+    e.code = "COOLDOWN";
+    throw e;
+  }
+
+  const d = await findPublishedDocByIdNumber(id);
+  if (!d) throw new Error("Article not found");
+
+  const currentLikes = Number(d.data()?.likes || 0);
+
+  await updateDoc(doc(db, "articles", d.id), {
+    likes: increment(1),
+  });
+
+  safeSet(key, String(now));
+
+  // ✅ 낙관적 next
+  return currentLikes + 1;
 }

@@ -1,94 +1,146 @@
 // src/components/CommentBox.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { addComment, listComments } from "../services/comments";
 
-/**
- * ============================================================================
- * ✅ CommentBox (안정화 버전)
- * - comments가 undefined/null이어도 절대 터지지 않게 방어
- * - loading/error 상태에도 UI가 깨지지 않게 설계
- * ============================================================================
- */
-export default function CommentBox({
-  comments, // 배열이거나 undefined일 수 있음
-  loading = false,
-  error = "",
-  onSubmit, // (name, text) => Promise<void>
-}) {
-  // ✅ comments를 "항상 배열"로 만들기 (여기가 핵심)
-  const list = useMemo(() => (Array.isArray(comments) ? comments : []), [comments]);
+/* =============================================================================
+  ✅ 날짜 포맷 (Timestamp/number/string 대응)
+============================================================================= */
+function formatDate(ts) {
+  try {
+    if (!ts) return "";
+    const d =
+      typeof ts?.toDate === "function"
+        ? ts.toDate()
+        : typeof ts === "number"
+        ? new Date(ts)
+        : new Date(ts);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+export default function CommentBox({ articleId }) {
+  const [loading, setLoading] = useState(true);
+
+  // ✅ 절대 undefined로 두지 않기 (중요!)
+  const [comments, setComments] = useState([]);
 
   const [name, setName] = useState("");
   const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
 
-  async function handleSubmit(e) {
+  const [err, setErr] = useState("");
+
+  async function load() {
+    try {
+      setErr("");
+      setLoading(true);
+      const list = await listComments(articleId);
+      setComments(Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.error(e);
+      setErr("댓글을 불러오지 못했어요 😵");
+      setComments([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (articleId == null) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articleId]);
+
+  async function onSubmit(e) {
     e.preventDefault();
-    if (!onSubmit) return;
+    const n = name.trim();
+    const t = text.trim();
 
-    const n = (name || "Anonymous").trim().slice(0, 40);
-    const t = (text || "").trim().slice(0, 1000);
-
-    if (!t) return;
+    if (!t) {
+      setErr("댓글 내용을 입력해주세요 ✍️");
+      return;
+    }
 
     try {
-      setSending(true);
-      await onSubmit(n, t);
+      setErr("");
+      await addComment(articleId, n, t);
       setText("");
-    } finally {
-      setSending(false);
+      await load();
+    } catch (e2) {
+      console.error(e2);
+      setErr("댓글 작성에 실패했어요 😵");
     }
   }
 
   return (
-    <div className="uf-commentBox">
-      <div className="uf-commentBox__head">
-        <div className="uf-commentBox__title">Comments</div>
-        <div className="uf-commentBox__count">{list.length}</div>
-      </div>
+    <div className="uf-card uf-card--flat" style={{ padding: 14 }}>
+      <div style={{ fontWeight: 900, marginBottom: 10 }}>💬 Comments</div>
 
-      {/* 상태 메시지 */}
-      {loading ? <div className="uf-commentBox__hint">⏳ 불러오는 중…</div> : null}
-      {error ? <div className="uf-commentBox__error">😵 {error}</div> : null}
+      {/* ✅ 입력 폼 */}
+      <form onSubmit={onSubmit} style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+        <input
+          className="uf-input"
+          placeholder="이름 (선택)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
 
-      {/* 목록 */}
-      {list.length === 0 && !loading ? (
-        <div className="uf-commentBox__empty">첫 댓글을 남겨주세요 ✍️</div>
+        <textarea
+          className="uf-textarea"
+          placeholder="댓글을 남겨주세요…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="uf-btn uf-btn--primary" type="submit">
+            등록하기
+          </button>
+          {err ? <div style={{ color: "#ef4444", fontSize: 13 }}>{err}</div> : null}
+        </div>
+      </form>
+
+      {/* ✅ 목록 */}
+      {loading ? (
+        <div style={{ color: "var(--muted)" }}>로딩 중… ⏳</div>
+      ) : comments.length === 0 ? (
+        <div style={{ color: "var(--muted)" }}>첫 댓글을 남겨보세요 ✨</div>
       ) : (
-        <div className="uf-commentBox__list">
-          {list.map((c) => (
-            <div key={c.id} className="uf-comment">
-              <div className="uf-comment__meta">
-                <b className="uf-comment__name">{c.name || "Anonymous"}</b>
-                <span className="uf-comment__date">
-                  {c.createdAt?.toDate?.()
-                    ? c.createdAt.toDate().toLocaleString("ko-KR")
-                    : ""}
-                </span>
+        <div style={{ display: "grid", gap: 10 }}>
+          {comments.map((c) => (
+            <div
+              key={c.id}
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid var(--line)",
+                background: "var(--panel)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 800 }}>
+                  {String(c.name || "Anonymous").slice(0, 40)}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {formatDate(c.createdAt)}
+                </div>
               </div>
-              <div className="uf-comment__text">{c.text || ""}</div>
+
+              <div style={{ marginTop: 6, lineHeight: 1.6 }}>
+                {String(c.text || "")}
+              </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* 작성 폼 */}
-      <form className="uf-commentBox__form" onSubmit={handleSubmit}>
-        <input
-          className="uf-input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="이름 (선택)"
-        />
-        <textarea
-          className="uf-textarea"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="댓글을 남겨주세요"
-        />
-        <button className="uf-btn uf-btn--primary" disabled={sending || !text.trim()}>
-          {sending ? "전송중…" : "댓글 등록"}
-        </button>
-      </form>
     </div>
   );
 }
