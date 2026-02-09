@@ -46,7 +46,6 @@ html, body{
   color: var(--text);
   font-family: "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
-
 a{ color: inherit; text-decoration: none; }
 button{ font-family: inherit; }
 *{ box-sizing: border-box; }
@@ -55,12 +54,7 @@ button{ font-family: inherit; }
   ✅ Layout Helpers
 ============================================================================= */
 .uf-page{ min-height: 100vh; }
-
-.uf-wrap{
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 0 16px;
-}
+.uf-wrap{ max-width: var(--max); margin: 0 auto; padding: 0 16px; }
 
 .uf-card{
   background: var(--panel);
@@ -68,8 +62,6 @@ button{ font-family: inherit; }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
-
-.uf-card--flat{ background: var(--panel2); box-shadow: none; }
 
 .uf-row{ display:flex; gap: 12px; align-items:center; }
 .uf-stack{ display:flex; flex-direction:column; gap: 12px; }
@@ -90,21 +82,13 @@ button{ font-family: inherit; }
   cursor:pointer;
   transition: transform .08s ease, background .12s ease, border-color .12s ease, opacity .12s ease;
 }
-
 .uf-btn:hover{
   border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
   background: color-mix(in srgb, var(--brand) 8%, var(--panel));
 }
-
 .uf-btn:active{ transform: translateY(1px); }
-
-.uf-btn--primary{
-  background: var(--brand);
-  border-color: rgba(0,0,0,0);
-  color: white;
-}
+.uf-btn--primary{ background: var(--brand); border-color: rgba(0,0,0,0); color: white; }
 html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
-
 .uf-btn--ghost{ background: transparent; }
 
 .uf-input, .uf-textarea, .uf-select{
@@ -116,14 +100,8 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   padding: 10px 12px;
   outline: none;
 }
-
 .uf-textarea{ min-height: 92px; resize: vertical; }
-
-.uf-label{
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
+.uf-label{ font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 
 /* =============================================================================
   ✅ Toast
@@ -143,7 +121,7 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
 }
 
 /* =============================================================================
-  ✅ Topbar (View/Editor 공용)
+  ✅ Topbar
 ============================================================================= */
 .uf-topbar{
   position: sticky;
@@ -153,14 +131,12 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   border-bottom: 1px solid var(--line);
 }
-
 .uf-topbar__inner{
   height: 64px;
   display:flex;
   align-items:center;
   justify-content: space-between;
 }
-
 .uf-brand{
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -171,103 +147,12 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   padding: 0;
   color: inherit;
 }
-
 .uf-nav{ display:flex; gap: 8px; align-items:center; }
 
 /* =============================================================================
-  ✅ View Page Hero
-============================================================================= */
-.uf-hero{
-  position: relative;
-  width:100%;
-  min-height: 62vh;
-  display:flex;
-  align-items:flex-end;
-  overflow:hidden;
-}
-
-.uf-hero__bg{
-  position:absolute;
-  inset:0;
-  background-size: cover;
-  background-position: center;
-  transform: scale(1.03);
-}
-
-.uf-hero__overlay{
-  position:absolute;
-  inset:0;
-  background: linear-gradient(
-    to top,
-    rgba(0,0,0,0.70),
-    rgba(0,0,0,0.22),
-    rgba(0,0,0,0.06)
-  );
-}
-
-.uf-hero__content{
-  position: relative;
-  padding: 28px 0 30px;
-  color: white;
-}
-
-.uf-hero__kicker{
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  opacity: .92;
-}
-
-.uf-hero__title{
-  margin: 10px 0 10px;
-  font-size: 38px;
-  line-height: 1.12;
-  letter-spacing: -0.03em;
-  font-weight: 900;
-}
-
-.uf-hero__meta{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 10px;
-  opacity: .94;
-  font-size: 13px;
-}
-
-.uf-viewBody{ padding: 30px 0 64px; }
-
-.uf-viewGrid{
-  display:grid;
-  grid-template-columns: 1fr 300px;
-  gap: 18px;
-  align-items:start;
-}
-@media (max-width: 980px){
-  .uf-viewGrid{ grid-template-columns: 1fr; }
-}
-
-.uf-side{
-  position: sticky;
-  top: 80px;
-}
-@media (max-width: 980px){
-  .uf-side{ position: static; }
-}
-
-.uf-sideBox{ padding: 14px; border-radius: var(--radius); }
-.uf-sideTitle{ font-weight: 900; margin-bottom: 8px; }
-.uf-sideInfo{ font-size: 13px; color: var(--muted); line-height: 1.55; }
-.uf-sideBtns{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
-
-.uf-article{ padding: 22px; }
-@media (max-width: 640px){
-  .uf-article{ padding: 16px; }
-}
-
-/* =============================================================================
-  ✅ Editor Page Layout
+  ✅ Editor Layout
 ============================================================================= */
 .uf-editorShell{ padding: 22px 0 46px; }
-
 .uf-editorGrid{
   display:grid;
   grid-template-columns: 360px 1fr;
@@ -277,20 +162,13 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
 @media (max-width: 980px){
   .uf-editorGrid{ grid-template-columns: 1fr; }
 }
-
 .uf-panel{ padding: 16px; }
-.uf-panelTitle{
-  font-weight: 950;
-  letter-spacing: -0.02em;
-  margin-bottom: 12px;
-}
-.uf-panelHint{
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.5;
-  margin-top: 8px;
-}
+.uf-panelTitle{ font-weight: 950; letter-spacing: -0.02em; margin-bottom: 12px; }
+.uf-panelHint{ font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
 
+/* =============================================================================
+  ✅ Toolbar (친절한 그룹형 디자인)
+============================================================================= */
 .uf-toolbar{
   position: sticky;
   top: 64px;
@@ -300,14 +178,119 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(12px);
 }
-
 .uf-toolbar__inner{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 10px;
+  align-items:flex-end;
+}
+
+.uf-toolGroup{
   display:flex;
   flex-wrap:wrap;
   gap: 8px;
   align-items:center;
+  padding: 10px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+}
+.uf-toolGroupTitle{
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .12em;
+  font-weight: 900;
+  padding: 0 6px 2px;
+  margin-right: 4px;
 }
 
+.uf-toolBtn{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
+}
+.uf-toolBtn:hover{
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
+}
+.uf-toolBtn:active{ transform: translateY(1px); }
+
+.uf-toolDanger{
+  border-color: color-mix(in srgb, #ef4444 45%, var(--line));
+}
+.uf-toolDanger:hover{
+  background: color-mix(in srgb, #ef4444 10%, var(--panel));
+  border-color: color-mix(in srgb, #ef4444 55%, var(--line));
+}
+
+.uf-toolFile{ position: relative; overflow:hidden; }
+.uf-toolSelect{
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.uf-toolSep{
+  width: 1px;
+  height: 44px;
+  background: var(--line);
+  margin: 0 2px;
+}
+.uf-toolMiniSep{
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+  margin: 0 2px;
+}
+
+.uf-colorRow{
+  display:flex;
+  align-items:center;
+  gap: 6px;
+  padding: 0 6px;
+}
+.uf-colorChip{
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.35);
+  outline: 1px solid var(--line);
+  cursor: pointer;
+}
+.uf-colorPickLabel{
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+}
+.uf-colorPicker{
+  width: 26px;
+  height: 20px;
+  border: 0;
+  padding: 0;
+  margin-left: 8px;
+  background: transparent;
+}
+
+/* =============================================================================
+  ✅ Editor Box
+============================================================================= */
 .uf-editorBox{ padding: 16px; }
 .uf-editorBox .ProseMirror{
   min-height: 560px;
@@ -316,62 +299,23 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   font-size: 16px;
 }
 .uf-editorBox .ProseMirror p{ margin: 10px 0; }
-
 .ProseMirror img.ProseMirror-selectednode{
   outline: 3px solid var(--brand);
   border-radius: 12px;
 }
 
-/* =============================================================================
-  ✅ 2/3단 편집 가이드(HTML 방식)
-============================================================================= */
-.uf-cols{
-  display:grid;
-  gap:14px;
-  margin:22px 0;
-  padding:12px;
-  border:1px dashed color-mix(in srgb, var(--brand) 45%, transparent);
-  border-radius:14px;
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
-}
-.uf-cols-2{ grid-template-columns:1fr 1fr; }
-.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
-.uf-col{
-  min-height:90px;
-  padding:10px;
-  border:1px dashed var(--line);
-  border-radius:12px;
+.uf-editorHelp{
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 /* =============================================================================
-  ✅ TipTap Table styles
-============================================================================= */
-.ProseMirror table{
-  border-collapse: collapse;
-  table-layout: fixed;
-  width: 100% !important;
-  margin: 18px 0;
-  overflow: hidden;
-}
-.ProseMirror td, .ProseMirror th{
-  min-width: 1em;
-  border: 1px dashed var(--line);
-  padding: 10px;
-  vertical-align: top;
-  box-sizing: border-box;
-  position: relative;
-}
-.ProseMirror th{
-  background: color-mix(in srgb, var(--panel) 60%, transparent);
-  font-weight: 900;
-}
-
-/* =============================================================================
-  ✅ Scrollytelling Visuals
-  - Scene / Sticky / Reveal / Parallax
+  ✅ Scene / Reveal / Sticky / Parallax (뷰에서 효과를 줄 기반)
 ============================================================================= */
 
-/* (1) Scene: 씬 경계가 “확실히” 보이도록 */
+/* Scene: 씬 경계가 확실히 보이게 */
 .uf-scene{
   margin: 26px 0;
   padding: 18px 16px;
@@ -380,7 +324,6 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   background: color-mix(in srgb, var(--brand) 6%, var(--panel));
   position: relative;
 }
-
 .uf-scene::before{
   content: "SCENE";
   position: absolute;
@@ -396,7 +339,19 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   color: var(--muted);
 }
 
-/* (2) Sticky 컨테이너 */
+/* Reveal: 기본 숨김 → View에서 is-visible 붙이면 등장 */
+.uf-reveal{
+  opacity: 0.0;
+  transform: translateY(14px);
+  transition: opacity .6s ease, transform .6s ease;
+  will-change: opacity, transform;
+}
+.uf-reveal.is-visible{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Sticky 구조 */
 .uf-stickyWrap{
   margin: 28px 0;
   border-radius: 16px;
@@ -404,8 +359,6 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   background: color-mix(in srgb, var(--panel) 80%, transparent);
   overflow: hidden;
 }
-
-/* sticky 실제 동작: 모바일에서는 sticky가 과하면 불편해서 약화 */
 .uf-sticky{
   position: sticky;
   top: 84px;
@@ -415,570 +368,28 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   .uf-sticky{ position: relative; top: auto; }
 }
 
-/* (3) Reveal: 기본은 숨김 → 등장 시 부드럽게 */
-.uf-reveal{
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity .6s ease, transform .6s ease;
-  will-change: opacity, transform;
-}
-
-.uf-reveal.is-visible{
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* (4) Parallax: transform은 JS에서 계속 업데이트됨 */
+/* Parallax: JS가 transform을 업데이트해줄 때 자연스럽게 */
 .uf-parallax{
   will-change: transform;
   transform: translateY(0);
 }
 
-/* =============================================================================
-  ✅ List Page (섹션/카드 UI)
-============================================================================= */
-
-/* TopNav (리스트 전용) */
-.uf-topNav{
-  position: sticky;
-  top: 0;
-  z-index: 60;
-  backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  border-bottom: 1px solid var(--line);
-}
-
-.uf-topNav__inner{
-  height: 64px;
-  margin: 0 auto;
-  padding: 0 16px;
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-}
-
-.uf-navRight{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-}
-
-.uf-navLink{
-  font-size: 13px;
-  color: var(--muted);
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-}
-.uf-navLink:hover{
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
-}
-
-.uf-navBtn{
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-}
-.uf-navBtn:hover{
-  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
-}
-.uf-navBtn--saved{
-  font-weight: 800;
-}
-
-/* Section base */
-.uf-sec{
-  width: 100%;
-  padding: 56px 0;
-}
-.uf-secInner{
-  margin: 0 auto;
-  padding: 0 16px;
-}
-
-/* Hero list */
-.uf-heroList{
-  position: relative;
-  min-height: 80vh; /* ✅ 너가 원한 높이감 */
-  background-size: cover;
-  background-position: center;
-  display:flex;
-  align-items:flex-end;
-  overflow:hidden;
-}
-.uf-heroOverlay{
-  position:absolute;
-  inset:0;
-  background: linear-gradient(to top, rgba(0,0,0,.70), rgba(0,0,0,.24), rgba(0,0,0,.08));
-}
-.uf-heroCard{
-  position: relative;
-  max-width: 620px;
-  padding: 26px;
-  border-radius: 22px;
-  background: rgba(0,0,0,0.35);
-  border: 1px solid rgba(255,255,255,0.18);
-  backdrop-filter: blur(10px);
-  color: white;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.28);
-}
-.uf-heroKicker{
-  font-size: 12px;
-  letter-spacing: .18em;
-  opacity: .92;
-}
-.uf-heroTitle{
-  margin: 10px 0 10px;
-  font-size: 40px;
-  line-height: 1.12;
-  letter-spacing: -0.03em;
-  font-weight: 950;
-}
-.uf-heroSub{
-  margin: 0 0 16px;
-  opacity: .92;
-  line-height: 1.55;
-}
-.uf-heroBtns{ display:flex; gap: 10px; flex-wrap: wrap; }
-
-/* Categories */
-.uf-secCats{ padding: 46px 0; }
-.uf-catsRow{
-  display:flex;
-  gap: 12px;
-}
-@media (max-width: 980px){
-  .uf-catsRow{ flex-direction: column; }
-}
-
-/* hover 시 폭 변화 느낌 (모바일은 폭 변동이 불편해서 끔) */
-.uf-catCard{
-  flex: 1;
-  min-height: 180px;
-  border-radius: 20px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  padding: 18px;
-  text-align: left;
-  cursor: pointer;
-  transition: transform .18s ease, flex .18s ease, background .18s ease;
-  overflow:hidden;
-}
-@media (min-width: 981px){
-  .uf-catsRow:hover .uf-catCard{ flex: 0.85; }
-  .uf-catsRow .uf-catCard:hover{
-    flex: 1.45;
-    transform: translateY(-4px);
-    background: color-mix(in srgb, var(--brand) 8%, var(--panel));
-  }
-}
-.uf-catSub{ font-size: 12px; color: var(--muted); letter-spacing: .12em; }
-.uf-catTitle{ margin-top: 10px; font-size: 28px; font-weight: 950; letter-spacing: -0.02em; }
-.uf-catHint{ margin-top: 10px; font-size: 12px; color: var(--muted); }
-
-/* Marquee */
-.uf-secMarquee{ padding: 40px 0; }
-.uf-marquee{
-  overflow:hidden;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
-}
-.uf-marquee__track{
-  display:inline-block;
-  white-space: nowrap;
-  padding: 12px 0;
-  animation: uf-marquee 18s linear infinite;
-  font-weight: 900;
-  letter-spacing: .08em;
-  opacity: .75;
-}
-@keyframes uf-marquee{
-  from{ transform: translateX(0); }
-  to{ transform: translateX(-33.33%); }
-}
-
-.uf-miniSub{
-  margin-top: 18px;
-  border-radius: 20px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  padding: 18px;
-}
-.uf-miniSub__title{ font-weight: 900; margin-bottom: 10px; }
-.uf-miniSub__row{ display:flex; gap: 10px; flex-wrap: wrap; }
-.uf-miniSub__row .uf-input{ max-width: 320px; }
-.uf-miniSub__desc{ margin-top: 10px; color: var(--muted); font-size: 12px; }
-
-/* Pick */
-.uf-secPick{ padding: 52px 0; }
-.uf-grid2{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-@media (max-width: 980px){
-  .uf-grid2{ grid-template-columns: 1fr; }
-}
-.uf-noteBox, .uf-pickBox{
-  border-radius: 20px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  padding: 18px;
-}
-.uf-boxTitle{ font-weight: 950; font-size: 18px; margin-bottom: 10px; }
-.uf-boxText{ color: var(--muted); line-height: 1.6; }
-.uf-pickList{ display:flex; flex-direction:column; gap: 10px; }
-.uf-pickItem{
-  display:flex;
-  flex-direction:column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  cursor: pointer;
-  text-align: left;
-}
-.uf-pickItem:hover{
-  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
-  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
-}
-.uf-pickBadge{
-  display:inline-flex;
-  width: fit-content;
-  font-size: 11px;
-  letter-spacing: .12em;
-  font-weight: 950;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--brand) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--line));
-}
-.uf-pickTitle{ font-weight: 950; }
-.uf-pickMeta{ font-size: 12px; color: var(--muted); }
-
-/* Archive section */
-.uf-secArchive{ padding: 56px 0; }
-.uf-archiveLayout{
-  display:grid;
-  grid-template-columns: 260px 1fr;
-  gap: 16px;
-  align-items:start;
-}
-@media (max-width: 980px){
-  .uf-archiveLayout{ grid-template-columns: 1fr; }
-}
-
-.uf-archiveSide{
-  position: sticky;
-  top: 84px;
-}
-@media (max-width: 980px){
-  .uf-archiveSide{ position: static; }
-}
-
-.uf-sideBox{
-  border-radius: 20px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  padding: 14px;
-}
-.uf-sideItem{
-  width: 100%;
-  text-align: left;
+/* 캡션 */
+.uf-caption{
   margin-top: 8px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 86%, transparent);
-  cursor: pointer;
-  color: var(--text);
-}
-.uf-sideItem:hover{
-  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
-}
-.uf-sideItem.is-active{
-  border-color: color-mix(in srgb, var(--brand) 48%, var(--line));
-  background: color-mix(in srgb, var(--brand) 14%, var(--panel));
-  font-weight: 900;
-}
-
-.uf-archiveTopbar{
-  display:flex;
-  align-items:center;
-  gap: 12px;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-@media (max-width: 980px){
-  .uf-archiveTopbar{ flex-direction: column; align-items: stretch; }
-}
-
-.uf-sort{ display:flex; gap: 8px; }
-.uf-chip{
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor: pointer;
-}
-.uf-chip.is-active{
-  border-color: color-mix(in srgb, var(--brand) 55%, var(--line));
-  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
-  font-weight: 900;
-}
-
-.uf-search{ max-width: 360px; }
-
-/* Cards grid */
-.uf-cards{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-@media (max-width: 980px){
-  .uf-cards{ grid-template-columns: 1fr; }
-}
-
-/* ✅ 카드 완전체 */
-.uf-articleCard{
-  border-radius: 22px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform .18s ease, border-color .18s ease, background .18s ease;
-  display:flex;
-  flex-direction: column;
-}
-.uf-articleCard:hover{
-  transform: translateY(-4px);
-  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
-  background: color-mix(in srgb, var(--brand) 6%, var(--panel));
-}
-
-.uf-cardMedia{ position: relative; }
-.uf-cardImg{
-  width: 100%;
-  aspect-ratio: 16 / 10; /* ✅ 카드 이미지 비율. 더 영화같이 하려면 16/9 */
-  background-size: cover;
-  background-position: center;
-  background-color: color-mix(in srgb, var(--panel) 80%, transparent);
-}
-.uf-cardImg__fallback{
-  height: 100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color: var(--muted);
-  font-weight: 900;
-}
-
-.uf-cardBody{ padding: 14px 14px 16px; }
-
-.uf-cardTop{
-  display:flex;
-  align-items:flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.uf-cardMeta{
-  display:flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items:center;
-}
-.uf-badge{
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  font-weight: 900;
-}
-.uf-date, .uf-read{
   font-size: 12px;
   color: var(--muted);
+  text-align: center;
 }
-
-.uf-saveBtn{
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  color: var(--text);
-}
-.uf-saveBtn:hover{
-  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
-  background: color-mix(in srgb, var(--brand) 10%, var(--panel));
-}
-.uf-saveBtn.is-saved{
-  border-color: color-mix(in srgb, var(--brand) 52%, var(--line));
-  background: color-mix(in srgb, var(--brand) 16%, var(--panel));
-}
-
-.uf-cardTitle{
-  margin-top: 10px;
-  font-size: 18px;
-  font-weight: 950;
-  letter-spacing: -0.02em;
-  line-height: 1.32;
-}
-
-.uf-cardExcerpt{
-  margin-top: 8px;
-  color: var(--muted);
-  line-height: 1.55;
-}
-
-.uf-tags{
-  margin-top: 12px;
-  display:flex;
-  flex-wrap:wrap;
-  gap: 8px;
-}
-.uf-tag{
+.uf-sceneHint{
   font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 78%, transparent);
-  cursor: pointer;
-  color: var(--text);
-}
-.uf-tag:hover{
-  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
-  background: color-mix(in srgb, var(--brand) 10%, var(--panel));
-}
-
-.uf-cardBottom{
-  margin-top: 14px;
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.uf-stats{
-  display:flex;
-  gap: 12px;
   color: var(--muted);
-  font-size: 13px;
-}
-
-.uf-cardCta{
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-.uf-cardCta:hover{
-  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
-}
-
-/* Empty / pager */
-.uf-empty{
-  padding: 24px;
-  border-radius: 18px;
-  border: 1px dashed var(--line);
-  color: var(--muted);
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
-}
-
-.uf-pager{
-  margin-top: 18px;
-  display:flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-
-.uf-pagerBtn{
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor: pointer;
-}
-.uf-pagerBtn:disabled{ opacity: .45; cursor: not-allowed; }
-
-.uf-pagerNums{ display:flex; gap: 8px; flex-wrap: wrap; }
-.uf-pagerNum{
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor: pointer;
-}
-.uf-pagerNum.is-active{
-  border-color: color-mix(in srgb, var(--brand) 55%, var(--line));
-  background: color-mix(in srgb, var(--brand) 14%, var(--panel));
-  font-weight: 900;
-}
-
-.uf-moreHint{
-  margin-top: 14px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* Subscribe */
-.uf-secSubscribe{ padding: 70px 0; }
-.uf-subBig{
-  border-radius: 24px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  padding: 24px;
-}
-.uf-subBigTitle{ margin: 0; font-size: 28px; font-weight: 950; letter-spacing: -0.02em; }
-.uf-subBigDesc{ margin: 10px 0 16px; color: var(--muted); line-height: 1.6; }
-.uf-subBigRow{ display:flex; gap: 10px; flex-wrap: wrap; }
-.uf-subBigRow .uf-input{ max-width: 340px; }
-.uf-subBigFine{ margin-top: 10px; font-size: 12px; color: var(--muted); }
-
-/* Footer */
-.uf-footer{
-  padding: 26px 0;
-  border-top: 1px solid var(--line);
-}
-.uf-footerRow{
-  display:flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items:center;
-  color: var(--muted);
+  text-align: center;
+  margin: 10px 0;
 }
 
 /* =============================================================================
-  ✅ ViewPage content HTML 기본 타이포
-  - dangerouslySetInnerHTML로 들어오는 본문이 너무 “민둥”하지 않게
+  ✅ 본문 HTML 기본 타이포 (View에서도 동일하게 적용됨)
 ============================================================================= */
 .ProseMirror h1, .ProseMirror h2, .ProseMirror h3{
   letter-spacing: -0.02em;
@@ -996,36 +407,252 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   border-radius: 14px;
   color: var(--text);
 }
-
 .ProseMirror hr{
   border: none;
   height: 1px;
   background: var(--line);
   margin: 22px 0;
 }
-
 .ProseMirror img{
   max-width: 100%;
   border-radius: 16px;
   border: 1px solid var(--line);
 }
 
-/* FigureCaption 커스텀 확장 스타일이 있다면 여기에 맞춰 예쁘게 */
-figure{
-  margin: 18px 0;
+/* =============================================================================
+  ✅ 다크모드 대비 안전장치
+============================================================================= */
+.uf-card, .uf-panel{
+  color: var(--text);
 }
-figcaption{
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
+
+.uf-editor .ProseMirror {
+  min-height: 520px;
+  outline: none;
+}
+
+/* ✅ 노드 방식 컬럼 스타일 */
+.uf-cols{
+  display:grid;
+  gap:14px;
+  margin:22px 0;
+  padding:12px;
+  border:1px dashed rgba(255,255,255,.40);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+}
+.uf-cols-2{ grid-template-columns:1fr 1fr; }
+.uf-cols-3{ grid-template-columns:1fr 1fr 1fr; }
+
+.uf-col{
+  min-height:90px;
+  padding:10px;
+  border:1px dashed rgba(255,255,255,.22);
+  border-radius:12px;
+}
+
+/* 선택 표시 */
+.ProseMirror .ProseMirror-selectednode{
+  outline:3px solid rgba(37,99,235,.7);
+  border-radius:14px;
 }
 
 /* =============================================================================
-  ✅ 다크모드에서 “밝은 배경 위 흰 글자”가 생기는 경우를 줄이기 위한 안전장치
-  - 패널은 theme 변수로 이미 어두워지지만,
-    일부 요소가 흰 배경처럼 보일 때 글자색이 var(--text)를 따르도록 강제
+  ✅ Editor Help Panel (B: ? toggle)
 ============================================================================= */
-.uf-card, .uf-sideBox, .uf-panel, .uf-noteBox, .uf-pickBox, .uf-miniSub, .uf-subBig{
-  color: var(--text);
+.uf-helpWrap{
+  position: sticky;
+  top: 64px; /* uf-topbar 높이 아래 */
+  z-index: 45;
+  padding: 10px 0;
+}
+
+.uf-help{
+  padding: 14px;
+}
+
+.uf-help__top{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.uf-help__title{
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-size: 16px;
+}
+
+.uf-help__grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 860px){
+  .uf-help__grid{ grid-template-columns: 1fr; }
+}
+
+.uf-help__item{
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--panel2);
+}
+
+.uf-help__kicker{
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.uf-help__text{
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.uf-help__bottom{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+/* =============================================================================
+  ✅ Toolbar small select + color dots
+============================================================================= */
+.uf-select--mini{
+  width: 88px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 999px;
+}
+
+.uf-colorRow{
+  display:flex;
+  align-items:center;
+  gap: 6px;
+  padding: 0 6px;
+}
+
+.uf-colorDot{
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+}
+
+html[data-theme="dark"] .uf-colorDot{
+  box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+}
+
+/* =============================================================================
+  ✅ Scene / Sticky / Reveal visualization (Editor에서 "보이게"!)
+  - 여기 덕분에 “설명 읽어도 모르겠다”가 확 줄어들어요.
+============================================================================= */
+
+/* Scene 공통 박스 */
+.uf-scene{
+  margin: 18px 0;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px dashed color-mix(in srgb, var(--brand) 55%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.uf-scene__header{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.uf-scene__badge{
+  font-size: 11px;
+  letter-spacing: .12em;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+.uf-scene__title{
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.uf-scene__body{
+  border-top: 1px dashed color-mix(in srgb, var(--brand) 35%, transparent);
+  padding-top: 10px;
+}
+
+/* Sticky는 더 강하게 보여주기 */
+.uf-sticky{
+  border-style: solid;
+  border-width: 1px;
+}
+
+.uf-stickyGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+@media (max-width: 860px){
+  .uf-stickyGrid{ grid-template-columns: 1fr; }
+}
+
+.uf-stickyMedia, .uf-stickyText{
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--panel2);
+}
+
+/* Reveal 클래스는 ViewPage에서 애니메이션 대상으로 쓰는 "마커"인데,
+   Editor에서도 "이 블록은 Reveal 된다" 느낌으로 아주 살짝 표시 */
+.uf-reveal{
+  position: relative;
+}
+
+.uf-reveal::after{
+  content: "reveal";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  pointer-events: none;
+}
+
+/* =============================================================================
+  ✅ ViewPage reveal 애니메이션 (혹시 아직 없으면)
+  - ViewPage에서 IntersectionObserver가 .is-visible을 붙여줌
+============================================================================= */
+.uf-reveal{
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity .55s ease, transform .55s ease;
+}
+
+.uf-reveal.is-visible{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* =============================================================================
+  ✅ Parallax 이미지 기본 (ViewPage에서 img.uf-parallax에 transform 적용)
+============================================================================= */
+img.uf-parallax{
+  will-change: transform;
+  transition: transform .08s linear;
 }
