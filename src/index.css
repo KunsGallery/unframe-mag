@@ -1001,3 +1001,83 @@ html[data-theme="dark"] .uf-btn--primary{ color: #0b0e14; }
   background: var(--panel2);
   color: var(--muted);
 }
+/* =============================================================================
+  ✅ View 중앙 정렬 + Floating icon menu + Read progress bar
+============================================================================= */
+
+/* 본문 중앙 배치 */
+.uf-viewCenter{
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* 상단 읽기 progress bar */
+.uf-readProgress{
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 3px;
+  width: 100%;
+  z-index: 999;
+  background: transparent;
+  pointer-events: none;
+}
+
+.uf-readProgress__bar{
+  height: 100%;
+  width: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 40%, white));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* Floating actions */
+.uf-fab{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uf-fabBtn{
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
+}
+
+.uf-fabBtn:hover{
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
+}
+
+.uf-fabBtn:active{
+  transform: translateY(0px);
+}
+
+.uf-fabBtn.is-primary{
+  background: var(--brand);
+  border-color: rgba(0,0,0,0);
+  color: white;
+}
+
+html[data-theme="dark"] .uf-fabBtn.is-primary{
+  color: #0b0e14;
+}
+
+.uf-fabBtn.is-on{
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
+}

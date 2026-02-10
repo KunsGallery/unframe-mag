@@ -1,13 +1,23 @@
+// src/pages/ViewPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
 import { bumpLikes, bumpViews, getPublishedArticleByIdNumber } from "../services/articles";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import CommentBox from "../components/CommentBox";
 
+/* =============================================================================
+  ✅ 날짜 포맷
+============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
-    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
+    const d =
+      typeof ts?.toDate === "function"
+        ? ts.toDate()
+        : typeof ts === "number"
+        ? new Date(ts)
+        : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
@@ -15,14 +25,27 @@ function formatDate(ts) {
   }
 }
 
+/* =============================================================================
+  ✅ 읽기 시간(대략)
+============================================================================= */
 function calcReadingMin(html) {
-  const text = String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const text = String(html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!text) return 1;
+
   const words = text.split(" ").filter(Boolean).length;
   const chars = text.length;
-  return Math.max(1, Math.min(99, Math.max(Math.ceil(words / 220), Math.ceil(chars / 900))));
+
+  const byWords = Math.ceil(words / 220);
+  const byChars = Math.ceil(chars / 900);
+  return Math.max(1, Math.min(99, Math.max(byWords, byChars)));
 }
 
+/* =============================================================================
+  ✅ Toast
+============================================================================= */
 function useToast() {
   const [toast, setToast] = useState(null);
   useEffect(() => {
@@ -35,23 +58,31 @@ function useToast() {
 
 export default function ViewPage({ theme, toggleTheme }) {
   const nav = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams(); // /article/:id
   const idNum = useMemo(() => Number(id), [id]);
+
   const { toast, show } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [article, setArticle] = useState(null);
 
+  // ✅ Saved(북마크)
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const saved = savedIds.includes(idNum);
 
-  const heroBgRef = useRef(null);
+  // ✅ Read progress
+  const articleRef = useRef(null);
+  const [progress, setProgress] = useState(0);
 
+  /* =============================================================================
+    ✅ 글 불러오기 + 조회수
+  ============================================================================= */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
+
         const a = await getPublishedArticleByIdNumber(idNum);
         if (!alive) return;
 
@@ -60,9 +91,14 @@ export default function ViewPage({ theme, toggleTheme }) {
           show("😮 글을 찾을 수 없어요.");
           return;
         }
+
         setArticle(a);
 
-        try { await bumpViews(idNum); } catch {}
+        try {
+          await bumpViews(idNum);
+        } catch (e) {
+          console.warn("bumpViews failed:", e?.message || e);
+        }
       } catch (e) {
         console.error(e);
         setArticle(null);
@@ -71,63 +107,62 @@ export default function ViewPage({ theme, toggleTheme }) {
         if (alive) setLoading(false);
       }
     })();
-    return () => (alive = false);
+
+    return () => {
+      alive = false;
+    };
   }, [idNum]);
 
-  // ✅ Reveal: 본문 요소들에 uf-reveal 부여 + is-in 토글
+  /* =============================================================================
+    ✅ 읽기 progress bar
+    - "본문 영역(articleRef)" 기준으로 0~100%
+  ============================================================================= */
   useEffect(() => {
-    if (!article) return;
+    let raf = 0;
 
-    const root = document.querySelector(".uf-article .ProseMirror");
-    if (!root) return;
-
-    const targets = Array.from(
-      root.querySelectorAll("p, h2, h3, blockquote, img, section[data-uf='scene'], div[data-uf='sticky']")
-    );
-
-    targets.forEach((el) => el.classList.add("uf-reveal"));
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) e.target.classList.add("is-in");
-        }
-      },
-      { threshold: 0.12 }
-    );
-
-    targets.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [article]);
-
-  // ✅ Parallax: hero + uf-parallax
-  useEffect(() => {
     function onScroll() {
-      const y = window.scrollY || 0;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = articleRef.current;
+        if (!el) return;
 
-      if (heroBgRef.current) {
-        heroBgRef.current.style.transform = `translateY(${y * 0.18}px) scale(1.08)`;
-      }
+        const rect = el.getBoundingClientRect();
+        const vh = window.innerHeight || 1;
 
-      document.querySelectorAll(".uf-parallax").forEach((el) => {
-        const r = el.getBoundingClientRect();
-        const center = r.top + r.height / 2;
-        const viewport = window.innerHeight / 2;
-        const delta = (center - viewport) * 0.08; // 강도
-        el.style.transform = `translateY(${delta}px)`;
+        // el의 시작점이 viewport 상단에 닿는 순간부터,
+        // el의 끝이 viewport 하단을 지나갈 때까지를 0~1로 매핑
+        const total = rect.height - vh;
+        if (total <= 0) {
+          setProgress(1);
+          return;
+        }
+
+        // rect.top: viewport 기준으로 el의 top 위치
+        const passed = Math.min(Math.max(-rect.top, 0), total);
+        const p = passed / total;
+        setProgress(Number.isFinite(p) ? p : 0);
       });
     }
 
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [article]);
+    window.addEventListener("resize", onScroll);
 
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [article?.contentHTML]);
+
+  /* =============================================================================
+    ✅ Like / Save
+  ============================================================================= */
   async function onLike() {
     try {
       const next = await bumpLikes(idNum);
       setArticle((p) => (p ? { ...p, likes: next } : p));
-      show("좋아해주셔서 감사해요💕");
+      show("💗 좋아요!");
     } catch (e) {
       const msg = String(e?.message || "");
       if (msg.includes("cooldown")) show("⏳ 3시간 뒤에 다시 눌러주세요");
@@ -138,37 +173,33 @@ export default function ViewPage({ theme, toggleTheme }) {
   function onToggleSave() {
     const r = toggleSaved(idNum);
     setSavedIds(r.ids);
-    show(r.saved ? "★ 저장했어요!" : "☆ 저장 해제!");
+    show(r.saved ? "★ 저장했어요" : "☆ 저장 해제");
   }
 
-  if (loading) {
-    return <div className="uf-wrap" style={{ padding: "90px 16px" }}>로딩 중… ⏳</div>;
-  }
-
-  if (!article) {
-    return (
-      <div className="uf-wrap" style={{ padding: "90px 16px" }}>
-        <div className="uf-card" style={{ padding: 18 }}>
-          <div style={{ fontWeight: 950, fontSize: 20, marginBottom: 8 }}>😮 글을 찾지 못했어요</div>
-          <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>리스트로</button>
-        </div>
-      </div>
-    );
-  }
-
-  const cover = article.coverMedium || article.coverThumb || article.cover || "";
-  const readMin = calcReadingMin(article.contentHTML);
+  const cover = article?.coverMedium || article?.coverThumb || article?.cover || "";
+  const readMin = calcReadingMin(article?.contentHTML || "");
 
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
 
+      {/* ✅ 상단 읽기 progress bar */}
+      <div className="uf-readProgress" aria-hidden="true">
+        <div className="uf-readProgress__bar" style={{ transform: `scaleX(${progress})` }} />
+      </div>
+
+      {/* ✅ Topbar */}
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner">
-            <button className="uf-brand" onClick={() => nav("/")}>U#</button>
+            <button className="uf-brand" type="button" onClick={() => nav("/")}>
+              U#
+            </button>
+
             <div className="uf-nav">
-              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>Archive</button>
+              <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>
+                Archive
+              </button>
               <button className="uf-btn" onClick={toggleTheme}>
                 {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
               </button>
@@ -177,68 +208,96 @@ export default function ViewPage({ theme, toggleTheme }) {
         </div>
       </header>
 
-      <section className="uf-viewHero">
-        <div
-          ref={heroBgRef}
-          className="uf-viewHero__bg"
-          style={{
-            backgroundImage: cover
-              ? `url(${cover})`
-              : "linear-gradient(135deg, rgba(37,99,235,.55), rgba(0,0,0,.15))",
-          }}
-        />
-        <div className="uf-viewHero__overlay" />
-        <div className="uf-wrap">
-          <div className="uf-viewHero__content">
-            <div className="uf-viewHero__kicker">{article.category || "UNFRAME"}</div>
-            <h1 className="uf-viewHero__title">{article.title || "(no title)"}</h1>
-            <div className="uf-viewHero__meta">
-              <span>☕ {readMin} min</span>
-              <span>🗓 {formatDate(article.createdAt)}</span>
-              <span>👁 {Number(article.views || 0)}</span>
-              <span>💗 {Number(article.likes || 0)}</span>
+      {/* ✅ Loading / Not Found */}
+      {loading ? (
+        <div className="uf-wrap" style={{ padding: "80px 16px" }}>
+          로딩 중… ⏳
+        </div>
+      ) : !article ? (
+        <div className="uf-wrap" style={{ padding: "80px 16px" }}>
+          <div className="uf-card uf-panel">
+            <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>😮 글을 찾지 못했어요</div>
+            <div style={{ color: "var(--muted)", marginBottom: 14 }}>
+              주소가 잘못됐거나 삭제된 글일 수 있어요.
             </div>
+            <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>
+              리스트로 돌아가기
+            </button>
           </div>
         </div>
-      </section>
+      ) : (
+        <>
+          {/* ✅ Hero */}
+          <section className="uf-viewHero">
+            <div
+              className="uf-viewHero__bg"
+              style={{
+                backgroundImage: cover
+                  ? `url(${cover})`
+                  : "linear-gradient(135deg, rgba(37,99,235,.55), rgba(0,0,0,.15))",
+              }}
+            />
+            <div className="uf-viewHero__overlay" />
+            <div className="uf-wrap">
+              <div className="uf-viewHero__content">
+                <div className="uf-viewHero__kicker">{article.category || "UNFRAME"}</div>
+                <h1 className="uf-viewHero__title">{article.title || "(no title)"}</h1>
 
-      <section className="uf-viewBody">
-        <div className="uf-wrap">
-          <div className="uf-viewGrid">
-            <main className="uf-card uf-article">
-              {article.excerpt ? (
-                <div style={{ color: "var(--muted)", marginBottom: 16, lineHeight: 1.7 }}>
-                  {article.excerpt}
-                </div>
-              ) : null}
-
-              <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }} />
-
-              <div style={{ marginTop: 30 }}>
-                <CommentBox articleId={idNum} />
-              </div>
-            </main>
-
-            <aside className="uf-side">
-              <div className="uf-sideBox">
-                <div className="uf-sideTitle">Quick Actions</div>
-                <div className="uf-sideInfo">
-                  좋아요 3시간 쿨다운 / 조회수 30분 쿨다운<br />
-                  저장은 기기(local) 기준
-                </div>
-
-                <div className="uf-sideBtns">
-                  <button className="uf-btn uf-btn--primary" onClick={onLike}>💗 Like</button>
-                  <button className="uf-btn" onClick={onToggleSave}>{saved ? "★ Saved" : "☆ Save"}</button>
-                  <button className="uf-btn uf-btn--ghost" onClick={() => nav(`/write/${idNum}`)}>✍️ Edit</button>
-                  <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>← Back</button>
+                <div className="uf-viewHero__meta">
+                  <span>☕ {readMin} min</span>
+                  <span>🗓 {formatDate(article.createdAt)}</span>
+                  <span>👁 {Number(article.views || 0)}</span>
+                  <span>💗 {Number(article.likes || 0)}</span>
                 </div>
               </div>
-            </aside>
+            </div>
+          </section>
 
+          {/* ✅ Body: 중앙 정렬 */}
+          <section className="uf-viewBody">
+            <div className="uf-wrap">
+              <main className="uf-viewCenter" ref={articleRef}>
+                <div className="uf-card uf-article">
+                  {article.excerpt ? (
+                    <div style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>
+                      {article.excerpt}
+                    </div>
+                  ) : null}
+
+                  <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }} />
+
+                  <div style={{ marginTop: 26 }}>
+                    <CommentBox articleId={idNum} />
+                  </div>
+                </div>
+              </main>
+            </div>
+          </section>
+
+          {/* ✅ Floating / Sticky Actions (원형 아이콘) */}
+          <div className="uf-fab" aria-label="Quick actions">
+            <button className="uf-fabBtn is-primary" onClick={onLike} title="Like">
+              💗
+            </button>
+
+            <button className={`uf-fabBtn ${saved ? "is-on" : ""}`} onClick={onToggleSave} title="Save">
+              {saved ? "★" : "☆"}
+            </button>
+
+            <button className="uf-fabBtn" onClick={() => nav(`/write/${idNum}`)} title="Edit (admin)">
+              ✍️
+            </button>
+
+            <button className="uf-fabBtn" onClick={toggleTheme} title="Toggle theme">
+              {theme === "dark" ? "🌙" : "☀️"}
+            </button>
+
+            <button className="uf-fabBtn" onClick={() => nav("/")} title="Back to list">
+              ←
+            </button>
           </div>
-        </div>
-      </section>
+        </>
+      )}
     </div>
   );
 }
