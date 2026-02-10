@@ -2,17 +2,27 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { bumpLikes, bumpViews, getPublishedArticleByIdNumber } from "../services/articles";
+import {
+  bumpLikes,
+  bumpViews,
+  getPublishedArticleByIdNumber,
+} from "../services/articles";
+
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import CommentBox from "../components/CommentBox";
 
 /* =============================================================================
-  ✅ util
+  ✅ 날짜 포맷 (Firestore Timestamp / number / string 대응)
 ============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
-    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
+    const d =
+      typeof ts?.toDate === "function"
+        ? ts.toDate()
+        : typeof ts === "number"
+        ? new Date(ts)
+        : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
@@ -20,16 +30,30 @@ function formatDate(ts) {
   }
 }
 
+/* =============================================================================
+  ✅ 읽는 시간(대략) 계산
+  - HTML에서 텍스트만 추출해서 words/chars로 보정
+============================================================================= */
 function calcReadingMin(html) {
-  const text = String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const text = String(html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
   if (!text) return 1;
+
   const words = text.split(" ").filter(Boolean).length;
   const chars = text.length;
+
   const byWords = Math.ceil(words / 220);
   const byChars = Math.ceil(chars / 900);
+
   return Math.max(1, Math.min(99, Math.max(byWords, byChars)));
 }
 
+/* =============================================================================
+  ✅ Toast
+============================================================================= */
 function useToast() {
   const [toast, setToast] = useState(null);
   useEffect(() => {
@@ -41,50 +65,123 @@ function useToast() {
 }
 
 /* =============================================================================
-  ✅ 핵심: contentHTML을 Scene으로 분해
-  - 에디터에서 “Divider(=hr)”를 넣으면 장면이 끊기는 구조
+  ✅ Sticky Story DOM 보강
+  - TipTap node가 <section data-uf-sticky ...> 안에 "문단들"만 넣어놔서
+    뷰에서는 CSS가 기대하는 구조(.uf-stickyMedia / .uf-stickyText)를 만들어줍니다.
 ============================================================================= */
-function splitByHr(html) {
-  const safe = String(html || "");
-  // hr 태그 형태가 조금 달라도 대응
-  const parts = safe.split(/<hr\s*\/?>/i).map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts : [safe];
+function enhanceStickyStories(rootEl) {
+  if (!rootEl) return;
+
+  const blocks = rootEl.querySelectorAll("section[data-uf-sticky]");
+  blocks.forEach((sec) => {
+    // 이미 보강됐으면 중복 작업 방지
+    if (sec.dataset.enhanced === "1") return;
+    sec.dataset.enhanced = "1";
+
+    const mediaSrc = sec.getAttribute("data-media-src") || "";
+
+    // 1) 기존 자식들(문단/리스트 등)을 텍스트 래퍼로 옮김
+    const textWrap = document.createElement("div");
+    textWrap.className = "uf-stickyText";
+
+    // sec의 기존 노드들을 전부 textWrap로 이동
+    while (sec.firstChild) {
+      textWrap.appendChild(sec.firstChild);
+    }
+
+    // 2) 미디어 래퍼 생성
+    const mediaWrap = document.createElement("div");
+    mediaWrap.className = "uf-stickyMedia";
+
+    if (mediaSrc) {
+      const img = document.createElement("img");
+      img.src = mediaSrc;
+      img.alt = "sticky media";
+      mediaWrap.appendChild(img);
+    } else {
+      // 미디어가 없으면 안내 박스(글쓴이/관리자가 보고 바로 알 수 있게)
+      const placeholder = document.createElement("div");
+      placeholder.style.padding = "14px";
+      placeholder.style.color = "var(--muted)";
+      placeholder.style.fontSize = "13px";
+      placeholder.innerText = "📌 Sticky media가 비어 있어요. (Editor에서 🧷 Sticky 미디어 업로드로 설정)";
+      mediaWrap.appendChild(placeholder);
+    }
+
+    // 3) sec에 2개 컬럼 구조로 다시 붙임
+    sec.appendChild(mediaWrap);
+    sec.appendChild(textWrap);
+  });
 }
 
 /* =============================================================================
-  ✅ Sticky Scene 규칙
-  - Scene 내부에 “[sticky]”라는 텍스트가 있으면 Sticky Story로 처리
-  - (에디터에서 그냥 텍스트로 한 줄 써도 됨)
+  ✅ Reveal(등장) 효과
 ============================================================================= */
-function extractSticky(sceneHtml) {
-  let html = String(sceneHtml || "");
+function setupReveal(rootEl) {
+  if (!rootEl) return () => {};
 
-  const hasStickyMarker = html.toLowerCase().includes("[sticky]");
-  if (!hasStickyMarker) return { type: "normal", html };
+  const targets = Array.from(rootEl.querySelectorAll(".uf-reveal"));
+  // 기본: 처음부터 보이게 하고 싶으면 이 줄 제거
+  targets.forEach((el) => el.classList.remove("is-in"));
 
-  // marker 제거
-  html = html.replace(/\[sticky\]/gi, "");
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((ent) => {
+        if (ent.isIntersecting) ent.target.classList.add("is-in");
+      });
+    },
+    { threshold: 0.12 }
+  );
 
-  // 첫 번째 <img ...>를 media로, 나머지를 text로
-  const imgMatch = html.match(/<img\b[^>]*>/i);
-  if (!imgMatch) {
-    // 이미지가 없으면 그냥 normal로
-    return { type: "normal", html };
-  }
+  targets.forEach((el) => io.observe(el));
+  return () => io.disconnect();
+}
 
-  const imgTag = imgMatch[0];
-  const afterRemoveFirstImg = html.replace(imgTag, "");
+/* =============================================================================
+  ✅ Parallax(스크롤) 효과
+  - data-uf-parallax 가진 img.uf-parallax를 찾아서 speed 적용
+  - speed는 TipTap 노드 attr로 저장되지만 HTML에는 남지 않으므로:
+    현재는 "기본 speed"로 동작하고,
+    다음 스텝에서 data-speed로 내려주게 확장하면 더 세밀해짐.
+============================================================================= */
+function setupParallax(rootEl) {
+  if (!rootEl) return () => {};
 
-  return {
-    type: "sticky",
-    mediaHTML: imgTag,
-    textHTML: afterRemoveFirstImg,
+  const imgs = Array.from(rootEl.querySelectorAll("img[data-uf-parallax].uf-parallax"));
+
+  let raf = 0;
+  const onScroll = () => {
+    if (raf) return;
+    raf = window.requestAnimationFrame(() => {
+      raf = 0;
+
+      const vh = window.innerHeight || 800;
+
+      imgs.forEach((img) => {
+        const rect = img.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        const delta = (center - vh / 2) / (vh / 2); // -1 ~ 1
+        const speed = 0.25; // ✅ 기본값 (다음 스텝에서 data-speed로 확장 가능)
+        const y = Math.max(-28, Math.min(28, -delta * 40 * speed)); // clamp
+        img.style.transform = `translateY(${y}px)`;
+      });
+    });
+  };
+
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+
+  return () => {
+    if (raf) window.cancelAnimationFrame(raf);
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onScroll);
   };
 }
 
 export default function ViewPage({ theme, toggleTheme }) {
   const nav = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams(); // /article/:id
   const idNum = useMemo(() => Number(id), [id]);
 
   const { toast, show } = useToast();
@@ -92,13 +189,16 @@ export default function ViewPage({ theme, toggleTheme }) {
   const [loading, setLoading] = useState(true);
   const [article, setArticle] = useState(null);
 
+  // ✅ Saved (로컬)
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const saved = savedIds.includes(idNum);
 
-  // parallax refs
-  const heroBgRef = useRef(null);
-  const rafRef = useRef(null);
+  // ✅ 본문 DOM ref (여기서 sticky/reveal/parallax를 적용)
+  const bodyRef = useRef(null);
 
+  /* =============================================================================
+    ✅ 글 로드 + 조회수 증가
+  ============================================================================= */
   useEffect(() => {
     let alive = true;
 
@@ -117,11 +217,11 @@ export default function ViewPage({ theme, toggleTheme }) {
 
         setArticle(a);
 
-        // ✅ 조회수 +1 (쿨다운은 services)
+        // ✅ View 진입 시 views +1 (쿨다운은 service에서 처리)
         try {
           await bumpViews(idNum);
         } catch (e) {
-          console.warn("bumpViews:", e?.message || e);
+          console.warn("bumpViews failed:", e?.message || e);
         }
       } catch (e) {
         console.error(e);
@@ -138,68 +238,31 @@ export default function ViewPage({ theme, toggleTheme }) {
   }, [idNum]);
 
   /* =============================================================================
-    ✅ Reveal: Scene 단위로 들어오면 is-in 붙이기
+    ✅ 본문 렌더된 이후: Sticky / Reveal / Parallax 적용
   ============================================================================= */
   useEffect(() => {
-    const els = Array.from(document.querySelectorAll(".uf-reveal"));
-    if (!els.length) return;
+    if (!article) return;
+    const root = bodyRef.current;
+    if (!root) return;
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) e.target.classList.add("is-in");
-        }
-      },
-      { threshold: 0.12 }
-    );
+    // 1) Sticky DOM 보강
+    enhanceStickyStories(root);
 
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [article?.contentHTML]);
+    // 2) Reveal
+    const offReveal = setupReveal(root);
+
+    // 3) Parallax
+    const offParallax = setupParallax(root);
+
+    return () => {
+      offReveal?.();
+      offParallax?.();
+    };
+  }, [article]);
 
   /* =============================================================================
-    ✅ Parallax: (가벼운) 스크롤 기반 transform
-    - 1) Hero bg
-    - 2) 본문 내 img는 uf-parallax 클래스를 달아주면 같이 움직임
+    ✅ 좋아요
   ============================================================================= */
-  useEffect(() => {
-    function onScroll() {
-      if (rafRef.current) return;
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-
-        const y = window.scrollY || 0;
-
-        // Hero bg parallax
-        const hero = heroBgRef.current;
-        if (hero) {
-          // 상단에서는 더 많이, 내려가면 약해지게
-          const t = Math.min(120, y * 0.18);
-          hero.style.transform = `translateY(${t}px) scale(1.05)`;
-        }
-
-        // content images parallax (부담 없는 정도)
-        const imgs = Array.from(document.querySelectorAll(".uf-parallax"));
-        for (const img of imgs) {
-          const rect = img.getBoundingClientRect();
-          const center = rect.top + rect.height / 2;
-          const vh = window.innerHeight || 800;
-          const p = (center - vh / 2) / (vh / 2); // -1~1 근사
-          const amt = Math.max(-1, Math.min(1, p)) * 14; // px
-          img.style.transform = `translateY(${amt}px)`;
-        }
-      });
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
-  }, [article?.contentHTML]);
-
   async function onLike() {
     try {
       const next = await bumpLikes(idNum);
@@ -207,37 +270,45 @@ export default function ViewPage({ theme, toggleTheme }) {
       show("좋아해주셔서 감사해요💕");
     } catch (e) {
       const msg = String(e?.message || "");
-      if (msg.includes("cooldown")) show("⏳ 이 글을 향한 애정은 3시간 뒤에 다시 보내주세요");
-      else show("😵 좋아요 처리에 실패했어요");
+      if (msg.includes("cooldown") || e?.code === "COOLDOWN") {
+        show("⏳ 3시간 뒤에 다시 눌러주세요!");
+      } else {
+        show("😵 좋아요 처리에 실패했어요");
+      }
     }
   }
 
+  /* =============================================================================
+    ✅ Saved
+  ============================================================================= */
   function onToggleSave() {
     const r = toggleSaved(idNum);
     setSavedIds(r.ids);
-    show(r.saved ? "★ 저장했어요! (기기별 저장)" : "☆ 저장을 해제했어요");
+    show(r.saved ? "★ 저장했어요! (이 기기에 저장돼요)" : "☆ 저장을 해제했어요");
   }
 
   const cover = article?.coverMedium || article?.coverThumb || article?.cover || "";
-  const readMin = calcReadingMin(article?.contentHTML);
-
-  // ✅ Scene 분해 결과
-  const scenes = useMemo(() => {
-    const parts = splitByHr(article?.contentHTML);
-    return parts.map((p) => extractSticky(p));
-  }, [article?.contentHTML]);
+  const readMin = useMemo(() => calcReadingMin(article?.contentHTML), [article?.contentHTML]);
 
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
 
+      {/* =============================================================================
+        ✅ Topbar
+      ============================================================================= */}
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner">
-            <button className="uf-brand" type="button" onClick={() => nav("/")}>U#</button>
+            <button className="uf-brand" type="button" onClick={() => nav("/")}>
+              U#
+            </button>
 
             <div className="uf-nav">
-              <button className="uf-btn uf-btn--ghost" type="button" onClick={() => nav("/")}>Archive</button>
+              <button className="uf-btn uf-btn--ghost" type="button" onClick={() => nav("/")}>
+                Archive
+              </button>
+
               <button className="uf-btn" type="button" onClick={toggleTheme}>
                 {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
               </button>
@@ -246,6 +317,9 @@ export default function ViewPage({ theme, toggleTheme }) {
         </div>
       </header>
 
+      {/* =============================================================================
+        ✅ Loading / Not Found
+      ============================================================================= */}
       {loading ? (
         <div className="uf-wrap" style={{ padding: "80px 16px", color: "var(--muted)" }}>
           로딩 중… ⏳
@@ -257,17 +331,18 @@ export default function ViewPage({ theme, toggleTheme }) {
             <div style={{ color: "var(--muted)", marginBottom: 14 }}>
               주소가 잘못됐거나 삭제된 글일 수 있어요.
             </div>
-            <button className="uf-btn uf-btn--primary" type="button" onClick={() => nav("/")}>
+            <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>
               리스트로 돌아가기
             </button>
           </div>
         </div>
       ) : (
         <>
-          {/* Hero */}
+          {/* =============================================================================
+            ✅ Hero (cover)
+          ============================================================================= */}
           <section className="uf-viewHero">
             <div
-              ref={heroBgRef}
               className="uf-viewHero__bg"
               style={{
                 backgroundImage: cover
@@ -276,14 +351,15 @@ export default function ViewPage({ theme, toggleTheme }) {
               }}
             />
             <div className="uf-viewHero__overlay" />
+
             <div className="uf-wrap">
               <div className="uf-viewHero__content">
                 <div className="uf-viewHero__kicker">{article.category || "UNFRAME"}</div>
-                <div className="uf-viewHero__title">{article.title || "(no title)"}</div>
+                <h1 className="uf-viewHero__title">{article.title || "(no title)"}</h1>
 
                 <div className="uf-viewHero__meta">
-                  <span>🗓 {formatDate(article.createdAt)}</span>
                   <span>☕ {readMin} min</span>
+                  <span>🗓 {formatDate(article.createdAt)}</span>
                   <span>👁 {Number(article.views || 0)}</span>
                   <span>💗 {Number(article.likes || 0)}</span>
                 </div>
@@ -291,10 +367,13 @@ export default function ViewPage({ theme, toggleTheme }) {
             </div>
           </section>
 
-          {/* Body */}
+          {/* =============================================================================
+            ✅ Body grid
+          ============================================================================= */}
           <section className="uf-viewBody">
             <div className="uf-wrap">
               <div className="uf-viewGrid">
+                {/* ------------------ Article ------------------ */}
                 <main className="uf-card uf-article">
                   {article.excerpt ? (
                     <div style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>
@@ -302,73 +381,43 @@ export default function ViewPage({ theme, toggleTheme }) {
                     </div>
                   ) : null}
 
-                  {/* ✅ Scene 단위 렌더링 + reveal */}
-                  {scenes.map((s, idx) => {
-                    // Scene wrapper에 uf-reveal을 달아서 “장면 단위로 들어올 때” 애니메이션
-                    if (s.type === "sticky") {
-                      return (
-                        <div key={idx} className="uf-scene uf-reveal">
-                          <div className="uf-stickyStory">
-                            <div className="uf-stickyMedia">
-                              {/* 첫 이미지: parallax 되게 uf-parallax class 추가 */}
-                              <div
-                                className="uf-parallax"
-                                dangerouslySetInnerHTML={{ __html: s.mediaHTML || "" }}
-                              />
-                            </div>
-                            <div className="uf-stickyText">
-                              <div
-                                dangerouslySetInnerHTML={{ __html: s.textHTML || "" }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
+                  {/* ✅ TipTap에서 저장된 HTML 렌더 */}
+                  <div
+                    ref={bodyRef}
+                    className="ProseMirror"
+                    dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
+                  />
 
-                    // normal scene
-                    return (
-                      <div key={idx} className="uf-scene uf-reveal">
-                        {/* 본문 이미지들에 parallax를 자동 적용하려고, 렌더 후에 class를 붙이기 어려움
-                            → 그래서 간단히: img 태그에 style/class를 추가하긴 어렵지만,
-                            여기서는 “scene 전체 reveal”이 기본이고,
-                            parallax는 Sticky 이미지/hero 중심으로 먼저 깔았어.
-                            (원하면 다음 단계에서 DOMParser로 img에 class 자동 부여도 가능) */}
-                        <div dangerouslySetInnerHTML={{ __html: s.html || "" }} />
-                      </div>
-                    );
-                  })}
-
-                  {/* 댓글 */}
+                  {/* ✅ Comments */}
                   <div style={{ marginTop: 26 }}>
                     <CommentBox articleId={idNum} />
                   </div>
                 </main>
 
-                {/* Quick actions */}
+                {/* ------------------ Side ------------------ */}
                 <aside className="uf-side">
-                  <div className="uf-sideBox">
+                  <div className="uf-card uf-sideBox">
                     <div className="uf-sideTitle">Quick Actions</div>
                     <div className="uf-sideInfo">
-                      ✨ 좋아요는 3시간 쿨다운, 조회수는 30분 쿨다운이에요.
-                      <br />
-                      * Saved는 로컬 저장이라 기기마다 달라질 수 있어요.
+                      • 좋아요는 3시간 쿨다운<br />
+                      • 저장(Saved)은 이 기기(localStorage)에 저장
                     </div>
 
                     <div className="uf-sideBtns">
-                      <button className="uf-btn uf-btn--primary" type="button" onClick={onLike}>
+                      <button className="uf-btn uf-btn--primary" onClick={onLike}>
                         💗 Like
                       </button>
 
-                      <button className="uf-btn" type="button" onClick={onToggleSave}>
+                      <button className="uf-btn" onClick={onToggleSave}>
                         {saved ? "★ Saved" : "☆ Save"}
                       </button>
 
-                      <button className="uf-btn uf-btn--ghost" type="button" onClick={() => nav(`/write/${idNum}`)}>
+                      {/* ✅ Edit: /write/:id */}
+                      <button className="uf-btn uf-btn--ghost" onClick={() => nav(`/write/${idNum}`)}>
                         ✍️ Edit
                       </button>
 
-                      <button className="uf-btn uf-btn--ghost" type="button" onClick={() => nav("/")}>
+                      <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>
                         ← Back to list
                       </button>
                     </div>

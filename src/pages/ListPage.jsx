@@ -6,9 +6,15 @@ import { getSavedIds, toggleSaved, onSavedChanged } from "../services/bookmarks"
 import { getEditorPickIds } from "../services/config";
 import { getPublishedArticles } from "../services/articles";
 
+/* =============================================================================
+  ✅ Page constants
+============================================================================= */
 const PAGE_SIZE = 6;
 const HERO_BG = "/hero.jpg";
 
+/* =============================================================================
+  ✅ Categories (고정 4개)
+============================================================================= */
 const CATEGORIES = [
   { key: "Exhibition", label: "Exhibition", sub: "CATEGORY 01" },
   { key: "Project", label: "Project", sub: "CATEGORY 02" },
@@ -16,10 +22,18 @@ const CATEGORIES = [
   { key: "News", label: "News", sub: "CATEGORY 04" },
 ];
 
+/* =============================================================================
+  ✅ Utilities
+============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
-    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
+    const d =
+      typeof ts?.toDate === "function"
+        ? ts.toDate()
+        : typeof ts === "number"
+        ? new Date(ts)
+        : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
@@ -32,20 +46,30 @@ function clampText(s, n = 120) {
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
-// ✅ 읽는 시간(대략) 계산: (한국어/영문 섞여도 대충 맞는 방식)
-// - 글자수/단어수 기반으로 1~99min clamp
-function calcReadingMin(html) {
-  const text = String(html || "")
-    .replace(/<[^>]*>/g, " ")
+/**
+ * ✅ 읽는 시간(대략) 계산
+ * - HTML 제거 후 텍스트 추출
+ * - 영어: 200~220wpm 근사
+ * - 한글: 글자수 기반 근사
+ * - 둘 중 더 큰 값을 사용 (너무 낮게 나오는 걸 방지)
+ */
+function stripHtml(html) {
+  const s = String(html || "");
+  return s
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\/?[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
 
+function calcReadingMin(html) {
+  const text = stripHtml(html);
   if (!text) return 1;
 
-  const words = text.split(" ").filter(Boolean).length;
-  const chars = text.length;
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const chars = text.replace(/\s/g, "").length;
 
-  // 대충: 영문은 wpm 기준, 한글은 chars 기준으로 보정
   const byWords = Math.ceil(words / 220);
   const byChars = Math.ceil(chars / 900);
 
@@ -57,28 +81,46 @@ export default function ListPage({ theme, toggleTheme }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  /* =============================================================================
+    ✅ Refs (Archive 섹션 스크롤)
+  ============================================================================= */
   const archiveRef = useRef(null);
 
+  /* =============================================================================
+    ✅ Data
+  ============================================================================= */
   const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /* ✅ Editor’s Pick */
   const [pickIds, setPickIds] = useState([]);
   const [pickLoading, setPickLoading] = useState(true);
 
+  /* ✅ Saved (로컬) */
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const [savedMode, setSavedMode] = useState(false);
 
-  // URL sync
+  /* =============================================================================
+    ✅ URL Sync
+    - /?cat=...&sort=...&q=...&page=...
+    - Saved 모드는 "상태"로만 두고, URL은 cat/sort/q/page만 동기화
+============================================================================= */
   const activeCat = searchParams.get("cat") || "All";
   const sortBy = searchParams.get("sort") || "latest";
   const q = searchParams.get("q") || "";
   const page = Math.max(1, Number(searchParams.get("page") || 1) || 1);
 
+  /* =============================================================================
+    ✅ Saved 변경(다른 탭) 감지
+  ============================================================================= */
   useEffect(() => {
     const off = onSavedChanged((ids) => setSavedIds(ids));
     return off;
   }, []);
 
+  /* =============================================================================
+    ✅ Load: published articles
+  ============================================================================= */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -99,6 +141,9 @@ export default function ListPage({ theme, toggleTheme }) {
     };
   }, []);
 
+  /* =============================================================================
+    ✅ Load: editor pick ids
+  ============================================================================= */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -119,6 +164,11 @@ export default function ListPage({ theme, toggleTheme }) {
     };
   }, []);
 
+  /* =============================================================================
+    ✅ query setter
+    - 값이 안 바뀌어도 setSearchParams가 실행되면 렌더가 다시 돌 수 있으니
+      merged를 항상 동일 구조로 유지
+  ============================================================================= */
   function setQuery(next) {
     const merged = {
       page: String(next.page ?? page),
@@ -129,19 +179,33 @@ export default function ListPage({ theme, toggleTheme }) {
     setSearchParams(merged);
   }
 
+  /* =============================================================================
+    ✅ scroll helpers
+  ============================================================================= */
   function scrollToArchive() {
     const el = archiveRef.current;
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /* =============================================================================
+    ✅ Filtering + Sorting
+  ============================================================================= */
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
     let list = [...all];
 
-    if (savedMode) list = list.filter((a) => savedIds.includes(Number(a.id)));
-    if (activeCat !== "All") list = list.filter((a) => a.category === activeCat);
+    // ✅ Saved 모드면 savedIds에 포함된 글만
+    if (savedMode) {
+      list = list.filter((a) => savedIds.includes(Number(a.id)));
+    }
 
+    // ✅ Category
+    if (activeCat !== "All") {
+      list = list.filter((a) => a.category === activeCat);
+    }
+
+    // ✅ Search (title + excerpt + tags)
     if (keyword) {
       list = list.filter((a) => {
         const t = String(a.title || "").toLowerCase();
@@ -151,6 +215,7 @@ export default function ListPage({ theme, toggleTheme }) {
       });
     }
 
+    // ✅ Sort
     if (sortBy === "popular") {
       list.sort(
         (x, y) =>
@@ -159,9 +224,20 @@ export default function ListPage({ theme, toggleTheme }) {
           (Number(x.likes || 0) + Number(x.views || 0))
       );
     } else {
+      // latest
       list.sort((x, y) => {
-        const ax = x.createdAt?.toMillis?.() ?? (x.createdAt?.seconds ? x.createdAt.seconds * 1000 : 0) ?? 0;
-        const ay = y.createdAt?.toMillis?.() ?? (y.createdAt?.seconds ? y.createdAt.seconds * 1000 : 0) ?? 0;
+        const ax =
+          x.createdAt?.toMillis?.() ??
+          (x.createdAt?.seconds ? x.createdAt.seconds * 1000 : 0) ??
+          Number(x.createdAt || 0) ??
+          0;
+
+        const ay =
+          y.createdAt?.toMillis?.() ??
+          (y.createdAt?.seconds ? y.createdAt.seconds * 1000 : 0) ??
+          Number(y.createdAt || 0) ??
+          0;
+
         return ay - ax;
       });
     }
@@ -169,6 +245,9 @@ export default function ListPage({ theme, toggleTheme }) {
     return list;
   }, [all, activeCat, sortBy, q, savedIds, savedMode]);
 
+  /* =============================================================================
+    ✅ Pagination
+  ============================================================================= */
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered.length]);
 
   const pageItems = useMemo(() => {
@@ -177,12 +256,18 @@ export default function ListPage({ theme, toggleTheme }) {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, page, totalPages]);
 
+  /* =============================================================================
+    ✅ Editor Pick articles (id 매칭)
+  ============================================================================= */
   const pickArticles = useMemo(() => {
     if (!pickIds.length) return [];
     const map = new Map(all.map((a) => [Number(a.id), a]));
     return pickIds.map((id) => map.get(Number(id))).filter(Boolean);
   }, [all, pickIds]);
 
+  /* =============================================================================
+    ✅ Actions
+  ============================================================================= */
   function onClickCategory(catKey) {
     setSavedMode(false);
     setQuery({ cat: catKey, sort: "latest", q: "", page: 1 });
@@ -206,20 +291,33 @@ export default function ListPage({ theme, toggleTheme }) {
 
   return (
     <div className="uf-page">
-      {/* Topbar */}
+      {/* =============================================================================
+        ✅ Topbar
+      ============================================================================= */}
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner">
-            <button className="uf-brand" type="button" onClick={() => navigate("/")}>U#</button>
+            <button className="uf-brand" type="button" onClick={() => navigate("/")}>
+              U#
+            </button>
 
             <div className="uf-nav">
+              {/* 외부 링크 */}
               <a className="uf-btn uf-btn--ghost" href="https://unframe.kr" target="_blank" rel="noreferrer">
                 Back UNFRAME
               </a>
-              <button className="uf-btn uf-btn--ghost" type="button" onClick={scrollToArchive}>Archive</button>
+
+              {/* Archive 스크롤 */}
+              <button className="uf-btn uf-btn--ghost" type="button" onClick={scrollToArchive}>
+                Archive
+              </button>
+
+              {/* Saved 모드로 전환 + Archive로 */}
               <button className="uf-btn uf-btn--ghost" type="button" onClick={onClickSaved}>
                 Saved ({savedIds.length})
               </button>
+
+              {/* Theme toggle */}
               <button className="uf-btn" type="button" onClick={toggleTheme}>
                 {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
               </button>
@@ -228,7 +326,9 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </header>
 
-      {/* Hero */}
+      {/* =============================================================================
+        ✅ Hero
+      ============================================================================= */}
       <section className="uf-hero">
         <div className="uf-heroBg" style={{ backgroundImage: `url(${HERO_BG})` }} />
         <div className="uf-heroOverlay" />
@@ -237,23 +337,39 @@ export default function ListPage({ theme, toggleTheme }) {
             <div className="uf-heroKicker">UNFRAME MAGAZINE</div>
             <div className="uf-heroTitle">Any Letter That Inspires You.</div>
             <div className="uf-heroSub">
-              A Journal of Art, Space, and People.<br />
+              A Journal of Art, Space, and People.
+              <br />
               전시 · 프로젝트 · 아티스트 노트 · 뉴스
             </div>
+
             <div className="uf-heroBtns">
-              <button className="uf-btn uf-btn--primary" type="button" onClick={scrollToArchive}>Archive 보기 →</button>
-              <button className="uf-btn uf-btn--ghost" type="button" onClick={() => navigate("/saved")}>Saved 보기 →</button>
+              <button className="uf-btn uf-btn--primary" type="button" onClick={scrollToArchive}>
+                Archive 보기 →
+              </button>
+
+              {/* ✅ Saved는 별도 페이지 없이 섹션5에서만 보여주기로 했으니,
+                  여기 버튼도 savedMode로 전환시키는 UX가 더 자연스러움 */}
+              <button className="uf-btn uf-btn--ghost" type="button" onClick={onClickSaved}>
+                Saved 보기 →
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Categories */}
+      {/* =============================================================================
+        ✅ Categories
+      ============================================================================= */}
       <section className="uf-sec">
         <div className="uf-wrap">
           <div className="uf-catsRow">
             {CATEGORIES.map((c) => (
-              <button key={c.key} type="button" className="uf-catCard" onClick={() => onClickCategory(c.key)}>
+              <button
+                key={c.key}
+                type="button"
+                className="uf-catCard"
+                onClick={() => onClickCategory(c.key)}
+              >
                 <div className="uf-catSub">{c.sub}</div>
                 <div className="uf-catTitle">{c.label}</div>
                 <div className="uf-catHint">VIEW →</div>
@@ -263,19 +379,20 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </section>
 
-      {/* Pick */}
+      {/* =============================================================================
+        ✅ Editor's Pick
+      ============================================================================= */}
       <section className="uf-sec">
         <div className="uf-wrap">
           <div className="uf-grid2">
             <div className="uf-noteBox">
               <div className="uf-boxTitle">Editor’s Note</div>
-              <div className="uf-boxText">
-                소개글/메모 영역이에요. (나중에 config로 연결 가능)
-              </div>
+              <div className="uf-boxText">소개글/메모 영역이에요. (나중에 config로 연결 가능)</div>
             </div>
 
             <div className="uf-pickBox">
               <div className="uf-boxTitle">Editor’s Pick</div>
+
               {pickLoading ? (
                 <div className="uf-boxText">로딩 중… ⏳</div>
               ) : pickArticles.length === 0 ? (
@@ -283,10 +400,17 @@ export default function ListPage({ theme, toggleTheme }) {
               ) : (
                 <div className="uf-pickList">
                   {pickArticles.slice(0, 3).map((a) => (
-                    <button key={a.id} type="button" className="uf-pickItem" onClick={() => openArticle(Number(a.id))}>
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="uf-pickItem"
+                      onClick={() => openArticle(Number(a.id))}
+                    >
                       <span className="uf-pickBadge">PICK</span>
                       <span className="uf-pickTitle">{a.title || "(no title)"}</span>
-                      <span className="uf-pickMeta">{a.category} · {formatDate(a.createdAt)}</span>
+                      <span className="uf-pickMeta">
+                        {a.category} · {formatDate(a.createdAt)}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -296,10 +420,13 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </section>
 
-      {/* Archive */}
+      {/* =============================================================================
+        ✅ Archive (Section 5)
+      ============================================================================= */}
       <section className="uf-sec" ref={archiveRef}>
         <div className="uf-wrap">
           <div className="uf-archiveLayout">
+            {/* Left sticky menu */}
             <aside className="uf-archiveSide">
               <div className="uf-sideBox">
                 <div className="uf-sideTitle">Archive</div>
@@ -307,7 +434,10 @@ export default function ListPage({ theme, toggleTheme }) {
                 <button
                   type="button"
                   className={`uf-sideItem ${activeCat === "All" && !savedMode ? "is-active" : ""}`}
-                  onClick={() => { setSavedMode(false); setQuery({ cat: "All", q: "", page: 1 }); }}
+                  onClick={() => {
+                    setSavedMode(false);
+                    setQuery({ cat: "All", q: "", page: 1 });
+                  }}
                 >
                   All
                 </button>
@@ -317,50 +447,85 @@ export default function ListPage({ theme, toggleTheme }) {
                     key={c.key}
                     type="button"
                     className={`uf-sideItem ${activeCat === c.key && !savedMode ? "is-active" : ""}`}
-                    onClick={() => { setSavedMode(false); setQuery({ cat: c.key, q: "", page: 1 }); }}
+                    onClick={() => {
+                      setSavedMode(false);
+                      setQuery({ cat: c.key, q: "", page: 1 });
+                    }}
                   >
                     {c.label}
                   </button>
                 ))}
 
-                <button type="button" className={`uf-sideItem ${savedMode ? "is-active" : ""}`} onClick={onClickSaved}>
+                <button
+                  type="button"
+                  className={`uf-sideItem ${savedMode ? "is-active" : ""}`}
+                  onClick={onClickSaved}
+                >
                   Saved
                 </button>
               </div>
             </aside>
 
+            {/* Right list */}
             <div>
+              {/* Topbar: sort + search */}
               <div className="uf-archiveTopbar">
                 <div className="uf-row" style={{ gap: 8 }}>
-                  <button className={`uf-chip ${sortBy === "latest" ? "is-active" : ""}`} type="button"
-                    onClick={() => setQuery({ sort: "latest", page: 1 })}>
+                  <button
+                    className={`uf-chip ${sortBy === "latest" ? "is-active" : ""}`}
+                    type="button"
+                    onClick={() => setQuery({ sort: "latest", page: 1 })}
+                  >
                     최신순
                   </button>
-                  <button className={`uf-chip ${sortBy === "popular" ? "is-active" : ""}`} type="button"
-                    onClick={() => setQuery({ sort: "popular", page: 1 })}>
+
+                  <button
+                    className={`uf-chip ${sortBy === "popular" ? "is-active" : ""}`}
+                    type="button"
+                    onClick={() => setQuery({ sort: "popular", page: 1 })}
+                  >
                     인기순
                   </button>
                 </div>
 
-                <input className="uf-input uf-search" value={q} onChange={(e) => setQuery({ q: e.target.value, page: 1 })}
-                  placeholder="검색 (제목/요약/태그)" />
+                <input
+                  className="uf-input uf-search"
+                  value={q}
+                  onChange={(e) => setQuery({ q: e.target.value, page: 1 })}
+                  placeholder="검색 (제목/요약/태그)"
+                />
               </div>
 
+              {/* List */}
               {loading ? (
                 <div style={{ padding: 18, color: "var(--muted)" }}>로딩 중… ⏳</div>
               ) : pageItems.length === 0 ? (
-                <div style={{ padding: 18, color: "var(--muted)" }}>표시할 글이 없어요 🥲</div>
+                <div style={{ padding: 18, color: "var(--muted)" }}>
+                  {savedMode ? "Saved한 글이 아직 없어요 🥲" : "표시할 글이 없어요 🥲"}
+                </div>
               ) : (
                 <div className="uf-cards">
                   {pageItems.map((a) => {
                     const id = Number(a.id);
                     const saved = savedIds.includes(id);
+
+                    // cover 우선순위
                     const cover = a.coverMedium || a.coverThumb || a.cover || "";
+
+                    // ✅ reading time
                     const readMin = calcReadingMin(a.contentHTML);
 
                     return (
-                      <article key={id} className="uf-card uf-cardItem" onClick={() => openArticle(id)}>
-                        <div className="uf-cardImg" style={{ backgroundImage: cover ? `url(${cover})` : "none" }} />
+                      <article
+                        key={id}
+                        className="uf-card uf-cardItem"
+                        onClick={() => openArticle(id)}
+                      >
+                        <div
+                          className="uf-cardImg"
+                          style={{ backgroundImage: cover ? `url(${cover})` : "none" }}
+                        />
+
                         <div className="uf-cardBody">
                           <div className="uf-cardMeta">
                             <span className="uf-badge">{a.category || "Category"}</span>
@@ -370,6 +535,7 @@ export default function ListPage({ theme, toggleTheme }) {
                           <div className="uf-cardTitle">{a.title || "(no title)"}</div>
                           <div className="uf-cardExcerpt">{clampText(a.excerpt || "", 120)}</div>
 
+                          {/* Tags (카드 아래에만) */}
                           {Array.isArray(a.tags) && a.tags.length > 0 && (
                             <div className="uf-tags">
                               {a.tags.slice(0, 4).map((t) => (
@@ -404,6 +570,7 @@ export default function ListPage({ theme, toggleTheme }) {
                                 const r = toggleSaved(id);
                                 setSavedIds(r.ids);
                               }}
+                              title="Save"
                             >
                               {saved ? "★ Saved" : "☆ Save"}
                             </button>
@@ -415,9 +582,15 @@ export default function ListPage({ theme, toggleTheme }) {
                 </div>
               )}
 
+              {/* Pagination */}
               {filtered.length > PAGE_SIZE && (
                 <div className="uf-pager">
-                  <button className="uf-pagerBtn" type="button" disabled={page <= 1} onClick={() => goPage(page - 1)}>
+                  <button
+                    className="uf-pagerBtn"
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => goPage(page - 1)}
+                  >
                     ← Prev
                   </button>
 
@@ -425,15 +598,24 @@ export default function ListPage({ theme, toggleTheme }) {
                     {Array.from({ length: totalPages }).map((_, i) => {
                       const p = i + 1;
                       return (
-                        <button key={p} className={`uf-pagerNum ${p === page ? "is-active" : ""}`} type="button"
-                          onClick={() => goPage(p)}>
+                        <button
+                          key={p}
+                          className={`uf-pagerNum ${p === page ? "is-active" : ""}`}
+                          type="button"
+                          onClick={() => goPage(p)}
+                        >
                           {p}
                         </button>
                       );
                     })}
                   </div>
 
-                  <button className="uf-pagerBtn" type="button" disabled={page >= totalPages} onClick={() => goPage(page + 1)}>
+                  <button
+                    className="uf-pagerBtn"
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => goPage(page + 1)}
+                  >
                     Next →
                   </button>
                 </div>
@@ -443,6 +625,7 @@ export default function ListPage({ theme, toggleTheme }) {
         </div>
       </section>
 
+      {/* Footer */}
       <footer className="uf-footer">
         <div className="uf-wrap">
           <div className="uf-row" style={{ justifyContent: "space-between" }}>
