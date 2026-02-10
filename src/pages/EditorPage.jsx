@@ -32,9 +32,9 @@ import { uploadImage } from "../services/upload";
 
 import BlockPlusMenu from "../components/BlockPlusMenu";
 import { UfImage } from "../tiptap/nodes/UfImage";
-import { Scene } from "../tiptap/nodes/Scene";
-import { StickyStory } from "../tiptap/nodes/StickyStory";
-import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
+import { Scene } from "../tiptap/nodes/Scene.jsx";
+import { StickyStory } from "../tiptap/nodes/StickyStory.jsx";
+import { ParallaxImage } from "../tiptap/nodes/ParallaxImage.jsx";
 
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
