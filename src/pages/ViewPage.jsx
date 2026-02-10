@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
 import { bumpLikes, bumpViews, getPublishedArticleByIdNumber } from "../services/articles";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import CommentBox from "../components/CommentBox";
@@ -8,9 +7,7 @@ import CommentBox from "../components/CommentBox";
 function formatDate(ts) {
   try {
     if (!ts) return "";
-    const d =
-      typeof ts?.toDate === "function" ? ts.toDate() :
-      typeof ts === "number" ? new Date(ts) : new Date(ts);
+    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
@@ -19,10 +16,7 @@ function formatDate(ts) {
 }
 
 function calcReadingMin(html) {
-  const text = String(html || "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const text = String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   if (!text) return 1;
   const words = text.split(" ").filter(Boolean).length;
   const chars = text.length;
@@ -51,7 +45,7 @@ export default function ViewPage({ theme, toggleTheme }) {
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const saved = savedIds.includes(idNum);
 
-  const heroRef = useRef(null);
+  const heroBgRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -80,14 +74,17 @@ export default function ViewPage({ theme, toggleTheme }) {
     return () => (alive = false);
   }, [idNum]);
 
-  // ✅ Reveal: IntersectionObserver
+  // ✅ Reveal: 본문 요소들에 uf-reveal 부여 + is-in 토글
   useEffect(() => {
     if (!article) return;
 
-    const root = document.querySelector(".uf-article");
+    const root = document.querySelector(".uf-article .ProseMirror");
     if (!root) return;
 
-    const targets = Array.from(root.querySelectorAll("p, h2, h3, blockquote, img, .uf-scene, .uf-stickyStory"));
+    const targets = Array.from(
+      root.querySelectorAll("p, h2, h3, blockquote, img, section[data-uf='scene'], div[data-uf='sticky']")
+    );
+
     targets.forEach((el) => el.classList.add("uf-reveal"));
 
     const io = new IntersectionObserver(
@@ -103,23 +100,20 @@ export default function ViewPage({ theme, toggleTheme }) {
     return () => io.disconnect();
   }, [article]);
 
-  // ✅ Parallax: hero bg + uf-parallax elements
+  // ✅ Parallax: hero + uf-parallax
   useEffect(() => {
     function onScroll() {
       const y = window.scrollY || 0;
 
-      // hero
-      const heroBg = heroRef.current;
-      if (heroBg) {
-        heroBg.style.transform = `translateY(${y * 0.18}px) scale(1.02)`;
+      if (heroBgRef.current) {
+        heroBgRef.current.style.transform = `translateY(${y * 0.18}px) scale(1.08)`;
       }
 
-      // body parallax images
       document.querySelectorAll(".uf-parallax").forEach((el) => {
         const r = el.getBoundingClientRect();
         const center = r.top + r.height / 2;
         const viewport = window.innerHeight / 2;
-        const delta = (center - viewport) * 0.08;
+        const delta = (center - viewport) * 0.08; // 강도
         el.style.transform = `translateY(${delta}px)`;
       });
     }
@@ -148,14 +142,14 @@ export default function ViewPage({ theme, toggleTheme }) {
   }
 
   if (loading) {
-    return <div className="uf-wrap" style={{ padding: "80px 16px" }}>로딩 중… ⏳</div>;
+    return <div className="uf-wrap" style={{ padding: "90px 16px" }}>로딩 중… ⏳</div>;
   }
 
   if (!article) {
     return (
-      <div className="uf-wrap" style={{ padding: "80px 16px" }}>
-        <div className="uf-card uf-panel" style={{ padding: 16 }}>
-          <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>😮 글을 찾지 못했어요</div>
+      <div className="uf-wrap" style={{ padding: "90px 16px" }}>
+        <div className="uf-card" style={{ padding: 18 }}>
+          <div style={{ fontWeight: 950, fontSize: 20, marginBottom: 8 }}>😮 글을 찾지 못했어요</div>
           <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>리스트로</button>
         </div>
       </div>
@@ -185,7 +179,7 @@ export default function ViewPage({ theme, toggleTheme }) {
 
       <section className="uf-viewHero">
         <div
-          ref={heroRef}
+          ref={heroBgRef}
           className="uf-viewHero__bg"
           style={{
             backgroundImage: cover
@@ -213,17 +207,14 @@ export default function ViewPage({ theme, toggleTheme }) {
           <div className="uf-viewGrid">
             <main className="uf-card uf-article">
               {article.excerpt ? (
-                <div style={{ color: "var(--muted)", marginBottom: 14, lineHeight: 1.6 }}>
+                <div style={{ color: "var(--muted)", marginBottom: 16, lineHeight: 1.7 }}>
                   {article.excerpt}
                 </div>
               ) : null}
 
-              <div
-                className="ProseMirror"
-                dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
-              />
+              <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }} />
 
-              <div style={{ marginTop: 26 }}>
+              <div style={{ marginTop: 30 }}>
                 <CommentBox articleId={idNum} />
               </div>
             </main>
@@ -232,9 +223,8 @@ export default function ViewPage({ theme, toggleTheme }) {
               <div className="uf-sideBox">
                 <div className="uf-sideTitle">Quick Actions</div>
                 <div className="uf-sideInfo">
-                  좋아요는 3시간 쿨다운, 조회수는 30분 쿨다운이에요.
-                  <br />
-                  저장은 기기(local) 기준이에요.
+                  좋아요 3시간 쿨다운 / 조회수 30분 쿨다운<br />
+                  저장은 기기(local) 기준
                 </div>
 
                 <div className="uf-sideBtns">
@@ -245,6 +235,7 @@ export default function ViewPage({ theme, toggleTheme }) {
                 </div>
               </div>
             </aside>
+
           </div>
         </div>
       </section>

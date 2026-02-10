@@ -1,86 +1,75 @@
-// src/tiptap/nodes/ParallaxImage.js
-// -----------------------------------------------------------------------------
-// ✅ Parallax Image Node
-// - 뷰에서 스크롤에 따라 translateY가 들어가는 이미지 블록
-// - attrs.speed 로 강도 조절(0~1 권장)
-// -----------------------------------------------------------------------------
+import { Node } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import React from "react";
 
-import { Node, mergeAttributes } from "@tiptap/core";
+function ParallaxView({ node, updateAttributes }) {
+  const src = node.attrs.src || "";
+  return (
+    <div className="uf-nodeBox uf-nodeBox--parallax" data-uf-node="parallax">
+      <div className="uf-nodeHead">
+        <div className="uf-nodeTitle">PARALLAX IMAGE</div>
+        <div className="uf-nodeHint">스크롤할 때 이미지가 살짝 떠다니는 효과.</div>
+        <div className="uf-nodeTools">
+          <button
+            className="uf-btn uf-btn--ghost"
+            type="button"
+            onClick={() => {
+              const next = window.prompt("Parallax 이미지 URL", src || "https://");
+              if (next === null) return;
+              updateAttributes({ src: next.trim() });
+            }}
+          >
+            🖼 URL
+          </button>
+        </div>
+      </div>
+
+      {src ? (
+        <img className="uf-parallax" data-parallax="1" src={src} alt="parallax" />
+      ) : (
+        <div className="uf-stickyPlaceholder">이미지 URL을 넣어주세요</div>
+      )}
+    </div>
+  );
+}
 
 export const ParallaxImage = Node.create({
-  name: "parallaxImage",
+  name: "ufParallaxImage",
   group: "block",
-  atom: true, // ✅ 내부 편집 X (하나의 블록으로 취급)
-  selectable: true,
-  draggable: true,
+  atom: true,
+  defining: true,
 
   addAttributes() {
     return {
       src: { default: "" },
-      alt: { default: "" },
-      speed: { default: 0.25 }, // 0.15~0.35 정도가 예쁨
-      width: { default: "100%" }, // "100%" | "50%" 등
-      align: { default: "center" }, // left|center|right
     };
   },
 
   parseHTML() {
-    return [{ tag: "img[data-uf-parallax]" }];
+    return [{ tag: 'img[data-uf="parallax"]' }];
   },
 
-  renderHTML({ HTMLAttributes }) {
-    const align = HTMLAttributes.align || "center";
+  renderHTML({ node }) {
+    const src = node.attrs.src || "";
+    return ["img", { "data-uf": "parallax", class: "uf-parallax", "data-parallax": "1", src, alt: "parallax" }];
+  },
 
-    // ✅ 정렬은 wrapper(div)로 처리 (img만으로 margin 처리 어려운 경우가 많음)
-    const wrapperStyle =
-      align === "left"
-        ? "display:block; width:100%;"
-        : align === "right"
-        ? "display:block; width:100%;"
-        : "display:block; width:100%;";
-
-    const imgStyle =
-      align === "left"
-        ? `display:block; width:${HTMLAttributes.width || "100%"}; margin-left:0; margin-right:auto;`
-        : align === "right"
-        ? `display:block; width:${HTMLAttributes.width || "100%"}; margin-left:auto; margin-right:0;`
-        : `display:block; width:${HTMLAttributes.width || "100%"}; margin-left:auto; margin-right:auto;`;
-
-    return [
-      "div",
-      { class: "uf-parallaxWrap", style: wrapperStyle },
-      [
-        "img",
-        mergeAttributes(HTMLAttributes, {
-          "data-uf-parallax": "1",
-          class: "uf-parallax",
-          style: imgStyle,
-        }),
-      ],
-    ];
+  addNodeView() {
+    return ReactNodeViewRenderer((props) => <ParallaxView {...props} />);
   },
 
   addCommands() {
     return {
       insertParallaxImage:
-        (attrs) =>
+        () =>
         ({ chain }) =>
-          chain().insertContent({ type: this.name, attrs }).run(),
-
-      setParallaxSpeed:
-        (speed) =>
-        ({ chain }) =>
-          chain().updateAttributes(this.name, { speed }).run(),
-
-      setParallaxWidth:
-        (width) =>
-        ({ chain }) =>
-          chain().updateAttributes(this.name, { width }).run(),
-
-      setParallaxAlign:
-        (align) =>
-        ({ chain }) =>
-          chain().updateAttributes(this.name, { align }).run(),
+          chain()
+            .focus()
+            .insertContent({
+              type: this.name,
+              attrs: { src: "https://placehold.co/1400x900?text=Parallax" },
+            })
+            .run(),
     };
   },
 });

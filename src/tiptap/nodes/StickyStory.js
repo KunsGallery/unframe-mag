@@ -1,64 +1,102 @@
-// src/tiptap/nodes/StickyStory.js
-// -----------------------------------------------------------------------------
-// ✅ Sticky Story Node
-// - "왼쪽 미디어(스티키) + 오른쪽 텍스트 스텝" 구조를 한 블록으로 제공
-// - 에디터에서는 테두리/라벨로 보이고, 내용은 일반 문단으로 계속 작성 가능
-// - 뷰에서는 CSS로 2컬럼 + sticky 적용됨
-// -----------------------------------------------------------------------------
+import { Node } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import React from "react";
 
-import { Node, mergeAttributes } from "@tiptap/core";
+function StickyView({ node, editor, updateAttributes }) {
+  const src = node.attrs.src || "";
+
+  return (
+    <div className="uf-nodeBox uf-nodeBox--sticky" data-uf-node="sticky">
+      <div className="uf-nodeHead">
+        <div className="uf-nodeTitle">STICKY STORY</div>
+        <div className="uf-nodeHint">왼쪽 이미지는 스크롤 중 고정, 오른쪽 텍스트만 흐르는 스토리텔링.</div>
+
+        <div className="uf-nodeTools">
+          <button
+            className="uf-btn uf-btn--ghost"
+            type="button"
+            onClick={() => {
+              const next = window.prompt("Sticky 이미지 URL", src || "https://");
+              if (next === null) return;
+              updateAttributes({ src: next.trim() });
+            }}
+          >
+            🖼 URL
+          </button>
+
+          <button
+            className="uf-btn uf-btn--ghost"
+            type="button"
+            onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          >
+            — SceneBreak
+          </button>
+        </div>
+      </div>
+
+      <div className="uf-stickyStory">
+        <div className="uf-stickyMedia">
+          {src ? (
+            <img src={src} alt="sticky" />
+          ) : (
+            <div className="uf-stickyPlaceholder">이미지 URL을 넣어주세요</div>
+          )}
+        </div>
+
+        <div className="uf-stickyText">
+          <div data-content />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const StickyStory = Node.create({
-  name: "stickyStory",
+  name: "ufStickyStory",
   group: "block",
   content: "block+",
   defining: true,
 
   addAttributes() {
     return {
-      mediaSrc: { default: "" }, // 왼쪽 이미지(대표)
-      mediaAlt: { default: "" },
+      src: { default: "" },
     };
   },
 
   parseHTML() {
-    return [{ tag: "section[data-uf-sticky]" }];
+    return [{ tag: 'div[data-uf="sticky"]' }];
   },
 
-  renderHTML({ HTMLAttributes }) {
-    // ✅ mediaSrc는 data 속성으로 보관(뷰에서 쉽게 읽음)
+  renderHTML({ node }) {
+    const src = node.attrs.src || "";
     return [
-      "section",
-      mergeAttributes(HTMLAttributes, {
-        "data-uf-sticky": "1",
-        "data-media-src": HTMLAttributes.mediaSrc || "",
-        class: "uf-stickyStory uf-reveal",
-      }),
-      0,
+      "div",
+      { "data-uf": "sticky", class: "uf-stickyStory" },
+      ["div", { class: "uf-stickyMedia" }, ["img", { src, alt: "sticky" }]],
+      ["div", { class: "uf-stickyText" }, 0],
     ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer((props) => <StickyView {...props} />);
   },
 
   addCommands() {
     return {
       insertStickyStory:
-        (attrs = {}) =>
-        ({ chain }) => {
-          return chain()
+        () =>
+        ({ chain }) =>
+          chain()
+            .focus()
             .insertContent({
               type: this.name,
-              attrs,
+              attrs: { src: "https://placehold.co/1200x800?text=Sticky+Image" },
               content: [
-                { type: "paragraph", content: [{ type: "text", text: "스텝 1) 여기에 설명을 써요." }] },
-                { type: "paragraph", content: [{ type: "text", text: "스텝 2) 다음 문단을 써요." }] },
+                { type: "paragraph", content: [{ type: "text", text: "여기에 텍스트를 길게 쓰면 스티키가 살아나요." }] },
+                { type: "paragraph", content: [{ type: "text", text: "문단을 여러 개로 늘려보세요." }] },
               ],
             })
-            .run();
-        },
-
-      setStickyMedia:
-        (mediaSrc) =>
-        ({ chain }) =>
-          chain().updateAttributes(this.name, { mediaSrc }).run(),
+            .run(),
     };
   },
 });

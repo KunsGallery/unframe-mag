@@ -1,55 +1,63 @@
-// src/tiptap/nodes/Scene.js
-// -----------------------------------------------------------------------------
-// ✅ Scene Node
-// - 글을 "장면(Scene)" 단위로 묶는 컨테이너 블록
-// - 에디터에서는 테두리/라벨로 구분되어 구조가 한눈에 보임
-// - 뷰에서는 .uf-scene 로 감싸져서 섹션 연출(reveal 등)의 기준이 됨
-// -----------------------------------------------------------------------------
+import { Node } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import React from "react";
 
-import { Node, mergeAttributes } from "@tiptap/core";
+function SceneView({ node, editor, updateAttributes }) {
+  return (
+    <div className="uf-nodeBox uf-nodeBox--scene" data-uf-node="scene">
+      <div className="uf-nodeHead">
+        <div className="uf-nodeTitle">SCENE</div>
+        <div className="uf-nodeHint">한 장면(블록) 단위. 아래에 텍스트/이미지/인용 등을 넣어.</div>
+        <div className="uf-nodeTools">
+          <button
+            className="uf-btn uf-btn--ghost"
+            type="button"
+            onClick={() => editor.chain().focus().setHorizontalRule().run()}
+            title="SceneBreak"
+          >
+            — SceneBreak
+          </button>
+        </div>
+      </div>
+
+      <div className="uf-nodeContent">
+        {/* contentDOM 자리 */}
+        <div data-content />
+      </div>
+    </div>
+  );
+}
 
 export const Scene = Node.create({
-  name: "scene",
+  name: "ufScene",
   group: "block",
   content: "block+",
   defining: true,
 
-  addAttributes() {
-    return {
-      title: { default: "" }, // 씬 제목(옵션)
-      variant: { default: "default" }, // 나중에 'hero' 같은 스타일 확장 가능
-    };
-  },
-
   parseHTML() {
-    return [{ tag: "section[data-uf-scene]" }];
+    return [{ tag: 'section[data-uf="scene"]' }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    // ✅ data-uf-scene 를 붙여서 ViewPage에서 안정적으로 찾을 수 있게 함
-    return [
-      "section",
-      mergeAttributes(HTMLAttributes, {
-        "data-uf-scene": "1",
-        class: `uf-scene uf-reveal`,
-      }),
-      0,
-    ];
+    return ["section", { ...HTMLAttributes, "data-uf": "scene", class: "uf-scene" }, 0];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer((props) => <SceneView {...props} />);
   },
 
   addCommands() {
     return {
       insertScene:
-        (attrs = {}) =>
-        ({ chain }) => {
-          return chain()
+        () =>
+        ({ chain }) =>
+          chain()
+            .focus()
             .insertContent({
               type: this.name,
-              attrs,
-              content: [{ type: "paragraph" }],
+              content: [{ type: "paragraph", content: [{ type: "text", text: "새 Scene을 시작해요 ✨" }] }],
             })
-            .run();
-        },
+            .run(),
     };
   },
 });
