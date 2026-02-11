@@ -1,58 +1,47 @@
-import { Node } from "@tiptap/core";
-import { ReactNodeViewRenderer } from "@tiptap/react";
+import { Node, mergeAttributes } from "@tiptap/core";
 import React from "react";
+import { NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from "@tiptap/react";
 
-function StickyView({ node, editor, updateAttributes }) {
-  const src = node.attrs.src || "";
+function StickyStoryView({ node, updateAttributes }) {
+  const { src = "", caption = "" } = node.attrs;
 
   return (
-    <div className="uf-nodeBox uf-nodeBox--sticky" data-uf-node="sticky">
+    <NodeViewWrapper className="uf-nodeBox uf-nodeBox--sticky" data-uf-node="stickyStory">
       <div className="uf-nodeHead">
         <div className="uf-nodeTitle">STICKY STORY</div>
-        <div className="uf-nodeHint">왼쪽 이미지는 스크롤 중 고정, 오른쪽 텍스트만 흐르는 스토리텔링.</div>
-
-        <div className="uf-nodeTools">
-          <button
-            className="uf-btn uf-btn--ghost"
-            type="button"
-            onClick={() => {
-              const next = window.prompt("Sticky 이미지 URL", src || "https://");
-              if (next === null) return;
-              updateAttributes({ src: next.trim() });
-            }}
-          >
-            🖼 URL
-          </button>
-
-          <button
-            className="uf-btn uf-btn--ghost"
-            type="button"
-            onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          >
-            — SceneBreak
-          </button>
-        </div>
+        <div className="uf-nodeHint">왼쪽(이미지) sticky + 오른쪽(텍스트) 스크롤 스토리텔링.</div>
       </div>
 
       <div className="uf-stickyStory">
         <div className="uf-stickyMedia">
-          {src ? (
-            <img src={src} alt="sticky" />
-          ) : (
-            <div className="uf-stickyPlaceholder">이미지 URL을 넣어주세요</div>
-          )}
+          {src ? <img src={src} alt={caption || "sticky"} /> : <div className="uf-nodeEmpty">이미지 없음</div>}
+          <div style={{ padding: 10 }}>
+            <input
+              className="uf-input"
+              placeholder="이미지 URL (업로드 버튼으로 넣는 걸 추천)"
+              value={src}
+              onChange={(e) => updateAttributes({ src: e.target.value })}
+            />
+            <div style={{ height: 8 }} />
+            <input
+              className="uf-input"
+              placeholder="caption (선택)"
+              value={caption}
+              onChange={(e) => updateAttributes({ caption: e.target.value })}
+            />
+          </div>
         </div>
 
         <div className="uf-stickyText">
-          <div data-content />
+          <NodeViewContent className="uf-nodeContent" />
         </div>
       </div>
-    </div>
+    </NodeViewWrapper>
   );
 }
 
 export const StickyStory = Node.create({
-  name: "ufStickyStory",
+  name: "stickyStory",
   group: "block",
   content: "block+",
   defining: true,
@@ -60,43 +49,37 @@ export const StickyStory = Node.create({
   addAttributes() {
     return {
       src: { default: "" },
+      caption: { default: "" },
     };
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-uf="sticky"]' }];
+    return [{ tag: 'section[data-uf="sticky"]' }];
   },
 
-  renderHTML({ node }) {
-    const src = node.attrs.src || "";
+  renderHTML({ node, HTMLAttributes }) {
+    const { src, caption } = node.attrs;
+
     return [
-      "div",
-      { "data-uf": "sticky", class: "uf-stickyStory" },
-      ["div", { class: "uf-stickyMedia" }, ["img", { src, alt: "sticky" }]],
-      ["div", { class: "uf-stickyText" }, 0],
+      "section",
+      mergeAttributes(HTMLAttributes, {
+        "data-uf": "sticky",
+        class: "uf-scene uf-reveal",
+      }),
+      [
+        "div",
+        { class: "uf-stickyStory" },
+        [
+          "div",
+          { class: "uf-stickyMedia" },
+          src ? ["img", { src, alt: caption || "" }] : ["div", {}, ""],
+        ],
+        ["div", { class: "uf-stickyText" }, 0],
+      ],
     ];
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer((props) => <StickyView {...props} />);
-  },
-
-  addCommands() {
-    return {
-      insertStickyStory:
-        () =>
-        ({ chain }) =>
-          chain()
-            .focus()
-            .insertContent({
-              type: this.name,
-              attrs: { src: "https://placehold.co/1200x800?text=Sticky+Image" },
-              content: [
-                { type: "paragraph", content: [{ type: "text", text: "여기에 텍스트를 길게 쓰면 스티키가 살아나요." }] },
-                { type: "paragraph", content: [{ type: "text", text: "문단을 여러 개로 늘려보세요." }] },
-              ],
-            })
-            .run(),
-    };
+    return ReactNodeViewRenderer(StickyStoryView);
   },
 });

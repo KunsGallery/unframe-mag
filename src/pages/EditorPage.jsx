@@ -1,3 +1,4 @@
+// src/pages/EditorPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -56,86 +57,21 @@ function useToast() {
 }
 
 function parseTags(text) {
-  return Array.from(
-    new Set(
-      (text || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    )
-  ).slice(0, 30);
-}
-
-// ✅ 폰트 사이즈(마크) - TextStyle 위에 얹기
-const FontSize = TextStyle.extend({
-  name: "fontSize",
-  addAttributes() {
-    return {
-      fontSize: {
-        default: null,
-        parseHTML: (el) => el.style.fontSize || null,
-        renderHTML: (attrs) => (attrs.fontSize ? { style: `font-size:${attrs.fontSize}` } : {}),
-      },
-    };
-  },
-  addCommands() {
-    return {
-      setFontSize:
-        (fontSize) =>
-        ({ chain }) =>
-          chain().setMark("textStyle", { fontSize }).run(),
-      unsetFontSize:
-        () =>
-        ({ chain }) =>
-          chain().setMark("textStyle", { fontSize: null }).run(),
-    };
-  },
-});
-
-function isImageSelected(editor) {
-  const sel = editor?.state?.selection;
-  return !!sel?.node && sel.node.type?.name === "image";
-}
-function setImageStyle(editor, style) {
-  if (!editor) return;
-  const sel = editor.state.selection;
-  if (!sel?.node || sel.node.type.name !== "image") return;
-  editor.chain().focus().updateAttributes("image", { style }).run();
-}
-function updateImageWidth(editor, pct) {
-  const sel = editor?.state?.selection;
-  if (!sel?.node || sel.node.type.name !== "image") return;
-  const prev = sel.node.attrs?.style || "";
-  const cleaned = prev.replace(/width\s*:\s*[^;]+;?/gi, "").trim();
-  const next = `${cleaned ? cleaned + " " : ""}width:${pct}%;`.trim();
-  setImageStyle(editor, next);
-}
-function updateImageAlign(editor, align) {
-  const sel = editor?.state?.selection;
-  if (!sel?.node || sel.node.type.name !== "image") return;
-  const prev = sel.node.attrs?.style || "";
-  let cleaned = prev
-    .replace(/margin-left\s*:\s*[^;]+;?/gi, "")
-    .replace(/margin-right\s*:\s*[^;]+;?/gi, "")
-    .replace(/display\s*:\s*[^;]+;?/gi, "")
-    .trim();
-
-  let rule = "";
-  if (align === "left") rule = "display:block;margin-left:0;margin-right:auto;";
-  if (align === "center") rule = "display:block;margin-left:auto;margin-right:auto;";
-  if (align === "right") rule = "display:block;margin-left:auto;margin-right:0;";
-
-  const next = `${cleaned ? cleaned + " " : ""}${rule}`.trim();
-  setImageStyle(editor, next);
+  const raw = (text || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return Array.from(new Set(raw)).slice(0, 30);
 }
 
 export default function EditorPage({ theme, toggleTheme }) {
   const nav = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams(); // /write or /write/:id
   const idNum = useMemo(() => (id ? Number(id) : null), [id]);
 
   const { toast, show } = useToast();
 
+  // Auth
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const adminOk = !!user?.email && ADMIN_EMAILS.has(user.email);
@@ -174,45 +110,46 @@ export default function EditorPage({ theme, toggleTheme }) {
     }
   }
 
-  const extensions = useMemo(() => {
-    return [
-      // ✅ 중복 경고 제거 핵심: StarterKit에서 link/underline OFF
-      StarterKit.configure({ underline: false, link: false }),
-
-      // ✅ 매거진 블록 노드들
-      Scene,
-      StickyStory,
-      ParallaxImage,
-
-      // ✅ 이미지 스타일 허용(리사이즈 실제 동작)
-      UfImage.configure({ inline: false, allowBase64: false }),
-
-      // ✅ 텍스트 컨트롤
-      TextStyle,
-      FontSize,
-      Color.configure({ types: ["textStyle"] }),
-      Underline,
-      Highlight.configure({ multicolor: true }),
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
+  // ✅ extensions (중복 방지: Link/Underline은 여기 1회만)
+  const extensions = useMemo(
+    () => [
+      StarterKit,
       Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+      Underline,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Highlight.configure({ multicolor: true }),
+      Placeholder.configure({ placeholder: "Write… (노션처럼 + 버튼으로 블록 추가 가능) ✍️" }),
 
-      // ✅ 확장들
+      TextStyle,
+      Color,
+
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
       TableCell,
 
-      Youtube.configure({ inline: false, controls: true, nocookie: true }),
+      Youtube.configure({ controls: true, nocookie: true }),
 
-      Placeholder.configure({ placeholder: "Write something… ✍️" }),
-    ];
-  }, []);
+      // Custom nodes
+      Scene,
+      StickyStory,
+      ParallaxImage,
+      UfImage,
+    ],
+    []
+  );
 
   const editor = useEditor({
     extensions,
     content: "",
+    editorProps: {
+      attributes: {
+        class: "ProseMirror",
+      },
+    },
   });
 
+  // Form state
   const [loading, setLoading] = useState(true);
   const [firebaseId, setFirebaseId] = useState(null);
   const [drafts, setDrafts] = useState([]);
@@ -230,27 +167,13 @@ export default function EditorPage({ theme, toggleTheme }) {
     createdAt: null,
   });
 
-  const [imageMode, setImageMode] = useState(false);
+  // Load article
   useEffect(() => {
     if (!editor) return;
-    const update = () => setImageMode(isImageSelected(editor));
-    editor.on("selectionUpdate", update);
-    editor.on("transaction", update);
-    update();
-    return () => {
-      editor.off("selectionUpdate", update);
-      editor.off("transaction", update);
-    };
-  }, [editor]);
-
-  useEffect(() => {
-    if (!editor) return;
-    if (!adminOk) {
-      setLoading(false);
-      return;
-    }
+    if (!adminOk) return;
 
     let alive = true;
+
     (async () => {
       try {
         setLoading(true);
@@ -299,12 +222,20 @@ export default function EditorPage({ theme, toggleTheme }) {
             createdAt: null,
           }));
 
-          // ✅ 새 글 시작 시: Scene 1개 기본 삽입
-          editor.commands.setContent("");
-          editor.commands.insertScene();
-          show("✨ 새 글 시작! (Scene이 자동으로 들어갔어요)", 1800);
+          // 기본 템플릿: Scene 2개 넣어주기
+          editor.commands.setContent({
+            type: "doc",
+            content: [
+              { type: "scene", content: [{ type: "paragraph", content: [{ type: "text", text: "첫 Scene을 작성해보세요 ✨" }] }] },
+              { type: "horizontalRule" },
+              { type: "scene", content: [{ type: "paragraph", content: [{ type: "text", text: "여기는 두 번째 장면입니다." }] }] },
+            ],
+          });
+
+          show("✨ 새 글 시작!", 1400);
         }
 
+        // drafts (index 필요할 수 있으니 실패해도 무시)
         try {
           const d = await (listDraftArticles?.() ?? Promise.resolve([]));
           if (!alive) return;
@@ -314,15 +245,18 @@ export default function EditorPage({ theme, toggleTheme }) {
         }
       } catch (e) {
         console.error(e);
-        show("😵 로딩 오류", 2200);
+        show("😵 에디터 로딩 오류", 2400);
       } finally {
         if (alive) setLoading(false);
       }
     })();
 
-    return () => (alive = false);
+    return () => {
+      alive = false;
+    };
   }, [editor, adminOk, idNum, nav]);
 
+  // Cover upload
   async function onPickCover(file) {
     if (!file) return;
     try {
@@ -331,13 +265,13 @@ export default function EditorPage({ theme, toggleTheme }) {
       setForm((p) => ({
         ...p,
         cover: res.url || "",
-        coverThumb: res.thumbUrl || "",
-        coverMedium: res.mediumUrl || "",
+        coverThumb: res.thumbUrl || p.coverThumb || "",
+        coverMedium: res.mediumUrl || p.coverMedium || "",
       }));
-      show("✅ 커버 완료!", 1400);
+      show("✅ 커버 업로드 완료!", 1400);
     } catch (e) {
       console.error(e);
-      show("😵 커버 업로드 실패", 2200);
+      show("😵 커버 업로드 실패", 2400);
     }
   }
 
@@ -347,29 +281,27 @@ export default function EditorPage({ theme, toggleTheme }) {
     if (f) onPickCover(f);
   }
 
+  // Body image upload -> UfImage node
   async function onPickBodyImage(file) {
     if (!file || !editor) return;
     try {
-      show("🖼️ 이미지 업로드…", 1200);
+      show("🖼️ 이미지 업로드…", 1400);
       const res = await uploadImage(file);
       if (!res?.url) throw new Error("no url");
-      editor.chain().focus().setImage({ src: res.url }).run();
-      show("✅ 삽입 완료!", 1200);
+
+      editor.chain().focus().insertContent({
+        type: "ufImage",
+        attrs: { src: res.url, caption: "", size: "full" },
+      }).run();
+
+      show("✅ 이미지 삽입!", 1400);
     } catch (e) {
       console.error(e);
-      show("😵 이미지 업로드 실패", 2200);
+      show("😵 이미지 업로드 실패", 2400);
     }
   }
 
-  function onBodyImageInput(e) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (f) onPickBodyImage(f);
-  }
-
-  const FONT_SIZES = ["12px","14px","16px","18px","20px","24px","28px","32px"];
-  const COLORS = ["#111111","#ef4444","#f59e0b","#10b981","#3b82f6","#8b5cf6","#ec4899","#ffffff"];
-
+  // Save
   async function onSave(statusType) {
     if (!editor) return;
 
@@ -378,42 +310,48 @@ export default function EditorPage({ theme, toggleTheme }) {
     const excerpt = form.excerpt.trim();
     const tags = parseTags(form.tagsText);
 
-    if (!idVal || Number.isNaN(idVal)) return show("😵 id가 이상해요", 2200);
-    if (!title) return show("✍️ 제목 먼저!", 2200);
-
-    const payload = {
-      id: idVal,
-      title,
-      category: form.category,
-      excerpt,
-      status: statusType,
-      contentHTML: editor.getHTML(),
-      cover: form.cover || "",
-      coverThumb: form.coverThumb || "",
-      coverMedium: form.coverMedium || "",
-      tags,
-      createdAt: form.createdAt ?? null,
-    };
+    if (!idVal || Number.isNaN(idVal)) return show("😵 글 번호(id)가 이상해요.", 2200);
+    if (!title) return show("✍️ 제목을 먼저 적어주세요!", 2200);
 
     try {
+      const payload = {
+        id: idVal,
+        title,
+        category: form.category,
+        excerpt,
+        status: statusType,
+        contentHTML: editor.getHTML(),
+        cover: form.cover || "",
+        coverThumb: form.coverThumb || "",
+        coverMedium: form.coverMedium || "",
+        tags,
+        createdAt: form.createdAt ?? null,
+      };
+
       if (!idNum) {
-        show(statusType === "draft" ? "📝 드래프트…" : "🚀 발행…", 1600);
+        show(statusType === "draft" ? "📝 드래프트 저장…" : "🚀 발행 중…", 1600);
         await createArticle(payload);
-        show("✅ 완료!", 1600);
+        show(statusType === "draft" ? "✅ 드래프트 저장!" : "🎉 발행 완료!", 2000);
         if (statusType !== "draft") nav(`/article/${idVal}`);
       } else {
-        if (!firebaseId) return show("😵 firebaseId 없음", 2400);
-        show("🛠️ 저장…", 1400);
+        if (!firebaseId) return show("😵 firebaseId가 없어요. 다시 열어주세요.", 2600);
+        show("🛠️ 저장 중…", 1400);
         await updateArticle(firebaseId, payload);
-        show("✅ 저장!", 1400);
+        show("✅ 저장 완료!", 1600);
         if (statusType !== "draft") nav(`/article/${idVal}`);
       }
     } catch (e) {
       console.error(e);
-      show("😵 저장 실패", 2400);
+      show("😵 저장 오류", 2600);
     }
   }
 
+  function openDraft(d) {
+    if (!d?.id) return;
+    nav(`/write/${d.id}`);
+  }
+
+  // Auth Gate
   if (checkingAuth) {
     return <div className="uf-wrap" style={{ padding: "90px 16px" }}>확인 중… ⏳</div>;
   }
@@ -425,11 +363,9 @@ export default function EditorPage({ theme, toggleTheme }) {
         <header className="uf-topbar">
           <div className="uf-wrap">
             <div className="uf-topbar__inner">
-              <button className="uf-brand" onClick={() => nav("/")}>U#</button>
+              <button className="uf-brand" type="button" onClick={() => nav("/")}>U#</button>
               <div className="uf-nav">
-                <button className="uf-btn" onClick={toggleTheme}>
-                  {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-                </button>
+                <button className="uf-btn" onClick={toggleTheme}>{theme === "dark" ? "🌙 Dark" : "☀️ Light"}</button>
               </div>
             </div>
           </div>
@@ -437,11 +373,13 @@ export default function EditorPage({ theme, toggleTheme }) {
 
         <div className="uf-wrap" style={{ padding: "80px 16px" }}>
           <div className="uf-card uf-panel">
-            <div style={{ fontWeight: 950, fontSize: 22, marginBottom: 8 }}>🔐 Admin Only</div>
-            <div style={{ color: "var(--muted)", marginBottom: 16 }}>관리자만 접근 가능</div>
-            <div className="uf-row" style={{ flexWrap: "wrap" }}>
-              <button className="uf-btn uf-btn--primary" onClick={adminLogin}>Google 로그인</button>
-              <button className="uf-btn" onClick={() => nav("/")}>← 리스트</button>
+            <div style={{ fontWeight: 900, fontSize: 22, marginBottom: 8 }}>🔐 Admin Only</div>
+            <div style={{ color: "var(--muted)", marginBottom: 16 }}>
+              이 페이지는 관리자만 접근할 수 있어요.
+            </div>
+            <div className="uf-row" style={{ gap: 10, flexWrap: "wrap" }}>
+              <button className="uf-btn uf-btn--primary" onClick={adminLogin}>Google로 로그인</button>
+              <button className="uf-btn" onClick={() => nav("/")}>← 리스트로</button>
             </div>
           </div>
         </div>
@@ -449,6 +387,7 @@ export default function EditorPage({ theme, toggleTheme }) {
     );
   }
 
+  // Main UI
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
@@ -456,129 +395,110 @@ export default function EditorPage({ theme, toggleTheme }) {
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner">
-            <button className="uf-brand" onClick={() => nav("/")}>U#</button>
+            <button className="uf-brand" type="button" onClick={() => nav("/")}>U#</button>
             <div className="uf-nav">
               <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>Archive</button>
-              <button className="uf-btn" onClick={toggleTheme}>
-                {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-              </button>
+              <button className="uf-btn" onClick={toggleTheme}>{theme === "dark" ? "🌙 Dark" : "☀️ Light"}</button>
               <button className="uf-btn uf-btn--ghost" onClick={adminLogout}>Logout</button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* ✅ 노션 느낌: 좌측 + 블록 메뉴 */}
-      <BlockPlusMenu editor={editor} />
-
       {/* Toolbar */}
       <div className="uf-toolbar">
         <div className="uf-wrap">
           <div className="uf-toolbar__inner">
-            {!imageMode ? (
-              <>
-                <div className="uf-toolbarGroup">
-                  <div className="uf-toolbarLabel">TEXT</div>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().toggleBold().run()}>B</button>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().toggleItalic().run()}>I</button>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().toggleUnderline().run()}>U</button>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().toggleHighlight().run()}>🖍</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().toggleBold().run()}>B</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().toggleItalic().run()}>I</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().toggleUnderline().run()}>U</button>
 
-                  <select
-                    className="uf-select uf-select--mini"
-                    defaultValue=""
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (!v) return;
-                      editor?.chain().focus().setFontSize(v).run();
-                      e.target.value = "";
-                    }}
-                  >
-                    <option value="">Size</option>
-                    {FONT_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().toggleHighlight().run()}>🖍</button>
 
-                  <div className="uf-colorRow">
-                    {COLORS.map((c) => (
-                      <button
-                        key={c}
-                        className="uf-colorDot"
-                        style={{ background: c }}
-                        onClick={() => editor?.chain().focus().setColor(c).run()}
-                        title={c}
-                      />
-                    ))}
-                    <button className="uf-btn" onClick={() => editor?.chain().focus().unsetColor().run()}>✕</button>
-                  </div>
-                </div>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().setTextAlign("left").run()}>⬅</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().setTextAlign("center").run()}>↔</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().setTextAlign("right").run()}>➡</button>
 
-                <div className="uf-toolbarGroup">
-                  <div className="uf-toolbarLabel">STRUCT</div>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().toggleBlockquote().run()}>❝ Quote</button>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().setHorizontalRule().run()}>— SceneBreak</button>
+            {/* 색상 도트 */}
+            <div className="uf-colorRow">
+              {[
+                "#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899",
+              ].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="uf-colorDot"
+                  style={{ background: c }}
+                  onClick={() => editor?.chain().focus().setColor(c).run()}
+                  title={c}
+                />
+              ))}
+              <button className="uf-btn" onClick={() => editor?.chain().focus().unsetColor().run()} title="색 제거">×</button>
+            </div>
 
-                  <button
-                    className="uf-btn"
-                    onClick={() => {
-                      const prev = editor?.getAttributes("link")?.href || "";
-                      const url = window.prompt("링크 URL", prev || "https://");
-                      if (url === null) return;
-                      if (!url.trim()) return editor?.chain().focus().unsetLink().run();
-                      editor?.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
-                    }}
-                  >
-                    🔗 Link
-                  </button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().toggleBlockquote().run()}>❝ Quote</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().setHorizontalRule().run()}>— SceneBreak</button>
 
-                  <label className="uf-btn" style={{ cursor: "pointer" }}>
-                    🖼 Upload
-                    <input type="file" accept="image/*" onChange={onBodyImageInput} style={{ display: "none" }} />
-                  </label>
+            <button
+              className="uf-btn"
+              onClick={() => {
+                const prev = editor?.getAttributes("link")?.href || "";
+                const url = window.prompt("링크 URL", prev || "https://");
+                if (url === null) return;
+                if (url.trim() === "") {
+                  editor?.chain().focus().unsetLink().run();
+                  show("🔗 링크 제거", 1400);
+                  return;
+                }
+                editor?.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+                show("🔗 링크 설정", 1400);
+              }}
+            >
+              🔗 Link
+            </button>
 
-                  <button
-                    className="uf-btn"
-                    onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-                  >
-                    ▦ Table
-                  </button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>
+              ▦ Table
+            </button>
 
-                  <button
-                    className="uf-btn"
-                    onClick={() => {
-                      const url = window.prompt("YouTube URL", "https://www.youtube.com/watch?v=");
-                      if (!url) return;
-                      editor?.chain().focus().setYoutubeVideo({ src: url, width: 720, height: 405 }).run();
-                    }}
-                  >
-                    ▶ YouTube
-                  </button>
-                </div>
+            <button className="uf-btn" onClick={() => {
+              const url = window.prompt("YouTube URL", "https://www.youtube.com/watch?v=");
+              if (!url) return;
+              editor?.chain().focus().setYoutubeVideo({ src: url }).run();
+            }}>
+              ▶ YouTube
+            </button>
 
-                <div className="uf-toolbarGroup">
-                  <div className="uf-toolbarLabel">BLOCKS</div>
-                  <button className="uf-btn" onClick={() => editor?.commands.insertScene()}>＋ Scene</button>
-                  <button className="uf-btn" onClick={() => editor?.commands.insertStickyStory()}>＋ Sticky</button>
-                  <button className="uf-btn" onClick={() => editor?.commands.insertParallaxImage()}>＋ Parallax</button>
-                </div>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().insertContent({ type: "scene", content: [{ type: "paragraph" }] }).run()}>
+              + Scene
+            </button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().insertContent({ type: "stickyStory", attrs: { src: "", caption: "" }, content: [{ type: "paragraph" }] }).run()}>
+              + Sticky
+            </button>
+            <button className="uf-btn" onClick={() => {
+              const url = window.prompt("Parallax Image URL", "https://");
+              if (!url) return;
+              editor?.chain().focus().insertContent({ type: "parallaxImage", attrs: { src: url, speed: 0.18 } }).run();
+            }}>
+              + Parallax
+            </button>
 
-                <div className="uf-toolbarGroup">
-                  <div className="uf-toolbarLabel">HIST</div>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().undo().run()}>↶</button>
-                  <button className="uf-btn" onClick={() => editor?.chain().focus().redo().run()}>↷</button>
-                </div>
-              </>
-            ) : (
-              <div className="uf-toolbarGroup">
-                <div className="uf-toolbarLabel">IMAGE</div>
-                <button className="uf-btn" onClick={() => updateImageWidth(editor, 100)}>100%</button>
-                <button className="uf-btn" onClick={() => updateImageWidth(editor, 70)}>70%</button>
-                <button className="uf-btn" onClick={() => updateImageWidth(editor, 50)}>50%</button>
-                <button className="uf-btn" onClick={() => updateImageWidth(editor, 35)}>35%</button>
-                <button className="uf-btn" onClick={() => updateImageAlign(editor, "left")}>Left</button>
-                <button className="uf-btn" onClick={() => updateImageAlign(editor, "center")}>Center</button>
-                <button className="uf-btn" onClick={() => updateImageAlign(editor, "right")}>Right</button>
-              </div>
-            )}
+            <label className="uf-btn" style={{ cursor: "pointer" }}>
+              🖼 Upload
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) onPickBodyImage(f);
+                }}
+              />
+            </label>
+
+            <button className="uf-btn" onClick={() => editor?.chain().focus().undo().run()}>↶</button>
+            <button className="uf-btn" onClick={() => editor?.chain().focus().redo().run()}>↷</button>
           </div>
         </div>
       </div>
@@ -589,6 +509,7 @@ export default function EditorPage({ theme, toggleTheme }) {
             <div style={{ padding: "30px 0" }}>로딩 중… ⏳</div>
           ) : (
             <div className="uf-editorGrid">
+              {/* Left meta */}
               <aside className="uf-card uf-panel">
                 <div className="uf-panelTitle">Meta</div>
 
@@ -597,7 +518,7 @@ export default function EditorPage({ theme, toggleTheme }) {
                     <div className="uf-label">Drafts</div>
                     <div className="uf-stack" style={{ gap: 8 }}>
                       {drafts.slice(0, 8).map((d) => (
-                        <button key={d.id} className="uf-btn uf-btn--ghost" onClick={() => nav(`/write/${d.id}`)}>
+                        <button key={d.id} className="uf-btn uf-btn--ghost" onClick={() => openDraft(d)}>
                           No.{d.id} — {d.title || "(no title)"}
                         </button>
                       ))}
@@ -614,7 +535,8 @@ export default function EditorPage({ theme, toggleTheme }) {
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Title</div>
                   <input className="uf-input" value={form.title}
-                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} />
+                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                    placeholder="제목" />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
@@ -628,15 +550,18 @@ export default function EditorPage({ theme, toggleTheme }) {
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Excerpt</div>
                   <textarea className="uf-textarea" value={form.excerpt}
-                    onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))} />
+                    onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
+                    placeholder="리스트 카드 요약" />
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
                   <div className="uf-label">Tags (comma)</div>
                   <input className="uf-input" value={form.tagsText}
-                    onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))} />
+                    onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))}
+                    placeholder="예: 전시, 인사동, 언프레임" />
                 </div>
 
+                {/* Cover */}
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Cover</div>
                   <div className="uf-row" style={{ flexWrap: "wrap" }}>
@@ -644,7 +569,6 @@ export default function EditorPage({ theme, toggleTheme }) {
                       Upload Cover
                       <input type="file" accept="image/*" onChange={onCoverInput} style={{ display: "none" }} />
                     </label>
-
                     {form.cover ? (
                       <button className="uf-btn" onClick={() => setForm((p) => ({ ...p, cover: "", coverThumb: "", coverMedium: "" }))}>
                         Remove
@@ -657,26 +581,31 @@ export default function EditorPage({ theme, toggleTheme }) {
                       <img
                         src={form.coverMedium || form.coverThumb || form.cover}
                         alt="cover"
-                        style={{ width: "100%", borderRadius: 18, border: "1px solid var(--line)" }}
+                        style={{ width: "100%", borderRadius: 14, border: "1px solid var(--line)" }}
                       />
                     </div>
                   ) : (
-                    <div className="uf-panelHint">
-                      <b>사용법</b><br/>
-                      1) 좌측 ＋ 버튼(노션처럼)으로 Scene/Sticky/Parallax 블록을 삽입<br/>
-                      2) SceneBreak로 장면 전환(에디터에 SCENE BREAK 라벨로 표시)<br/>
-                      3) 이미지를 클릭하면 상단이 IMAGE 모드로 바뀌고 크기/정렬 조절 가능
-                    </div>
+                    <div className="uf-panelHint">커버가 있으면 리스트/뷰에서 훨씬 고급스럽게 보여요 ✨</div>
                   )}
                 </div>
 
+                {/* Actions */}
                 <div className="uf-stack" style={{ marginTop: 12 }}>
                   <button className="uf-btn" onClick={() => onSave("draft")}>📝 Save Draft</button>
                   <button className="uf-btn uf-btn--primary" onClick={() => onSave("published")}>🚀 Publish</button>
                 </div>
+
+                <div className="uf-panelHint">
+                  ✅ 본문 왼쪽 <b>+</b> 버튼으로 Scene/Sticky/Parallax 블록을 추가할 수 있어요.
+                  <br />✅ SceneBreak(HR)는 뷰페이지에서 “장면 전환”으로 연출할 수 있어요.
+                </div>
               </aside>
 
-              <section className="uf-card uf-editorBox">
+              {/* Editor */}
+              <section className="uf-card uf-editorBox" style={{ position: "relative" }}>
+                {/* Notion-style + menu */}
+                <BlockPlusMenu editor={editor} onPickImage={onPickBodyImage} />
+
                 <EditorContent editor={editor} />
               </section>
             </div>

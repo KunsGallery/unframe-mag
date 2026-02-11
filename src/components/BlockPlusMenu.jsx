@@ -1,78 +1,108 @@
-import React, { useMemo, useState } from "react";
+import React, { useRef, useState } from "react";
 
-export default function BlockPlusMenu({ editor }) {
+/**
+ * Notion-style + menu
+ * - editor 인스턴스만 넣어주면 바로 동작
+ * - 이미지 업로드는 onPickImage(file) 콜백으로 처리
+ */
+export default function BlockPlusMenu({ editor, onPickImage }) {
   const [open, setOpen] = useState(false);
-
-  const items = useMemo(() => {
-    if (!editor) return [];
-    return [
-      {
-        title: "Scene",
-        desc: "스크롤텔링의 ‘장면’ 블록",
-        onClick: () => editor.commands.insertScene(),
-      },
-      {
-        title: "Sticky Story",
-        desc: "왼쪽 이미지 고정 + 오른쪽 텍스트 흐름",
-        onClick: () => editor.commands.insertStickyStory(),
-      },
-      {
-        title: "Parallax Image",
-        desc: "스크롤에 따라 이미지가 살짝 이동",
-        onClick: () => editor.commands.insertParallaxImage(),
-      },
-      {
-        title: "SceneBreak",
-        desc: "장면 구분선(HR). 에디터에서 SCENE BREAK로 보임",
-        onClick: () => editor.chain().focus().setHorizontalRule().run(),
-      },
-      {
-        title: "Quote",
-        desc: "인용(문단 강조)",
-        onClick: () => editor.chain().focus().toggleBlockquote().run(),
-      },
-    ];
-  }, [editor]);
+  const fileRef = useRef(null);
 
   if (!editor) return null;
 
+  const insertScene = () => {
+    editor.chain().focus().insertContent({
+      type: "scene",
+      content: [{ type: "paragraph" }],
+    }).run();
+    setOpen(false);
+  };
+
+  const insertSticky = () => {
+    editor.chain().focus().insertContent({
+      type: "stickyStory",
+      attrs: { src: "", caption: "" },
+      content: [{ type: "paragraph" }],
+    }).run();
+    setOpen(false);
+  };
+
+  const insertParallax = () => {
+    const url = window.prompt("Parallax Image URL (나중에 업로드로도 가능)", "https://");
+    if (!url) return;
+    editor.chain().focus().insertContent({
+      type: "parallaxImage",
+      attrs: { src: url, speed: 0.18 },
+    }).run();
+    setOpen(false);
+  };
+
+  const insertQuote = () => {
+    editor.chain().focus().toggleBlockquote().run();
+    setOpen(false);
+  };
+
+  const insertDivider = () => {
+    editor.chain().focus().setHorizontalRule().run();
+    setOpen(false);
+  };
+
+  const insertTable = () => {
+    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    setOpen(false);
+  };
+
+  const insertYoutube = () => {
+    const url = window.prompt("YouTube URL", "https://www.youtube.com/watch?v=");
+    if (!url) return;
+    editor.chain().focus().setYoutubeVideo({ src: url }).run();
+    setOpen(false);
+  };
+
+  const onClickUpload = () => {
+    fileRef.current?.click();
+  };
+
   return (
-    <>
-      <div className="uf-leftPlus">
-        <button className="uf-btn uf-btn--primary" type="button" onClick={() => setOpen((v) => !v)}>
-          ＋
-        </button>
-      </div>
+    <div className="uf-plusMenu">
+      <button
+        type="button"
+        className="uf-plusBtn"
+        onClick={() => setOpen((v) => !v)}
+        title="블록 추가"
+      >
+        +
+      </button>
 
       {open && (
         <div className="uf-plusPanel">
-          <div className="uf-plusHead">
-            <div style={{ fontWeight: 950 }}>Blocks</div>
-            <button className="uf-btn uf-btn--ghost" onClick={() => setOpen(false)}>닫기</button>
-          </div>
+          <button className="uf-plusItem" onClick={insertScene}>+ Scene (장면)</button>
+          <button className="uf-plusItem" onClick={insertSticky}>+ Sticky Story</button>
+          <button className="uf-plusItem" onClick={insertParallax}>+ Parallax Image</button>
+          <button className="uf-plusItem" onClick={insertQuote}>+ Quote</button>
+          <button className="uf-plusItem" onClick={insertDivider}>+ Scene Break (HR)</button>
+          <button className="uf-plusItem" onClick={insertTable}>+ Table</button>
+          <button className="uf-plusItem" onClick={insertYoutube}>+ YouTube</button>
 
-          <div className="uf-plusBody">
-            {items.map((it) => (
-              <button
-                key={it.title}
-                type="button"
-                className="uf-plusItem"
-                onClick={() => {
-                  it.onClick();
-                  setOpen(false);
-                }}
-              >
-                <div style={{ fontWeight: 950 }}>{it.title}</div>
-                <div className="uf-plusDesc">{it.desc}</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="uf-plusFoot">
-            팁: Scene → (글/이미지) → SceneBreak → 다음 Scene
-          </div>
+          <button className="uf-plusItem is-primary" onClick={onClickUpload}>
+            + Upload Image
+          </button>
         </div>
       )}
-    </>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) onPickImage?.(f);
+          setOpen(false);
+        }}
+      />
+    </div>
   );
 }

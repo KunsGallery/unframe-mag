@@ -1,23 +1,15 @@
 // src/pages/ViewPage.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { bumpLikes, bumpViews, getPublishedArticleByIdNumber } from "../services/articles";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import CommentBox from "../components/CommentBox";
 
-/* =============================================================================
-  ✅ 날짜 포맷
-============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
-    const d =
-      typeof ts?.toDate === "function"
-        ? ts.toDate()
-        : typeof ts === "number"
-        ? new Date(ts)
-        : new Date(ts);
+    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
@@ -25,27 +17,19 @@ function formatDate(ts) {
   }
 }
 
-/* =============================================================================
-  ✅ 읽기 시간(대략)
-============================================================================= */
 function calcReadingMin(html) {
   const text = String(html || "")
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!text) return 1;
-
   const words = text.split(" ").filter(Boolean).length;
   const chars = text.length;
-
   const byWords = Math.ceil(words / 220);
   const byChars = Math.ceil(chars / 900);
   return Math.max(1, Math.min(99, Math.max(byWords, byChars)));
 }
 
-/* =============================================================================
-  ✅ Toast
-============================================================================= */
 function useToast() {
   const [toast, setToast] = useState(null);
   useEffect(() => {
@@ -58,31 +42,24 @@ function useToast() {
 
 export default function ViewPage({ theme, toggleTheme }) {
   const nav = useNavigate();
-  const { id } = useParams(); // /article/:id
+  const { id } = useParams();
   const idNum = useMemo(() => Number(id), [id]);
 
   const { toast, show } = useToast();
-
   const [loading, setLoading] = useState(true);
   const [article, setArticle] = useState(null);
 
-  // ✅ Saved(북마크)
   const [savedIds, setSavedIds] = useState(() => getSavedIds());
   const saved = savedIds.includes(idNum);
 
-  // ✅ Read progress
-  const articleRef = useRef(null);
+  // ✅ 문서 스크롤 기반 progress (ref 안 써서 훨씬 안정)
   const [progress, setProgress] = useState(0);
 
-  /* =============================================================================
-    ✅ 글 불러오기 + 조회수
-  ============================================================================= */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-
         const a = await getPublishedArticleByIdNumber(idNum);
         if (!alive) return;
 
@@ -91,7 +68,6 @@ export default function ViewPage({ theme, toggleTheme }) {
           show("😮 글을 찾을 수 없어요.");
           return;
         }
-
         setArticle(a);
 
         try {
@@ -107,57 +83,39 @@ export default function ViewPage({ theme, toggleTheme }) {
         if (alive) setLoading(false);
       }
     })();
-
     return () => {
       alive = false;
     };
   }, [idNum]);
 
-  /* =============================================================================
-    ✅ 읽기 progress bar
-    - "본문 영역(articleRef)" 기준으로 0~100%
-  ============================================================================= */
+  // ✅ progress bar: 페이지 전체 스크롤 기준
   useEffect(() => {
     let raf = 0;
 
-    function onScroll() {
+    const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const el = articleRef.current;
-        if (!el) return;
+        const doc = document.documentElement;
+        const scrollTop = doc.scrollTop || document.body.scrollTop || 0;
+        const scrollHeight = doc.scrollHeight || 1;
+        const clientHeight = doc.clientHeight || 1;
 
-        const rect = el.getBoundingClientRect();
-        const vh = window.innerHeight || 1;
-
-        // el의 시작점이 viewport 상단에 닿는 순간부터,
-        // el의 끝이 viewport 하단을 지나갈 때까지를 0~1로 매핑
-        const total = rect.height - vh;
-        if (total <= 0) {
-          setProgress(1);
-          return;
-        }
-
-        // rect.top: viewport 기준으로 el의 top 위치
-        const passed = Math.min(Math.max(-rect.top, 0), total);
-        const p = passed / total;
-        setProgress(Number.isFinite(p) ? p : 0);
+        const max = Math.max(1, scrollHeight - clientHeight);
+        const p = Math.min(1, Math.max(0, scrollTop / max));
+        setProgress(p);
       });
-    }
+    };
 
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [article?.contentHTML]);
+  }, []);
 
-  /* =============================================================================
-    ✅ Like / Save
-  ============================================================================= */
   async function onLike() {
     try {
       const next = await bumpLikes(idNum);
@@ -183,19 +141,17 @@ export default function ViewPage({ theme, toggleTheme }) {
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
 
-      {/* ✅ 상단 읽기 progress bar */}
+      {/* ✅ Read progress */}
       <div className="uf-readProgress" aria-hidden="true">
         <div className="uf-readProgress__bar" style={{ transform: `scaleX(${progress})` }} />
       </div>
 
-      {/* ✅ Topbar */}
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner">
             <button className="uf-brand" type="button" onClick={() => nav("/")}>
               U#
             </button>
-
             <div className="uf-nav">
               <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>
                 Archive
@@ -208,7 +164,6 @@ export default function ViewPage({ theme, toggleTheme }) {
         </div>
       </header>
 
-      {/* ✅ Loading / Not Found */}
       {loading ? (
         <div className="uf-wrap" style={{ padding: "80px 16px" }}>
           로딩 중… ⏳
@@ -227,7 +182,6 @@ export default function ViewPage({ theme, toggleTheme }) {
         </div>
       ) : (
         <>
-          {/* ✅ Hero */}
           <section className="uf-viewHero">
             <div
               className="uf-viewHero__bg"
@@ -253,10 +207,9 @@ export default function ViewPage({ theme, toggleTheme }) {
             </div>
           </section>
 
-          {/* ✅ Body: 중앙 정렬 */}
           <section className="uf-viewBody">
             <div className="uf-wrap">
-              <main className="uf-viewCenter" ref={articleRef}>
+              <main className="uf-viewCenter">
                 <div className="uf-card uf-article">
                   {article.excerpt ? (
                     <div style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>
@@ -274,27 +227,15 @@ export default function ViewPage({ theme, toggleTheme }) {
             </div>
           </section>
 
-          {/* ✅ Floating / Sticky Actions (원형 아이콘) */}
+          {/* Floating */}
           <div className="uf-fab" aria-label="Quick actions">
-            <button className="uf-fabBtn is-primary" onClick={onLike} title="Like">
-              💗
-            </button>
-
+            <button className="uf-fabBtn is-primary" onClick={onLike} title="Like">💗</button>
             <button className={`uf-fabBtn ${saved ? "is-on" : ""}`} onClick={onToggleSave} title="Save">
               {saved ? "★" : "☆"}
             </button>
-
-            <button className="uf-fabBtn" onClick={() => nav(`/write/${idNum}`)} title="Edit (admin)">
-              ✍️
-            </button>
-
-            <button className="uf-fabBtn" onClick={toggleTheme} title="Toggle theme">
-              {theme === "dark" ? "🌙" : "☀️"}
-            </button>
-
-            <button className="uf-fabBtn" onClick={() => nav("/")} title="Back to list">
-              ←
-            </button>
+            <button className="uf-fabBtn" onClick={() => nav(`/write/${idNum}`)} title="Edit">✍️</button>
+            <button className="uf-fabBtn" onClick={toggleTheme} title="Theme">{theme === "dark" ? "🌙" : "☀️"}</button>
+            <button className="uf-fabBtn" onClick={() => nav("/")} title="Back">←</button>
           </div>
         </>
       )}

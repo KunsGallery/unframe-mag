@@ -1081,3 +1081,219 @@ html[data-theme="dark"] .uf-fabBtn.is-primary{
   border-color: color-mix(in srgb, var(--brand) 55%, transparent);
   background: color-mix(in srgb, var(--brand) 12%, var(--panel));
 }
+
+/* View 중앙 정렬 */
+.uf-viewCenter{ max-width: 760px; margin: 0 auto; }
+
+/* Read progress bar */
+.uf-readProgress{
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 3px;
+  width: 100%;
+  z-index: 9999;
+  background: transparent;
+  pointer-events: none;
+}
+.uf-readProgress__bar{
+  height: 100%;
+  width: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 40%, white));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* Floating actions */
+.uf-fab{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.uf-fabBtn{
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
+}
+.uf-fabBtn:hover{
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  background: color-mix(in srgb, var(--brand) 8%, var(--panel));
+}
+.uf-fabBtn.is-primary{
+  background: var(--brand);
+  border-color: rgba(0,0,0,0);
+  color: white;
+}
+html[data-theme="dark"] .uf-fabBtn.is-primary{ color: #0b0e14; }
+.uf-fabBtn.is-on{
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
+}
+
+/* ===========================
+   Notion-style + Menu
+=========================== */
+.uf-plusMenu{
+  position:absolute;
+  left:-54px;
+  top: 12px;
+  z-index: 10;
+}
+@media (max-width: 980px){
+  .uf-plusMenu{ left: 10px; top: 10px; }
+}
+.uf-plusBtn{
+  width: 38px; height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  cursor:pointer;
+  font-weight: 900;
+}
+.uf-plusPanel{
+  margin-top: 10px;
+  width: 220px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 10px;
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.uf-plusItem{
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  cursor:pointer;
+  text-align:left;
+  padding: 0 12px;
+}
+.uf-plusItem.is-primary{
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* ===========================
+   Editor Node UI
+=========================== */
+.uf-nodeBox{
+  border: 1px dashed color-mix(in srgb, var(--brand) 45%, var(--line));
+  background: color-mix(in srgb, var(--brand) 7%, var(--panel));
+  border-radius: 18px;
+  padding: 12px;
+  margin: 14px 0;
+}
+.uf-nodeHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.uf-nodeTitle{
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: 12px;
+}
+.uf-nodeHint{
+  flex: 1;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.uf-nodeTools{
+  display:flex;
+  gap: 6px;
+  align-items:center;
+}
+.uf-nodeBody{ margin-top: 10px; }
+.uf-nodeContent{ min-height: 24px; }
+.uf-nodeEmpty{
+  padding: 12px;
+  color: var(--muted);
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+}
+
+.uf-miniBtn{
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  cursor:pointer;
+  font-size: 12px;
+}
+.uf-miniBtn.is-on{
+  border-color: color-mix(in srgb, var(--brand) 60%, transparent);
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel));
+}
+
+/* Figure sizing (뷰/에디터 공용) */
+.uf-figure{ margin: 10px 0; }
+.uf-figure img{ width:100%; display:block; border-radius: 16px; border:1px solid var(--line); }
+.uf-figure figcaption{ margin-top: 8px; color: var(--muted); font-size: 13px; }
+
+.uf-figure.is-full{ max-width: 100%; }
+.uf-figure.is-wide{ max-width: 960px; margin-left: auto; margin-right:auto; }
+.uf-figure.is-medium{ max-width: 720px; margin-left: auto; margin-right:auto; }
+.uf-figure.is-small{ max-width: 520px; margin-left: auto; margin-right:auto; }
+
+.uf-captionInput{
+  width:100%;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  padding: 10px 12px;
+  outline: none;
+}
+
+/* StickyStory 뷰/에디터 공용 */
+.uf-stickyStory{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items:start;
+}
+@media (max-width: 860px){
+  .uf-stickyStory{ grid-template-columns: 1fr; }
+}
+.uf-stickyMedia{
+  position: sticky;
+  top: 92px;
+  border-radius: 16px;
+  overflow:hidden;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+}
+@media (max-width: 860px){
+  .uf-stickyMedia{ position: static; }
+}
+.uf-stickyMedia img{ width:100%; display:block; }
+.uf-stickyText{
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  padding: 14px;
+}

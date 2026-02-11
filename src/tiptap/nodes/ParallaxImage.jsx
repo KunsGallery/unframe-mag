@@ -1,47 +1,57 @@
-import { Node } from "@tiptap/core";
-import { ReactNodeViewRenderer } from "@tiptap/react";
+import { Node, mergeAttributes } from "@tiptap/core";
 import React from "react";
+import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 
-function ParallaxView({ node, updateAttributes }) {
-  const src = node.attrs.src || "";
+function ParallaxImageView({ node, updateAttributes }) {
+  const { src = "", speed = 0.18 } = node.attrs;
+
   return (
-    <div className="uf-nodeBox uf-nodeBox--parallax" data-uf-node="parallax">
+    <NodeViewWrapper className="uf-nodeBox uf-nodeBox--parallax" data-uf-node="parallaxImage">
       <div className="uf-nodeHead">
         <div className="uf-nodeTitle">PARALLAX IMAGE</div>
-        <div className="uf-nodeHint">스크롤할 때 이미지가 살짝 떠다니는 효과.</div>
+        <div className="uf-nodeHint">스크롤할 때 이미지가 살짝 떠다니는 효과 (ViewPage에서 적용).</div>
         <div className="uf-nodeTools">
-          <button
-            className="uf-btn uf-btn--ghost"
-            type="button"
-            onClick={() => {
-              const next = window.prompt("Parallax 이미지 URL", src || "https://");
-              if (next === null) return;
-              updateAttributes({ src: next.trim() });
-            }}
-          >
-            🖼 URL
-          </button>
+          <label className="uf-label" style={{ margin: 0 }}>speed</label>
+          <input
+            type="number"
+            step="0.02"
+            min="0"
+            max="0.6"
+            value={Number(speed)}
+            className="uf-input"
+            style={{ width: 120, height: 34, padding: "6px 10px" }}
+            onChange={(e) => updateAttributes({ speed: Number(e.target.value || 0.18) })}
+          />
         </div>
       </div>
 
-      {src ? (
-        <img className="uf-parallax" data-parallax="1" src={src} alt="parallax" />
-      ) : (
-        <div className="uf-stickyPlaceholder">이미지 URL을 넣어주세요</div>
-      )}
-    </div>
+      <div className="uf-nodeBody">
+        <input
+          className="uf-input"
+          placeholder="이미지 URL (업로드 버튼으로 넣는 걸 추천)"
+          value={src}
+          onChange={(e) => updateAttributes({ src: e.target.value })}
+        />
+        <div style={{ height: 10 }} />
+        {src ? (
+          <img src={src} alt="parallax" style={{ width: "100%", borderRadius: 16, border: "1px solid var(--line)" }} />
+        ) : (
+          <div className="uf-nodeEmpty">이미지 없음</div>
+        )}
+      </div>
+    </NodeViewWrapper>
   );
 }
 
 export const ParallaxImage = Node.create({
-  name: "ufParallaxImage",
+  name: "parallaxImage",
   group: "block",
   atom: true,
-  defining: true,
 
   addAttributes() {
     return {
       src: { default: "" },
+      speed: { default: 0.18 },
     };
   },
 
@@ -49,27 +59,20 @@ export const ParallaxImage = Node.create({
     return [{ tag: 'img[data-uf="parallax"]' }];
   },
 
-  renderHTML({ node }) {
-    const src = node.attrs.src || "";
-    return ["img", { "data-uf": "parallax", class: "uf-parallax", "data-parallax": "1", src, alt: "parallax" }];
+  renderHTML({ node, HTMLAttributes }) {
+    const { src, speed } = node.attrs;
+    return [
+      "img",
+      mergeAttributes(HTMLAttributes, {
+        "data-uf": "parallax",
+        "data-speed": String(speed ?? 0.18),
+        class: "uf-parallax",
+        src: src || "",
+      }),
+    ];
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer((props) => <ParallaxView {...props} />);
-  },
-
-  addCommands() {
-    return {
-      insertParallaxImage:
-        () =>
-        ({ chain }) =>
-          chain()
-            .focus()
-            .insertContent({
-              type: this.name,
-              attrs: { src: "https://placehold.co/1400x900?text=Parallax" },
-            })
-            .run(),
-    };
+    return ReactNodeViewRenderer(ParallaxImageView);
   },
 });
