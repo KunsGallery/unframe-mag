@@ -6,9 +6,6 @@ import CommentBox from "../components/CommentBox";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import { getPublishedArticleByIdNumber, bumpLikes, bumpViews } from "../services/articles";
 
-/* =============================================================================
-  util
-============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
@@ -31,10 +28,8 @@ function calcReadingMin(html) {
     .replace(/\s+/g, " ")
     .trim();
   if (!text) return 1;
-
   const words = text.split(" ").filter(Boolean).length;
   const chars = text.length;
-
   const byWords = Math.ceil(words / 220);
   const byChars = Math.ceil(chars / 900);
   return Math.max(1, Math.min(99, Math.max(byWords, byChars)));
@@ -42,143 +37,48 @@ function calcReadingMin(html) {
 
 function useToast() {
   const [toast, setToast] = useState(null);
-
-  const show = useCallback((msg) => {
-    setToast(msg);
-  }, []);
-
+  const show = useCallback((msg) => setToast(msg), []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
-
   return { toast, show };
 }
 
-/* =============================================================================
-  ✅ View에서 Node HTML “리하이드레이션” (parallax 포함 강화)
-============================================================================= */
-function hydrateMagazineNodes(rootEl) {
+/* ✅ View 전용: 건드리지 말고 “표식만” 추가 */
+function markRevealTargets(rootEl) {
   if (!rootEl) return;
 
-  // 혹시 에디터 UI 잔재가 있으면 숨김
-  rootEl.querySelectorAll("[data-uf-node-ui]").forEach((el) => {
-    el.style.display = "none";
-  });
+  // 에디터 UI 잔재는 숨김
+  rootEl.querySelectorAll("[data-uf-node-ui]").forEach((el) => (el.style.display = "none"));
 
-  // Scene
-  const sceneSelectors = [
-    '[data-uf-node="scene"]',
-    '[data-node="scene"]',
-    '[data-type="scene"]',
-    '[data-uf="scene"]',
-    "section[data-uf='scene']",
-    "div[data-uf='scene']",
-  ];
-  rootEl.querySelectorAll(sceneSelectors.join(",")).forEach((scene) => {
-    scene.classList.add("uf-scene", "uf-reveal");
-    Array.from(scene.children).forEach((ch) => {
-      if (ch.tagName === "HR") return;
-      ch.classList.add("uf-reveal");
-    });
-  });
-
-  // Sticky
-  const stickySelectors = [
-    '[data-uf-node="sticky"]',
-    '[data-node="sticky"]',
-    '[data-type="sticky"]',
-    '[data-uf="sticky"]',
-    '[data-uf-node="stickyStory"]',
-    '[data-node="stickyStory"]',
-    '[data-type="stickyStory"]',
-    '[data-uf="stickyStory"]',
-  ];
-  rootEl.querySelectorAll(stickySelectors.join(",")).forEach((wrap) => {
-    wrap.classList.add("uf-scene", "uf-reveal");
-
-    const hasGrid = wrap.querySelector(".uf-stickyStory");
-    if (hasGrid) return;
-
-    const kids = Array.from(wrap.children);
-    if (!kids.length) return;
-
-    const media =
-      kids.find((k) => k.querySelector?.("img") || k.tagName === "IMG" || k.tagName === "FIGURE") || kids[0];
-
-    const grid = document.createElement("div");
-    grid.className = "uf-stickyStory";
-
-    const mediaBox = document.createElement("div");
-    mediaBox.className = "uf-stickyMedia";
-
-    const textBox = document.createElement("div");
-    textBox.className = "uf-stickyText";
-
-    mediaBox.appendChild(media);
-    kids.filter((k) => k !== media).forEach((k) => textBox.appendChild(k));
-
-    grid.appendChild(mediaBox);
-    grid.appendChild(textBox);
-
-    wrap.innerHTML = "";
-    wrap.appendChild(grid);
-  });
-
-  // ✅ Parallax (img뿐 아니라 어떤 엘리먼트든)
-  // - node가 img로 렌더될 수도, div/figure로 렌더될 수도 있어 대비
-  const parallaxSelectors = [
-    // img 케이스
-    'img[data-uf="parallax"]',
-    'img[data-uf-node="parallax"]',
-    'img[data-node="parallax"]',
-    'img[data-type="parallax"]',
-    'img[data-parallax="true"]',
-    'img[data-parallax="1"]',
-    // 래퍼 케이스
-    '[data-uf="parallax"]',
-    '[data-uf-node="parallax"]',
-    '[data-node="parallax"]',
-    '[data-type="parallax"]',
-  ];
-  const pEls = rootEl.querySelectorAll(parallaxSelectors.join(","));
-
-  pEls.forEach((el) => {
-    // 통일된 표기
-    el.setAttribute("data-uf", "parallax");
-    el.classList.add("uf-parallax", "uf-reveal"); // ✅ reveal 대상에 포함!
-
-    // speed 기본값
-    if (!el.getAttribute("data-speed")) el.setAttribute("data-speed", "0.18");
-
-    // 성능 힌트
-    el.style.willChange = "transform";
-
-    // figure가 있으면 figure도 reveal
-    const fig = el.closest("figure");
-    if (fig) fig.classList.add("uf-reveal");
-  });
-
-  // HR
-  rootEl.querySelectorAll("hr").forEach((hr) => hr.classList.add("uf-reveal"));
-
-  // 기본 블록들도 reveal
-  rootEl.querySelectorAll("blockquote, figure, h2, h3, p, ul, ol").forEach((el) => {
-    el.classList.add("uf-reveal");
-  });
+  // 주요 블록들에 reveal 부여
+  rootEl
+    .querySelectorAll(
+      [
+        ".uf-stickyView",
+        ".uf-parallaxFigure",
+        'figure[data-uf="image"]',
+        "blockquote",
+        "hr",
+        "figure",
+        "h2",
+        "h3",
+        "p",
+        "ul",
+        "ol",
+      ].join(",")
+    )
+    .forEach((el) => el.classList.add("uf-reveal"));
 }
 
-/* =============================================================================
-  ViewPage
-============================================================================= */
 export default function ViewPage({ theme, toggleTheme }) {
   const nav = useNavigate();
   const { id } = useParams();
   const idNum = useMemo(() => Number(id), [id]);
 
   const { toast, show } = useToast();
-
   const [loading, setLoading] = useState(true);
   const [article, setArticle] = useState(null);
 
@@ -188,14 +88,13 @@ export default function ViewPage({ theme, toggleTheme }) {
   const bodyRef = useRef(null);
   const heroBgRef = useRef(null);
 
-  // progress
   const progressRef = useRef(0);
   const [progress, setProgress] = useState(0);
 
   const cover = article?.coverMedium || article?.coverThumb || article?.cover || "";
   const readingMin = useMemo(() => calcReadingMin(article?.contentHTML || ""), [article?.contentHTML]);
 
-  /* 1) load */
+  /* load */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -226,12 +125,10 @@ export default function ViewPage({ theme, toggleTheme }) {
       }
     })();
 
-    return () => {
-      alive = false;
-    };
+    return () => (alive = false);
   }, [idNum, show]);
 
-  /* 2) ✅ hydrate + reveal observer (견고하게) */
+  /* reveal marking + observer */
   useEffect(() => {
     if (!article) return;
     const root = bodyRef.current;
@@ -242,13 +139,12 @@ export default function ViewPage({ theme, toggleTheme }) {
     let raf2 = 0;
 
     const run = () => {
-      hydrateMagazineNodes(root);
+      markRevealTargets(root);
 
-      // ✅ 초기 가시성 강제
       const els = Array.from(root.querySelectorAll(".uf-reveal"));
+      // 초기 강제 표시(깜빡임 방지)
       els.forEach((el) => el.classList.add("is-in"));
 
-      // 이후 스크롤 진입 애니메이션용
       io?.disconnect();
       io = new IntersectionObserver(
         (entries) => {
@@ -273,10 +169,9 @@ export default function ViewPage({ theme, toggleTheme }) {
     };
   }, [article?.contentHTML, toast]);
 
-  /* 3) parallax + progress */
+  /* ✅ parallax + progress (확실 버전) */
   useEffect(() => {
     if (!article) return;
-
     const root = bodyRef.current;
     if (!root) return;
 
@@ -285,38 +180,40 @@ export default function ViewPage({ theme, toggleTheme }) {
     const tick = () => {
       raf = 0;
 
-      // Hero parallax
+      // hero parallax
       if (heroBgRef.current) {
         const y = window.scrollY || 0;
         heroBgRef.current.style.transform = `translateY(${Math.min(90, y * 0.12)}px) scale(1.04)`;
       }
 
-      // ✅ Parallax elements (img 뿐 아니라 어떤 엘리먼트든)
-      const els = Array.from(root.querySelectorAll('[data-uf="parallax"]'));
-      if (els.length) {
+      // parallax figures
+      const figs = Array.from(root.querySelectorAll(".uf-parallaxFigure"));
+      if (figs.length) {
         const vh = window.innerHeight || 800;
 
-        els.forEach((el) => {
-          const rect = el.getBoundingClientRect();
-          const speed = Number(el.getAttribute("data-speed") || 0.18);
+        figs.forEach((fig) => {
+          const rect = fig.getBoundingClientRect();
+          const img = fig.querySelector(".uf-parallaxImg") || fig.querySelector("img");
+          if (!img) return;
+
+          const speed = Number(fig.getAttribute("data-speed") || img.getAttribute("data-speed") || 0.18);
 
           const center = rect.top + rect.height / 2;
-          const t = (center - vh / 2) / (vh / 2); // -1~1
-          const offset = Math.max(-70, Math.min(70, -t * 40 * speed * 3));
+          const t = (center - vh / 2) / (vh / 2); // -1..1
+          const offset = Math.max(-90, Math.min(90, -t * 40 * speed * 3.2));
 
-          el.style.transform = `translateY(${offset}px)`;
+          img.style.transform = `translateY(${offset}px) scale(1.08)`;
         });
       }
 
-      // Progress (본문 기준)
+      // progress
       const scrollTop = window.scrollY || 0;
       const top = root.offsetTop;
       const height = root.scrollHeight;
-
       const max = Math.max(1, top + height - window.innerHeight);
+
       const p = Math.max(0, Math.min(1, scrollTop / max));
       const next = Math.round(p * 1000) / 1000;
-
       if (next !== progressRef.current) {
         progressRef.current = next;
         setProgress(next);
@@ -361,72 +258,41 @@ export default function ViewPage({ theme, toggleTheme }) {
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
 
-      {/* Topbar */}
       <header className="uf-topbar">
         <div className="uf-wrap">
           <div className="uf-topbar__inner" style={{ position: "relative" }}>
-            <button className="uf-brand" type="button" onClick={() => nav("/")}>
-              U#
-            </button>
+            <button className="uf-brand" type="button" onClick={() => nav("/")}>U#</button>
 
             <div className="uf-nav">
               <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>Archive</button>
-              <button className="uf-btn" onClick={toggleTheme}>
-                {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-              </button>
+              <button className="uf-btn" onClick={toggleTheme}>{theme === "dark" ? "🌙 Dark" : "☀️ Light"}</button>
             </div>
 
-            {/* Progress bar */}
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: -1,
-                height: 3,
-                background: "color-mix(in srgb, var(--line) 30%, transparent)",
-                overflow: "hidden",
-                borderRadius: 999,
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${Math.round(progress * 100)}%`,
-                  background: "var(--brand)",
-                  transition: "width .08s linear",
-                }}
-              />
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 3, background: "color-mix(in srgb, var(--line) 30%, transparent)", overflow: "hidden", borderRadius: 999 }}>
+              <div style={{ height: "100%", width: `${Math.round(progress * 100)}%`, background: "var(--brand)", transition: "width .08s linear" }} />
             </div>
           </div>
         </div>
       </header>
 
       {loading ? (
-        <div className="uf-wrap" style={{ padding: "80px 16px" }}>
-          로딩 중… ⏳
-        </div>
+        <div className="uf-wrap" style={{ padding: "80px 16px" }}>로딩 중… ⏳</div>
       ) : !article ? (
         <div className="uf-wrap" style={{ padding: "80px 16px" }}>
           <div className="uf-card uf-panel">
             <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>😮 글을 찾지 못했어요</div>
-            <div style={{ color: "var(--muted)", marginBottom: 14 }}>
-              주소가 잘못됐거나 삭제된 글일 수 있어요.
-            </div>
+            <div style={{ color: "var(--muted)", marginBottom: 14 }}>주소가 잘못됐거나 삭제된 글일 수 있어요.</div>
             <button className="uf-btn uf-btn--primary" onClick={() => nav("/")}>리스트로 돌아가기</button>
           </div>
         </div>
       ) : (
         <>
-          {/* Hero */}
           <section className="uf-viewHero">
             <div
               ref={heroBgRef}
               className="uf-viewHero__bg"
               style={{
-                backgroundImage: cover
-                  ? `url(${cover})`
-                  : "linear-gradient(135deg, rgba(37,99,235,.55), rgba(0,0,0,.15))",
+                backgroundImage: cover ? `url(${cover})` : "linear-gradient(135deg, rgba(37,99,235,.55), rgba(0,0,0,.15))",
               }}
             />
             <div className="uf-viewHero__overlay" />
@@ -452,7 +318,6 @@ export default function ViewPage({ theme, toggleTheme }) {
             </div>
           </section>
 
-          {/* Body */}
           <section className="uf-viewBody">
             <div className="uf-wrap">
               <div className="uf-viewGrid">
@@ -484,23 +349,12 @@ export default function ViewPage({ theme, toggleTheme }) {
               </div>
             </div>
 
-            {/* Floating mini dock */}
             <div style={{ position: "fixed", right: 18, bottom: 18, zIndex: 80, display: "flex", flexDirection: "column", gap: 10 }}>
               <button type="button" onClick={onLike} title="Like" style={fabStyle}>💗</button>
-              <button
-                type="button"
-                onClick={onToggleSave}
-                title="Save"
-                style={{
-                  ...fabStyle,
-                  borderColor: saved ? "color-mix(in srgb, var(--brand) 55%, transparent)" : "var(--line)",
-                }}
-              >
+              <button type="button" onClick={onToggleSave} title="Save" style={{ ...fabStyle, borderColor: saved ? "color-mix(in srgb, var(--brand) 55%, transparent)" : "var(--line)" }}>
                 {saved ? "★" : "☆"}
               </button>
-              <button type="button" onClick={toggleTheme} title="Theme" style={fabStyle}>
-                {theme === "dark" ? "🌙" : "☀️"}
-              </button>
+              <button type="button" onClick={toggleTheme} title="Theme" style={fabStyle}>{theme === "dark" ? "🌙" : "☀️"}</button>
               <button type="button" onClick={() => nav("/")} title="Back" style={fabStyle}>←</button>
             </div>
           </section>

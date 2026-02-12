@@ -1297,3 +1297,548 @@ html[data-theme="dark"] .uf-fabBtn.is-primary{ color: #0b0e14; }
   background: var(--panel2);
   padding: 14px;
 }
+/* ===========================
+   Sticky / Parallax styles
+=========================== */
+
+/* Sticky wrapper (renderHTML에서 figure+content 구조) */
+.uf-stickyWrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* 모바일에서는 세로로 */
+@media (max-width: 820px) {
+  .uf-stickyWrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sticky media */
+.uf-stickyFigure {
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.uf-stickyFigure img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Sticky content */
+.uf-stickyContent {
+  min-width: 0;
+}
+
+/* Parallax figure */
+.uf-parallaxFigure {
+  margin: 18px 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+  position: relative;
+}
+
+/* 이미지를 살짝 크게 두고 translateY로 움직이게 */
+.uf-parallaxFigure .uf-parallaxImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateY(0) scale(1.06);
+  transition: transform .05s linear;
+}
+
+/* 에디터 프리뷰 */
+.uf-parallaxEditorPreview {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  position: relative;
+  background: #000;
+}
+.uf-parallaxEditorPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.uf-parallaxEditorBadge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
+/* 작은 라벨 */
+.uf-miniLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 12px;
+  font-weight: 800;
+}
+.uf-miniLabel input[type="range"] {
+  width: 110px;
+}
+
+/* Sticky editor preview grid */
+.uf-stickyEditorGrid {
+  display: grid;
+  grid-template-columns: var(--mediaW, 46%) 1fr;
+  gap: 16px;
+}
+@media (max-width: 820px) {
+  .uf-stickyEditorGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.uf-stickyEditorMedia {
+  min-width: 0;
+}
+.uf-stickyEditorText {
+  min-width: 0;
+}
+/* ===========================
+   Sticky (View) - stable layout
+=========================== */
+
+.uf-stickyWrap {
+  display: grid;
+  grid-template-columns: minmax(0, var(--uf-sticky-mediaW, 46%)) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .uf-stickyWrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+.uf-stickyFigure {
+  margin: 0;
+  height: var(--uf-sticky-mediaH, 520px);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.uf-stickyImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: var(--uf-sticky-fit, cover);
+}
+
+.uf-stickyCaption {
+  padding: 10px 12px;
+  font-size: 13px;
+  opacity: 0.78;
+}
+
+.uf-stickyContent {
+  min-width: 0;
+}
+
+/* ===========================
+   Sticky / Parallax upgrade
+=========================== */
+
+/* mini select */
+.uf-miniSelect {
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  padding: 0 10px;
+  font-weight: 800;
+}
+
+/* Sticky (Editor NodeView) */
+.uf-stickyNode {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 75%, transparent);
+}
+
+.uf-stickyNode__head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.uf-stickyNode__title {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.uf-stickyNode__tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.uf-stickyNode__grid {
+  display: grid;
+  grid-template-columns: minmax(0, var(--uf-sticky-mediaW, 46%)) minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px;
+  align-items: start;
+}
+.uf-stickyNode.is-right .uf-stickyNode__grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--uf-sticky-mediaW, 46%));
+}
+.uf-stickyNode.is-right .uf-stickyMedia { order: 2; }
+.uf-stickyNode.is-right .uf-stickyText { order: 1; }
+
+@media (max-width: 820px) {
+  .uf-stickyNode__grid {
+    grid-template-columns: 1fr;
+  }
+  .uf-stickyNode.is-right .uf-stickyNode__grid {
+    grid-template-columns: 1fr;
+  }
+  .uf-stickyNode.is-right .uf-stickyMedia { order: 1; }
+  .uf-stickyNode.is-right .uf-stickyText { order: 2; }
+}
+
+.uf-stickyMedia {
+  margin: 0;
+  height: var(--uf-sticky-mediaH, 520px);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+.uf-stickyEmpty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--text) 65%, transparent);
+  font-weight: 800;
+}
+.uf-stickyImg {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--uf-sticky-fit, cover);
+  display: block;
+}
+.uf-stickyCap {
+  padding: 10px 0 0;
+}
+
+.uf-stickyText {
+  min-width: 0;
+}
+.uf-stickyContent {
+  min-height: 120px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+/* Sticky (View) */
+.uf-stickyView {
+  display: grid;
+  grid-template-columns: minmax(0, var(--uf-sticky-mediaW, 46%)) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.uf-stickyView.is-right {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--uf-sticky-mediaW, 46%));
+}
+.uf-stickyView.is-right .uf-stickyFigure { order: 2; }
+.uf-stickyView.is-right .uf-stickyBody { order: 1; }
+
+@media (max-width: 820px) {
+  .uf-stickyView, .uf-stickyView.is-right {
+    grid-template-columns: 1fr;
+  }
+  .uf-stickyView.is-right .uf-stickyFigure { order: 1; }
+  .uf-stickyView.is-right .uf-stickyBody { order: 2; }
+}
+
+.uf-stickyFigure {
+  margin: 0;
+  height: var(--uf-sticky-mediaH, 520px);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+.uf-stickyFigure .uf-stickyImg {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--uf-sticky-fit, cover);
+  display: block;
+}
+.uf-stickyCaption {
+  padding: 10px 12px;
+  font-size: 13px;
+  opacity: 0.78;
+}
+.uf-stickyBody {
+  min-width: 0;
+}
+
+/* Parallax (View) */
+.uf-parallaxFigure {
+  margin: 18px 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+  position: relative;
+}
+.uf-parallaxFigure.is-full { width: 100%; }
+.uf-parallaxFigure.is-wide { width: 100%; }
+.uf-parallaxFigure.is-medium { width: min(860px, 100%); margin-left: auto; margin-right: auto; }
+.uf-parallaxFigure.is-small { width: min(620px, 100%); margin-left: auto; margin-right: auto; }
+
+.uf-parallaxImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateY(0) scale(1.06);
+  will-change: transform;
+}
+
+/* Parallax (Editor preview) */
+.uf-parallaxEditorPreview {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  position: relative;
+  background: #000;
+}
+.uf-parallaxEditorPreview.is-medium { width: min(860px, 100%); margin: 0 auto; }
+.uf-parallaxEditorPreview.is-small { width: min(620px, 100%); margin: 0 auto; }
+.uf-parallaxEditorPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.uf-parallaxEditorBadge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+/* ===========================
+   Upgrade: Sticky / Parallax / UfImage
+=========================== */
+
+.uf-miniSelect {
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  padding: 0 10px;
+  font-weight: 800;
+}
+
+/* presets (radius/shadow/border) */
+.radius-sm { --uf-radius: 12px; }
+.radius-md { --uf-radius: 16px; }
+.radius-lg { --uf-radius: 22px; }
+
+.shadow-none { --uf-shadow: none; }
+.shadow-soft { --uf-shadow: 0 12px 30px rgba(0,0,0,.12); }
+.shadow-strong { --uf-shadow: 0 18px 50px rgba(0,0,0,.22); }
+
+.border-on { --uf-border: 1px solid var(--line); }
+.border-off { --uf-border: 0px solid transparent; }
+
+/* Sticky Editor */
+.uf-stickyNode {
+  border: var(--uf-border, 1px solid var(--line));
+  border-radius: var(--uf-radius, 16px);
+  overflow: hidden;
+  box-shadow: var(--uf-shadow, var(--shadow));
+  background: color-mix(in srgb, var(--panel) 75%, transparent);
+}
+.uf-stickyNode__head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.uf-stickyNode__title {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.uf-stickyNode__tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.uf-stickyNode__grid {
+  display: grid;
+  grid-template-columns: minmax(0, var(--uf-sticky-mediaW, 46%)) minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px;
+  align-items: start;
+}
+.uf-stickyNode.is-right .uf-stickyNode__grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--uf-sticky-mediaW, 46%));
+}
+.uf-stickyNode.is-right .uf-stickyMedia { order: 2; }
+.uf-stickyNode.is-right .uf-stickyText { order: 1; }
+
+@media (max-width: 820px) {
+  .uf-stickyNode__grid,
+  .uf-stickyNode.is-right .uf-stickyNode__grid {
+    grid-template-columns: 1fr;
+  }
+  .uf-stickyNode.is-right .uf-stickyMedia { order: 1; }
+  .uf-stickyNode.is-right .uf-stickyText { order: 2; }
+}
+
+.uf-stickyMedia {
+  margin: 0;
+  height: var(--uf-sticky-mediaH, 520px);
+  border-radius: var(--uf-radius, 16px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+.uf-stickyEmpty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--text) 65%, transparent);
+  font-weight: 800;
+}
+.uf-stickyImg {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--uf-sticky-fit, cover);
+  display: block;
+}
+.uf-stickyCap { padding: 10px 0 0; }
+.uf-stickyText { min-width: 0; }
+.uf-stickyContent {
+  min-height: 120px;
+  padding: 10px 12px;
+  border-radius: var(--uf-radius, 16px);
+  border: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+/* Sticky View */
+.uf-stickyView {
+  display: grid;
+  grid-template-columns: minmax(0, var(--uf-sticky-mediaW, 46%)) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  border-radius: var(--uf-radius, 16px);
+}
+.uf-stickyView.is-right {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--uf-sticky-mediaW, 46%));
+}
+.uf-stickyView.is-right .uf-stickyFigure { order: 2; }
+.uf-stickyView.is-right .uf-stickyBody { order: 1; }
+
+@media (max-width: 820px) {
+  .uf-stickyView, .uf-stickyView.is-right { grid-template-columns: 1fr; }
+  .uf-stickyView.is-right .uf-stickyFigure { order: 1; }
+  .uf-stickyView.is-right .uf-stickyBody { order: 2; }
+}
+
+.uf-stickyFigure {
+  margin: 0;
+  height: var(--uf-sticky-mediaH, 520px);
+  border-radius: var(--uf-radius, 16px);
+  overflow: hidden;
+  border: var(--uf-border, 1px solid var(--line));
+  background: #000;
+  box-shadow: var(--uf-shadow, none);
+}
+.uf-stickyFigure .uf-stickyImg {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--uf-sticky-fit, cover);
+  display: block;
+}
+.uf-stickyCaption {
+  padding: 10px 12px;
+  font-size: 13px;
+  opacity: 0.78;
+}
+.uf-stickyBody { min-width: 0; }
+
+/* Parallax View */
+.uf-parallaxFigure {
+  margin: 18px 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+  position: relative;
+}
+.uf-parallaxFigure.is-full { width: 100%; }
+.uf-parallaxFigure.is-wide { width: 100%; }
+.uf-parallaxFigure.is-medium { width: min(860px, 100%); margin-left: auto; margin-right: auto; }
+.uf-parallaxFigure.is-small { width: min(620px, 100%); margin-left: auto; margin-right: auto; }
+
+.uf-parallaxImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateY(0) scale(1.08);
+  will-change: transform;
+}
+
+/* UfImage View presets */
+.uf-figure { margin: 18px auto; }
+.uf-figure img { width: 100%; height: auto; display: block; border-radius: 14px; border: 1px solid var(--line); }
+.uf-figure.is-full { width: 100%; }
+.uf-figure.is-wide { width: min(1100px, 100%); }
+.uf-figure.is-large { width: min(960px, 100%); }
+.uf-figure.is-medium { width: min(820px, 100%); }
+.uf-figure.is-small { width: min(620px, 100%); }
+.uf-figure.is-tiny { width: min(460px, 100%); }
+.uf-figure figcaption { margin-top: 10px; font-size: 13px; opacity: 0.78; }
