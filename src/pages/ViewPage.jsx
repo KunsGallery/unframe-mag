@@ -6,6 +6,9 @@ import CommentBox from "../components/CommentBox";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import { getPublishedArticleByIdNumber, bumpLikes, bumpViews } from "../services/articles";
 
+/* =============================================================================
+  util
+============================================================================= */
 function formatDate(ts) {
   try {
     if (!ts) return "";
@@ -28,8 +31,10 @@ function calcReadingMin(html) {
     .replace(/\s+/g, " ")
     .trim();
   if (!text) return 1;
+
   const words = text.split(" ").filter(Boolean).length;
   const chars = text.length;
+
   const byWords = Math.ceil(words / 220);
   const byChars = Math.ceil(chars / 900);
   return Math.max(1, Math.min(99, Math.max(byWords, byChars)));
@@ -46,39 +51,73 @@ function useToast() {
   return { toast, show };
 }
 
-/* ✅ View 전용: 건드리지 말고 “표식만” 추가 */
-function markRevealTargets(rootEl) {
+/* =============================================================================
+  ✅ View용: 블록 표준화 + reveal 대상 표시
+============================================================================= */
+function hydrateBlocks(rootEl) {
   if (!rootEl) return;
 
-  // 에디터 UI 잔재는 숨김
   rootEl.querySelectorAll("[data-uf-node-ui]").forEach((el) => (el.style.display = "none"));
 
-  // 주요 블록들에 reveal 부여
-  rootEl
-    .querySelectorAll(
-      [
-        ".uf-stickyView",
-        ".uf-parallaxFigure",
-        'figure[data-uf="image"]',
-        "blockquote",
-        "hr",
-        "figure",
-        "h2",
-        "h3",
-        "p",
-        "ul",
-        "ol",
-      ].join(",")
-    )
-    .forEach((el) => el.classList.add("uf-reveal"));
+  // Sticky
+  rootEl.querySelectorAll('section[data-uf="stickyStory"]').forEach((sec) => {
+    const side = sec.getAttribute("data-side") || "left";
+    sec.classList.add("uf-stickyView", `is-${side}`, "uf-reveal");
+
+    const fig = sec.querySelector("figure");
+    if (fig) fig.classList.add("uf-stickyFigure");
+    const img = fig?.querySelector("img");
+    if (img) img.classList.add("uf-stickyImg");
+
+    // body 보정
+    let body = sec.querySelector(".uf-stickyBody");
+    if (!body) {
+      body = document.createElement("div");
+      body.className = "uf-stickyBody";
+      const kids = Array.from(sec.children).filter((c) => c !== fig);
+      kids.forEach((k) => body.appendChild(k));
+      sec.appendChild(body);
+    }
+  });
+
+  // Parallax
+  rootEl.querySelectorAll('figure[data-uf="parallax"]').forEach((fig) => {
+    fig.classList.add("uf-parallaxFigure", "uf-reveal");
+    const img = fig.querySelector("img");
+    if (img) img.classList.add("uf-parallaxImg");
+
+    if (!fig.getAttribute("data-speed")) fig.setAttribute("data-speed", img?.getAttribute("data-speed") || "0.18");
+  });
+
+  // 기본 reveal
+  rootEl.querySelectorAll("hr, blockquote, figure, h2, h3, p, ul, ol").forEach((el) => el.classList.add("uf-reveal"));
 }
 
+/* =============================================================================
+  ✅ reveal: 화면에 있는 건 즉시 보이게(사라짐 방지)
+============================================================================= */
+function revealImmediatelyInViewport(rootEl) {
+  if (!rootEl) return;
+  const vh = window.innerHeight || 800;
+  const els = Array.from(rootEl.querySelectorAll(".uf-reveal"));
+
+  els.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    // 화면에 걸쳐있으면(혹은 조금 위/아래 여유) 즉시 표시
+    if (r.bottom > -80 && r.top < vh + 120) el.classList.add("is-in");
+  });
+}
+
+/* =============================================================================
+  ViewPage
+============================================================================= */
 export default function ViewPage({ theme, toggleTheme }) {
   const nav = useNavigate();
   const { id } = useParams();
   const idNum = useMemo(() => Number(id), [id]);
 
   const { toast, show } = useToast();
+
   const [loading, setLoading] = useState(true);
   const [article, setArticle] = useState(null);
 
@@ -88,6 +127,7 @@ export default function ViewPage({ theme, toggleTheme }) {
   const bodyRef = useRef(null);
   const heroBgRef = useRef(null);
 
+  // progress
   const progressRef = useRef(0);
   const [progress, setProgress] = useState(0);
 
@@ -125,51 +165,47 @@ export default function ViewPage({ theme, toggleTheme }) {
       }
     })();
 
-    return () => (alive = false);
+    return () => {
+      alive = false;
+    };
   }, [idNum, show]);
 
-  /* reveal marking + observer */
+  /* ✅ hydrate + reveal observer (사라짐 방지 포함) */
   useEffect(() => {
     if (!article) return;
     const root = bodyRef.current;
     if (!root) return;
 
-    let io = null;
-    let raf1 = 0;
-    let raf2 = 0;
+    hydrateBlocks(root);
 
-    const run = () => {
-      markRevealTargets(root);
+    // 1) 일단 현재 화면에 걸친 요소는 즉시 보이게(=저장 후 사라짐 방지)
+    revealImmediatelyInViewport(root);
 
-      const els = Array.from(root.querySelectorAll(".uf-reveal"));
-      // 초기 강제 표시(깜빡임 방지)
-      els.forEach((el) => el.classList.add("is-in"));
-
-      io?.disconnect();
-      io = new IntersectionObserver(
-        (entries) => {
-          for (const ent of entries) {
-            if (ent.isIntersecting) ent.target.classList.add("is-in");
-          }
-        },
-        { threshold: 0.12, rootMargin: "0px 0px -10% 0px" }
-      );
-      els.forEach((el) => io.observe(el));
-    };
-
-    raf1 = requestAnimationFrame(() => {
-      run();
-      raf2 = requestAnimationFrame(run);
+    // 2) 다음 프레임에서 한 번 더(레이아웃/이미지 로딩 반영)
+    const raf = requestAnimationFrame(() => {
+      revealImmediatelyInViewport(root);
     });
 
-    return () => {
-      if (raf1) cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-      io?.disconnect();
-    };
-  }, [article?.contentHTML, toast]);
+    // 3) IntersectionObserver로 스크롤 애니메이션 유지
+    const els = Array.from(root.querySelectorAll(".uf-reveal"));
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const ent of entries) {
+          if (ent.isIntersecting) ent.target.classList.add("is-in");
+        }
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -10% 0px" }
+    );
 
-  /* ✅ parallax + progress (확실 버전) */
+    els.forEach((el) => io.observe(el));
+
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, [article?.contentHTML]);
+
+  /* ✅ Parallax engine (강력 버전) */
   useEffect(() => {
     if (!article) return;
     const root = bodyRef.current;
@@ -180,10 +216,10 @@ export default function ViewPage({ theme, toggleTheme }) {
     const tick = () => {
       raf = 0;
 
-      // hero parallax
+      // hero bg
       if (heroBgRef.current) {
         const y = window.scrollY || 0;
-        heroBgRef.current.style.transform = `translateY(${Math.min(90, y * 0.12)}px) scale(1.04)`;
+        heroBgRef.current.style.transform = `translate3d(0, ${Math.min(90, y * 0.12)}px, 0) scale(1.04)`;
       }
 
       // parallax figures
@@ -192,17 +228,19 @@ export default function ViewPage({ theme, toggleTheme }) {
         const vh = window.innerHeight || 800;
 
         figs.forEach((fig) => {
-          const rect = fig.getBoundingClientRect();
           const img = fig.querySelector(".uf-parallaxImg") || fig.querySelector("img");
           if (!img) return;
 
-          const speed = Number(fig.getAttribute("data-speed") || img.getAttribute("data-speed") || 0.18);
+          const rect = fig.getBoundingClientRect();
+          const speed = Number(fig.getAttribute("data-speed") || 0.18);
 
           const center = rect.top + rect.height / 2;
           const t = (center - vh / 2) / (vh / 2); // -1..1
-          const offset = Math.max(-90, Math.min(90, -t * 40 * speed * 3.2));
 
-          img.style.transform = `translateY(${offset}px) scale(1.08)`;
+          const range = 140;
+          const offset = Math.max(-range, Math.min(range, -t * range * speed * 2.2));
+
+          img.style.transform = `translate3d(0, ${offset}px, 0) scale(1.12)`;
         });
       }
 
@@ -322,11 +360,7 @@ export default function ViewPage({ theme, toggleTheme }) {
             <div className="uf-wrap">
               <div className="uf-viewGrid">
                 <main className="uf-card uf-article" style={{ minWidth: 0 }}>
-                  <div
-                    ref={bodyRef}
-                    className="ProseMirror"
-                    dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
-                  />
+                  <div ref={bodyRef} className="ProseMirror" dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }} />
 
                   <div style={{ marginTop: 28 }}>
                     <CommentBox articleId={idNum} />

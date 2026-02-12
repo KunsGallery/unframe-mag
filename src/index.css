@@ -1842,3 +1842,74 @@ html[data-theme="dark"] .uf-fabBtn.is-primary{ color: #0b0e14; }
 .uf-figure.is-small { width: min(620px, 100%); }
 .uf-figure.is-tiny { width: min(460px, 100%); }
 .uf-figure figcaption { margin-top: 10px; font-size: 13px; opacity: 0.78; }
+
+/* === View Fix: Sticky/Parallax 반드시 보이게 === */
+.uf-stickyView{
+  display:grid !important;
+  grid-template-columns: minmax(0, var(--uf-sticky-mediaW, 46%)) minmax(0, 1fr) !important;
+  gap: 18px !important;
+  align-items:start !important;
+  margin: 22px 0 !important;
+}
+.uf-stickyView.is-right{
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--uf-sticky-mediaW, 46%)) !important;
+}
+@media (max-width: 820px){
+  .uf-stickyView, .uf-stickyView.is-right{ grid-template-columns:1fr !important; }
+}
+.uf-stickyFigure{
+  height: var(--uf-sticky-mediaH, 520px) !important;
+  overflow:hidden !important;
+}
+.uf-parallaxFigure{
+  overflow:hidden !important;
+  position:relative !important;
+}
+.uf-parallaxImg{
+  will-change: transform !important;
+  transform: translateY(0) scale(1.08) !important;
+}
+
+/* ===========================
+   VIEW FORCE FIX (Sticky + Parallax)
+   - 맨 아래에 두기
+=========================== */
+
+/* Sticky: 이미지가 진짜 sticky로 고정되게 */
+.uf-stickyView .uf-stickyFigure{
+  position: sticky !important;
+  top: 92px !important;
+}
+@media (max-width: 860px){
+  .uf-stickyView .uf-stickyFigure{
+    position: static !important;
+  }
+}
+
+/* Parallax: 움직임이 보이게 “overscan” (이미지 더 크게 + absolute) */
+.uf-parallaxFigure{
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.uf-parallaxFigure .uf-parallaxImg{
+  position: absolute !important;
+  left: 0 !important;
+  top: -12% !important;
+  width: 100% !important;
+  height: 124% !important;     /* ✅ 위아래 여유 */
+  object-fit: cover !important;
+  will-change: transform !important;
+  transform: translate3d(0,0,0) scale(1.12) !important;
+}
+
+/* figure 안에 absolute img가 뜨도록 높이 유지 */
+.uf-parallaxFigure{
+  display: block !important;
+}
+/* (선택) sticky/parallax는 기본 visible */
+.uf-stickyView.uf-reveal,
+.uf-parallaxFigure.uf-reveal{
+  opacity: 1;
+  transform: none;
+}
