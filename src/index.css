@@ -2150,3 +2150,45 @@ html[data-theme="dark"] .uf-fabBtn.is-primary{ color: #0b0e14; }
   display: block;
 }
 
+/* ===========================
+   UfGallery
+=========================== */
+.uf-gallery{
+  display: grid;
+  grid-template-columns: repeat(var(--uf-cols, 3), minmax(0, 1fr));
+  gap: var(--uf-gap, 12px);
+  margin: 18px 0;
+}
+
+@media (max-width: 860px){
+  .uf-gallery{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.uf-galleryItem{
+  margin: 0;
+  border-radius: var(--uf-radius, 16px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+.uf-galleryItem img{
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+  display: block;
+}
+
+.uf-galleryCap{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  padding: 10px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+}
+
+.uf-galleryCapText{
+  padding: 10px 12px;
+  font-size: 13px;
+  opacity: .78;
+}

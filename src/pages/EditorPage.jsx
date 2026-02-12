@@ -92,16 +92,25 @@ function calcReadingMinFromText(text) {
 function dedupeExtensions(list) {
   const seen = new Set();
   const out = [];
+
   for (const ext of list) {
-    const name = ext?.name || "";
+    const name =
+      ext?.name ||
+      ext?.config?.name ||
+      ext?.options?.name ||
+      "";
+
+    // 이름을 못 읽는 확장은 그대로 넣되, name이 있는 애들만 중복 제거
     if (!name) {
       out.push(ext);
       continue;
     }
+
     if (seen.has(name)) continue;
     seen.add(name);
     out.push(ext);
   }
+
   return out;
 }
 
