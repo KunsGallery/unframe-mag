@@ -39,6 +39,9 @@ import { Scene } from "../tiptap/nodes/Scene.jsx";
 import { StickyStory } from "../tiptap/nodes/StickyStory.jsx";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage.jsx";
 
+import { UfFontFamily } from "../tiptap/extensions/UfFontFamily.js";
+import { UfFontSize } from "../tiptap/extensions/UfFontSize.js";
+
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
   "cybog2004@gmail.com",
@@ -47,7 +50,27 @@ const ADMIN_EMAILS = new Set([
 
 const CATEGORY_OPTIONS = ["Exhibition", "Project", "Artist Note", "News"];
 
-/** ✅ FIX: show 함수 참조를 안정적으로 유지(useCallback) */
+// 드롭다운 옵션
+const FONT_OPTIONS = [
+  { label: "Default (Pretendard)", value: "" },
+  { label: "Pretendard", value: "Pretendard" },
+  { label: "Inter", value: "Inter" },
+  { label: "Serif (Playfair)", value: "Playfair Display" },
+  { label: "Monospace", value: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" },
+];
+
+const FONT_SIZE_OPTIONS = [
+  { label: "Default", value: "" },
+  { label: "12", value: "12px" },
+  { label: "14", value: "14px" },
+  { label: "16", value: "16px" },
+  { label: "18", value: "18px" },
+  { label: "20", value: "20px" },
+  { label: "24", value: "24px" },
+  { label: "28", value: "28px" },
+  { label: "32", value: "32px" },
+];
+
 function useToast() {
   const [toast, setToast] = useState(null);
   const timerRef = useRef(null);
@@ -81,217 +104,6 @@ function withTimeout(promise, ms = 5000, label = "timeout") {
     t = setTimeout(() => rej(new Error(label)), ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
-}
-
-/* =============================================================================
-  ViewPage hydrate 로직 (Preview에서도 사용)
-============================================================================= */
-function hydrateMagazineNodes(rootEl) {
-  if (!rootEl) return;
-
-  rootEl.querySelectorAll("[data-uf-node-ui]").forEach((el) => {
-    el.style.display = "none";
-  });
-
-  const sceneSelectors = [
-    'section[data-uf-node="scene"]',
-    'div[data-uf-node="scene"]',
-    'section[data-node="scene"]',
-    'div[data-node="scene"]',
-    'section[data-type="scene"]',
-    'div[data-type="scene"]',
-    'section[data-uf="scene"]',
-    'div[data-uf="scene"]',
-  ];
-  const scenes = rootEl.querySelectorAll(sceneSelectors.join(","));
-
-  scenes.forEach((scene) => {
-    scene.classList.add("uf-scene", "uf-reveal");
-    Array.from(scene.children).forEach((ch) => {
-      if (ch.tagName === "HR") return;
-      ch.classList.add("uf-reveal");
-    });
-  });
-
-  const stickySelectors = [
-    'section[data-uf-node="sticky"]',
-    'div[data-uf-node="sticky"]',
-    'section[data-node="sticky"]',
-    'div[data-node="sticky"]',
-    'section[data-type="sticky"]',
-    'div[data-type="sticky"]',
-    'section[data-uf="sticky"]',
-    'div[data-uf="sticky"]',
-  ];
-  const stickies = rootEl.querySelectorAll(stickySelectors.join(","));
-
-  stickies.forEach((wrap) => {
-    wrap.classList.add("uf-scene", "uf-reveal");
-
-    const hasGrid = wrap.querySelector(".uf-stickyStory");
-    if (hasGrid) return;
-
-    const kids = Array.from(wrap.children);
-    if (!kids.length) return;
-
-    const media =
-      kids.find((k) => k.querySelector?.("img") || k.tagName === "IMG" || k.tagName === "FIGURE") || kids[0];
-
-    const grid = document.createElement("div");
-    grid.className = "uf-stickyStory";
-
-    const mediaBox = document.createElement("div");
-    mediaBox.className = "uf-stickyMedia";
-
-    const textBox = document.createElement("div");
-    textBox.className = "uf-stickyText";
-
-    mediaBox.appendChild(media);
-    kids.filter((k) => k !== media).forEach((k) => textBox.appendChild(k));
-
-    grid.appendChild(mediaBox);
-    grid.appendChild(textBox);
-
-    wrap.innerHTML = "";
-    wrap.appendChild(grid);
-  });
-
-  const imgSelectors = [
-    'img[data-uf="parallax"]',
-    'img[data-uf-node="parallax"]',
-    'img[data-node="parallax"]',
-    'img[data-type="parallax"]',
-    'img[data-parallax="true"]',
-    'img[data-parallax="1"]',
-  ];
-  const pimgs = rootEl.querySelectorAll(imgSelectors.join(","));
-
-  pimgs.forEach((img) => {
-    img.setAttribute("data-uf", "parallax");
-    img.classList.add("uf-parallax");
-    if (!img.getAttribute("data-speed")) img.setAttribute("data-speed", "0.18");
-
-    const fig = img.closest("figure");
-    if (fig) fig.classList.add("uf-reveal");
-  });
-
-  rootEl.querySelectorAll("hr").forEach((hr) => {
-    hr.classList.add("uf-reveal");
-  });
-
-  rootEl.querySelectorAll("blockquote, figure, h2, h3, p").forEach((el) => {
-    el.classList.add("uf-reveal");
-  });
-}
-
-/* =============================================================================
-  Preview Modal
-============================================================================= */
-function PreviewModal({ open, onClose, title, category, cover, excerpt, html }) {
-  const bodyRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const root = bodyRef.current;
-    if (!root) return;
-
-    hydrateMagazineNodes(root);
-
-    const els = Array.from(root.querySelectorAll(".uf-reveal"));
-    els.forEach((el) => el.classList.remove("is-in"));
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const ent of entries) {
-          if (ent.isIntersecting) ent.target.classList.add("is-in");
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -10% 0px" }
-    );
-
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [open, html]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="uf-modalBackdrop"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 999,
-        background: "rgba(0,0,0,.55)",
-        display: "grid",
-        placeItems: "center",
-        padding: 16,
-      }}
-    >
-      <div
-        className="uf-modal"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(1100px, 100%)",
-          maxHeight: "90vh",
-          overflow: "hidden",
-          borderRadius: 18,
-          border: "1px solid color-mix(in srgb, var(--line) 70%, transparent)",
-          background: "var(--panel)",
-          boxShadow: "var(--shadow)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div
-          className="uf-modalHead"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 14px",
-            borderBottom: "1px solid var(--line)",
-          }}
-        >
-          <div style={{ fontWeight: 900 }}>👁 Preview</div>
-          <button className="uf-btn" onClick={onClose}>
-            Close
-          </button>
-        </div>
-
-        <div style={{ overflow: "auto" }}>
-          <div style={{ position: "relative", padding: 18, borderBottom: "1px solid var(--line)" }}>
-            <div
-              style={{
-                height: 160,
-                borderRadius: 16,
-                backgroundImage: cover
-                  ? `url(${cover})`
-                  : "linear-gradient(135deg, rgba(37,99,235,.55), rgba(0,0,0,.15))",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                border: "1px solid var(--line)",
-              }}
-            />
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 13, opacity: 0.8, fontWeight: 800 }}>{category || "UNFRAME"}</div>
-              <div style={{ fontSize: 28, fontWeight: 950, lineHeight: 1.1, marginTop: 4 }}>
-                {title || "(no title)"}
-              </div>
-              {excerpt ? (
-                <div style={{ marginTop: 10, opacity: 0.9, lineHeight: 1.6, maxWidth: 900 }}>{excerpt}</div>
-              ) : null}
-            </div>
-          </div>
-
-          <div style={{ padding: 18 }}>
-            <div ref={bodyRef} className="ProseMirror" dangerouslySetInnerHTML={{ __html: html || "" }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /* =============================================================================
@@ -335,8 +147,6 @@ export default function EditorPage({ theme, toggleTheme }) {
   const idNum = useMemo(() => (id ? Number(id) : null), [id]);
 
   const { toast, show } = useToast();
-
-  // debug
   const [loadingReason, setLoadingReason] = useState("init");
 
   // Auth
@@ -387,8 +197,11 @@ export default function EditorPage({ theme, toggleTheme }) {
       Highlight.configure({ multicolor: true }),
       Placeholder.configure({ placeholder: "Write… (노션처럼 + 버튼으로 블록 추가 가능) ✍️" }),
 
+      // ✅ Typography
       TextStyle,
       Color,
+      UfFontFamily,
+      UfFontSize,
 
       Table.configure({ resizable: true }),
       TableRow,
@@ -397,11 +210,13 @@ export default function EditorPage({ theme, toggleTheme }) {
 
       Youtube.configure({ controls: true, nocookie: true }),
 
+      // Custom nodes
       Scene,
       StickyStory,
       ParallaxImage,
       UfImage,
 
+      // Paste/Drop upload
       UploadHandler,
     ],
     [UploadHandler]
@@ -511,7 +326,7 @@ export default function EditorPage({ theme, toggleTheme }) {
     nav(to);
   }
 
-  /** ✅ FIX: show가 이제 안정적이라 effect가 루프 돌지 않음 */
+  // ✅ Load article (루프 방지 + timeout)
   useEffect(() => {
     if (!editor) {
       setLoadingReason("waiting editor");
@@ -635,8 +450,9 @@ export default function EditorPage({ theme, toggleTheme }) {
     return () => {
       alive = false;
     };
-  }, [editor, adminOk, idNum, show]); // ✅ show 안정화됨
+  }, [editor, adminOk, idNum, show]);
 
+  // Cover upload
   async function onPickCover(file) {
     if (!file) return;
     try {
@@ -743,6 +559,11 @@ export default function EditorPage({ theme, toggleTheme }) {
     safeNav(`/write/${d.id}`);
   }
 
+  // ✅ 현재 선택 위치의 typography 값
+  const currentTextStyle = editor?.getAttributes("textStyle") || {};
+  const currentFontFamily = currentTextStyle.fontFamily || "";
+  const currentFontSize = currentTextStyle.fontSize || "";
+
   if (checkingAuth) {
     return <div className="uf-wrap" style={{ padding: "90px 16px" }}>확인 중… ⏳</div>;
   }
@@ -778,9 +599,6 @@ export default function EditorPage({ theme, toggleTheme }) {
     );
   }
 
-  const previewHtml = editor?.getHTML() || "";
-  const coverForPreview = form.coverMedium || form.cover || "";
-
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
@@ -789,6 +607,7 @@ export default function EditorPage({ theme, toggleTheme }) {
         editor: {editor ? "ok" : "null"} · loading: {String(loading)} · reason: {loadingReason}
       </div>
 
+      {/* Upload progress bar */}
       {uploading ? (
         <div style={{ position: "sticky", top: 0, zIndex: 120, background: "color-mix(in srgb, var(--panel) 85%, transparent)", borderBottom: "1px solid var(--line)", backdropFilter: "blur(10px)" }}>
           <div style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 10 }}>
@@ -812,27 +631,71 @@ export default function EditorPage({ theme, toggleTheme }) {
             <div className="uf-nav">
               <button className="uf-btn uf-btn--ghost" onClick={() => safeNav("/")}>Archive</button>
               <button className="uf-btn" onClick={toggleTheme}>{theme === "dark" ? "🌙 Dark" : "☀️ Light"}</button>
-              <button className="uf-btn uf-btn--ghost" onClick={() => setPreviewOpen(true)}>👁 Preview</button>
               <button className="uf-btn uf-btn--ghost" onClick={adminLogout}>Logout</button>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Toolbar */}
       <div className="uf-toolbar">
         <div className="uf-wrap">
-          <div className="uf-toolbar__inner">
+          <div className="uf-toolbar__inner" style={{ gap: 10, flexWrap: "wrap" }}>
+            {/* ✅ Font Family Dropdown */}
+            <select
+              className="uf-typographySelect"
+              value={currentFontFamily}
+              onChange={(e) => {
+                const v = e.target.value;
+                editor?.chain().focus().setFontFamily(v).run();
+              }}
+              title="Font"
+            >
+              {FONT_OPTIONS.map((f) => (
+                <option key={f.label} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+
+            {/* ✅ Font Size Dropdown */}
+            <select
+              className="uf-typographySelect"
+              value={currentFontSize}
+              onChange={(e) => {
+                const v = e.target.value;
+                editor?.chain().focus().setFontSize(v).run();
+              }}
+              title="Font Size"
+            >
+              {FONT_SIZE_OPTIONS.map((s) => (
+                <option key={s.label} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+
+            {/* 기존 툴들 */}
             <button className="uf-btn" onClick={() => editor?.chain().focus().toggleBold().run()}>B</button>
             <button className="uf-btn" onClick={() => editor?.chain().focus().toggleItalic().run()}>I</button>
             <button className="uf-btn" onClick={() => editor?.chain().focus().toggleUnderline().run()}>U</button>
+
             <button className="uf-btn" onClick={() => editor?.chain().focus().toggleHighlight().run()}>🖍</button>
+
             <button className="uf-btn" onClick={() => editor?.chain().focus().setTextAlign("left").run()}>⬅</button>
             <button className="uf-btn" onClick={() => editor?.chain().focus().setTextAlign("center").run()}>↔</button>
             <button className="uf-btn" onClick={() => editor?.chain().focus().setTextAlign("right").run()}>➡</button>
 
             <div className="uf-colorRow">
               {["#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"].map((c) => (
-                <button key={c} type="button" className="uf-colorDot" style={{ background: c }} onClick={() => editor?.chain().focus().setColor(c).run()} title={c} />
+                <button
+                  key={c}
+                  type="button"
+                  className="uf-colorDot"
+                  style={{ background: c }}
+                  onClick={() => editor?.chain().focus().setColor(c).run()}
+                  title={c}
+                />
               ))}
               <button className="uf-btn" onClick={() => editor?.chain().focus().unsetColor().run()} title="색 제거">×</button>
             </div>
@@ -905,6 +768,7 @@ export default function EditorPage({ theme, toggleTheme }) {
             <div style={{ padding: "30px 0" }}>로딩 중… ⏳</div>
           ) : (
             <div className="uf-editorGrid">
+              {/* Left meta */}
               <aside className="uf-card uf-panel">
                 <div className="uf-panelTitle">Meta</div>
 
@@ -923,31 +787,40 @@ export default function EditorPage({ theme, toggleTheme }) {
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">ID</div>
-                  <input className="uf-input" value={form.id} disabled={!!idNum} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} />
+                  <input className="uf-input" value={form.id} disabled={!!idNum}
+                    onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Title</div>
-                  <input className="uf-input" value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="제목" />
+                  <input className="uf-input" value={form.title}
+                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                    placeholder="제목" />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Category</div>
-                  <select className="uf-select" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
+                  <select className="uf-select" value={form.category}
+                    onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
                     {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Excerpt</div>
-                  <textarea className="uf-textarea" value={form.excerpt} onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))} placeholder="리스트 카드 요약" />
+                  <textarea className="uf-textarea" value={form.excerpt}
+                    onChange={(e) => setForm((p) => ({ ...p, excerpt: e.target.value }))}
+                    placeholder="리스트 카드 요약" />
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
                   <div className="uf-label">Tags (comma)</div>
-                  <input className="uf-input" value={form.tagsText} onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))} placeholder="예: 전시, 인사동, 언프레임" />
+                  <input className="uf-input" value={form.tagsText}
+                    onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))}
+                    placeholder="예: 전시, 인사동, 언프레임" />
                 </div>
 
+                {/* Cover */}
                 <div style={{ marginBottom: 10 }}>
                   <div className="uf-label">Cover</div>
                   <div className="uf-row" style={{ flexWrap: "wrap" }}>
@@ -964,24 +837,30 @@ export default function EditorPage({ theme, toggleTheme }) {
 
                   {(form.cover || form.coverMedium) ? (
                     <div style={{ marginTop: 10 }}>
-                      <img src={form.coverMedium || form.cover} alt="cover" style={{ width: "100%", borderRadius: 14, border: "1px solid var(--line)" }} />
+                      <img
+                        src={form.coverMedium || form.cover}
+                        alt="cover"
+                        style={{ width: "100%", borderRadius: 14, border: "1px solid var(--line)" }}
+                      />
                     </div>
                   ) : (
                     <div className="uf-panelHint">커버가 있으면 리스트/뷰에서 훨씬 고급스럽게 보여요 ✨</div>
                   )}
                 </div>
 
+                {/* Actions */}
                 <div className="uf-stack" style={{ marginTop: 12 }}>
                   <button className="uf-btn" onClick={() => onSave("draft")}>📝 Save Draft</button>
                   <button className="uf-btn uf-btn--primary" onClick={() => onSave("published")}>🚀 Publish</button>
                 </div>
 
                 <div className="uf-panelHint">
-                  ✅ 이미지: <b>붙여넣기(Cmd+V)</b> / <b>드래그&드롭</b> / <b>Upload</b>
-                  <br />✅ 왼쪽 <b>+</b> 메뉴로 블록 추가
+                  ✅ 폰트/사이즈는 드롭다운으로 부분 적용 가능
+                  <br />✅ 이미지: 붙여넣기(Cmd+V) / 드롭&드롭 / Upload
                 </div>
               </aside>
 
+              {/* Editor */}
               <section className="uf-card uf-editorBox" style={{ position: "relative" }}>
                 <BlockPlusMenu editor={editor} onPickImage={onPickBodyImage} />
                 <EditorContent editor={editor} />
@@ -991,15 +870,8 @@ export default function EditorPage({ theme, toggleTheme }) {
         </div>
       </div>
 
-      <PreviewModal
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        title={form.title}
-        category={form.category}
-        cover={coverForPreview}
-        excerpt={form.excerpt}
-        html={previewHtml}
-      />
+      {/* (previewOpen 변수는 남겨뒀지만, 프리뷰 모달은 네가 현재 사용하지 않는다면 이후에 다시 연결해줄게) */}
+      {previewOpen ? null : null}
     </div>
   );
 }
