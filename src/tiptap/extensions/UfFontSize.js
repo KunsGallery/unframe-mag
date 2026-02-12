@@ -11,10 +11,10 @@ export const UfFontSize = Extension.create({
         attributes: {
           fontSize: {
             default: null,
-            parseHTML: (element) => element.style.fontSize || null,
-            renderHTML: (attributes) => {
-              if (!attributes.fontSize) return {};
-              return { style: `font-size: ${attributes.fontSize}` };
+            parseHTML: (el) => el.style.fontSize || null,
+            renderHTML: (attrs) => {
+              if (!attrs.fontSize) return {};
+              return { style: `font-size: ${attrs.fontSize}` };
             },
           },
         },
@@ -25,12 +25,11 @@ export const UfFontSize = Extension.create({
   addCommands() {
     return {
       setFontSize:
-        (fontSize) =>
+        (sizePx) =>
         ({ chain }) => {
-          if (!fontSize) return chain().unsetFontSize().run();
-          return chain().setMark("textStyle", { fontSize }).run();
+          const v = typeof sizePx === "number" ? `${sizePx}px` : String(sizePx);
+          return chain().setMark("textStyle", { fontSize: v }).run();
         },
-
       unsetFontSize:
         () =>
         ({ chain }) => {

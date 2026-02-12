@@ -1,58 +1,70 @@
 // src/tiptap/nodes/UfImage.jsx
 import { Node, mergeAttributes } from "@tiptap/core";
-import React from "react";
+import React, { useRef } from "react";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import { uploadImage } from "../../services/upload";
 
-const SIZE_KEYS = ["full", "wide", "large", "medium", "small", "tiny"];
+const SIZE_OPTIONS = ["full", "wide", "large", "medium", "small", "tiny"];
+const ALIGN_OPTIONS = ["left", "center", "right"];
+const CAP_STYLE = ["regular", "italic", "small"];
 
 function UfImageView({ node, updateAttributes }) {
-  const { src, caption = "", size = "full", maxWidth = "" } = node.attrs;
+  const { src, caption = "", size = "full", align = "center", capAlign = "center", capStyle = "regular" } = node.attrs;
+  const fileRef = useRef(null);
+
+  async function replaceImage(file) {
+    if (!file) return;
+    try {
+      const res = await uploadImage(file);
+      if (res?.url) updateAttributes({ src: res.url });
+    } catch (e) {
+      console.error("replace image fail:", e);
+    }
+  }
 
   return (
-    <NodeViewWrapper className="uf-nodeBox uf-nodeBox--image" data-uf-node-ui="1">
+    <NodeViewWrapper className="uf-nodeBox uf-nodeBox--image" data-uf-node="ufImage" data-uf-node-ui>
       <div className="uf-nodeHead">
-        <div className="uf-nodeTitle">IMAGE</div>
-        <div className="uf-nodeHint">이미지 + 캡션 + 사이즈 + 커스텀 폭(px)</div>
+        <div>
+          <div className="uf-nodeTitle">IMAGE</div>
+          <div className="uf-nodeHint">사이즈/정렬 + 캡션 스타일 + 교체/삭제</div>
+        </div>
 
-        <div className="uf-nodeTools" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {SIZE_KEYS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={`uf-miniBtn ${size === k ? "is-on" : ""}`}
-              onClick={() => updateAttributes({ size: k })}
-              title={`size: ${k}`}
-            >
-              {k}
-            </button>
-          ))}
+        <div className="uf-nodeTools">
+          <select className="uf-miniSelect" value={size} onChange={(e) => updateAttributes({ size: e.target.value })} title="size">
+            {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
 
-          <label className="uf-miniLabel" title="maxWidth px (예: 900)">
-            maxW
-            <input
-              style={{ width: 90 }}
-              className="uf-input"
-              value={maxWidth}
-              placeholder="ex) 900"
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^\d]/g, "");
-                updateAttributes({ maxWidth: v });
-              }}
-            />
-          </label>
+          <select className="uf-miniSelect" value={align} onChange={(e) => updateAttributes({ align: e.target.value })} title="align">
+            {ALIGN_OPTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
 
-          <button className="uf-miniBtn" onClick={() => updateAttributes({ maxWidth: "" })} title="reset maxWidth">
-            resetW
+          <select className="uf-miniSelect" value={capAlign} onChange={(e) => updateAttributes({ capAlign: e.target.value })} title="caption align">
+            {ALIGN_OPTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+
+          <select className="uf-miniSelect" value={capStyle} onChange={(e) => updateAttributes({ capStyle: e.target.value })} title="caption style">
+            {CAP_STYLE.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          <button className="uf-miniBtn" type="button" onClick={() => fileRef.current?.click()} disabled={!src}>
+            Replace
+          </button>
+          <button className="uf-miniBtn" type="button" onClick={() => updateAttributes({ src: "", caption: "" })} disabled={!src}>
+            Delete
           </button>
         </div>
       </div>
 
       {!src ? (
         <div className="uf-nodeBody">
-          <div className="uf-nodeEmpty">이미지 src가 비어있어요. 업로드 버튼으로 넣어주세요.</div>
+          <div className="uf-nodeEmpty">이미지 src가 비어있어요. 에디터 상단 Upload / + 메뉴 업로드로 추가해보세요.</div>
         </div>
       ) : (
-        <figure className={`uf-figure is-${size}`} style={maxWidth ? { maxWidth: `${Number(maxWidth)}px` } : undefined}>
+        <figure
+          className={`uf-figure is-${size} is-align-${align} is-capAlign-${capAlign} is-capStyle-${capStyle}`}
+          data-uf="image"
+        >
           <img src={src} alt={caption || "image"} />
           <figcaption>
             <input
@@ -64,6 +76,18 @@ function UfImageView({ node, updateAttributes }) {
           </figcaption>
         </figure>
       )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) replaceImage(f);
+        }}
+      />
     </NodeViewWrapper>
   );
 }
@@ -77,8 +101,10 @@ export const UfImage = Node.create({
     return {
       src: { default: "" },
       caption: { default: "" },
-      size: { default: "full" },
-      maxWidth: { default: "" }, // px string
+      size: { default: "full" }, // full|wide|large|medium|small|tiny
+      align: { default: "center" }, // left|center|right
+      capAlign: { default: "center" }, // left|center|right
+      capStyle: { default: "regular" }, // regular|italic|small
     };
   },
 
@@ -87,15 +113,13 @@ export const UfImage = Node.create({
   },
 
   renderHTML({ node, HTMLAttributes }) {
-    const { src, caption, size, maxWidth } = node.attrs;
-    const style = maxWidth ? `max-width:${Number(maxWidth)}px;margin-left:auto;margin-right:auto;` : null;
+    const { src, caption, size, align, capAlign, capStyle } = node.attrs;
 
     return [
       "figure",
       mergeAttributes(HTMLAttributes, {
         "data-uf": "image",
-        class: `uf-figure is-${size || "full"} uf-reveal`,
-        style: style || undefined,
+        class: `uf-figure is-${size || "full"} is-align-${align || "center"} is-capAlign-${capAlign || "center"} is-capStyle-${capStyle || "regular"}`,
       }),
       ["img", { src: src || "", alt: caption || "" }],
       ["figcaption", {}, caption || ""],

@@ -2,8 +2,7 @@ import React, { useRef, useState } from "react";
 
 /**
  * Notion-style + menu
- * - editor 인스턴스만 넣어주면 바로 동작
- * - 이미지 업로드는 onPickImage(file) 콜백으로 처리
+ * - Sticky/Parallax 제거 버전
  */
 export default function BlockPlusMenu({ editor, onPickImage }) {
   const [open, setOpen] = useState(false);
@@ -15,25 +14,6 @@ export default function BlockPlusMenu({ editor, onPickImage }) {
     editor.chain().focus().insertContent({
       type: "scene",
       content: [{ type: "paragraph" }],
-    }).run();
-    setOpen(false);
-  };
-
-  const insertSticky = () => {
-    editor.chain().focus().insertContent({
-      type: "stickyStory",
-      attrs: { src: "", caption: "" },
-      content: [{ type: "paragraph" }],
-    }).run();
-    setOpen(false);
-  };
-
-  const insertParallax = () => {
-    const url = window.prompt("Parallax Image URL (나중에 업로드로도 가능)", "https://");
-    if (!url) return;
-    editor.chain().focus().insertContent({
-      type: "parallaxImage",
-      attrs: { src: url, speed: 0.18 },
     }).run();
     setOpen(false);
   };
@@ -78,8 +58,6 @@ export default function BlockPlusMenu({ editor, onPickImage }) {
       {open && (
         <div className="uf-plusPanel">
           <button className="uf-plusItem" onClick={insertScene}>+ Scene (장면)</button>
-          <button className="uf-plusItem" onClick={insertSticky}>+ Sticky Story</button>
-          <button className="uf-plusItem" onClick={insertParallax}>+ Parallax Image</button>
           <button className="uf-plusItem" onClick={insertQuote}>+ Quote</button>
           <button className="uf-plusItem" onClick={insertDivider}>+ Scene Break (HR)</button>
           <button className="uf-plusItem" onClick={insertTable}>+ Table</button>

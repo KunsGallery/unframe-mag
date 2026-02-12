@@ -11,10 +11,10 @@ export const UfFontFamily = Extension.create({
         attributes: {
           fontFamily: {
             default: null,
-            parseHTML: (element) => element.style.fontFamily?.replace(/['"]/g, "") || null,
-            renderHTML: (attributes) => {
-              if (!attributes.fontFamily) return {};
-              return { style: `font-family: ${attributes.fontFamily}` };
+            parseHTML: (el) => el.style.fontFamily?.replace(/["']/g, "") || null,
+            renderHTML: (attrs) => {
+              if (!attrs.fontFamily) return {};
+              return { style: `font-family: ${attrs.fontFamily}` };
             },
           },
         },
@@ -27,10 +27,8 @@ export const UfFontFamily = Extension.create({
       setFontFamily:
         (fontFamily) =>
         ({ chain }) => {
-          if (!fontFamily) return chain().unsetFontFamily().run();
           return chain().setMark("textStyle", { fontFamily }).run();
         },
-
       unsetFontFamily:
         () =>
         ({ chain }) => {

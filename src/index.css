@@ -1913,3 +1913,240 @@ html[data-theme="dark"] .uf-fabBtn.is-primary{ color: #0b0e14; }
   opacity: 1;
   transform: none;
 }
+
+/* === Disable legacy Sticky/Parallax (safe) === */
+.uf-stickyView, .uf-stickyStory, .uf-stickyWrap {
+  display: block !important;
+  position: static !important;
+}
+.uf-parallaxFigure {
+  position: static !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+.uf-parallaxImg {
+  position: static !important;
+  transform: none !important;
+  height: auto !important;
+}
+
+/* ===========================
+   FIX: UfImage not visible in View
+   (붙여넣기 위치: index.css 맨 아래)
+=========================== */
+
+/* UfImage 기본 마크업: <figure data-uf="image" class="uf-figure ..."><img ...><figcaption>...</figcaption></figure> */
+.ProseMirror figure[data-uf="image"]{
+  display: block !important;
+  margin: 18px auto !important;
+  max-width: 100%;
+}
+
+.ProseMirror figure[data-uf="image"] img{
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+}
+
+/* 혹시 reveal 스타일이 남아서 숨겨지는 경우를 대비 */
+.ProseMirror figure[data-uf="image"].uf-reveal,
+.ProseMirror figure[data-uf="image"] img.uf-reveal,
+.ProseMirror figure[data-uf="image"]{
+  opacity: 1 !important;
+  transform: none !important;
+}
+/* ===========================
+   Premium: UfImage size/align + Lightbox
+   (index.css 맨 아래에 붙여넣기)
+=========================== */
+
+/* UfImage size presets */
+.ProseMirror figure[data-uf="image"].uf-figure{ margin: 18px auto; }
+
+.ProseMirror figure[data-uf="image"].is-full{ width: 100%; }
+.ProseMirror figure[data-uf="image"].is-wide{ width: min(1100px, 100%); }
+.ProseMirror figure[data-uf="image"].is-large{ width: min(960px, 100%); }
+.ProseMirror figure[data-uf="image"].is-medium{ width: min(820px, 100%); }
+.ProseMirror figure[data-uf="image"].is-small{ width: min(620px, 100%); }
+.ProseMirror figure[data-uf="image"].is-tiny{ width: min(460px, 100%); }
+
+/* Align */
+.ProseMirror figure[data-uf="image"].is-align-left{ margin-left: 0; margin-right: auto; }
+.ProseMirror figure[data-uf="image"].is-align-center{ margin-left: auto; margin-right: auto; }
+.ProseMirror figure[data-uf="image"].is-align-right{ margin-left: auto; margin-right: 0; }
+
+/* Lightbox */
+.uf-lightbox{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.74);
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.uf-lightbox__inner{
+  max-width: min(1100px, 96vw);
+  max-height: 92vh;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 22px 80px rgba(0,0,0,0.55);
+  background: #000;
+}
+.uf-lightbox__inner img{
+  width: 100%;
+  height: auto;
+  display:block;
+}
+/* ===========================
+   Premium UI: Bubble / Slash / TOC / Gallery / Caption
+   (index.css 맨 아래에 붙여넣기)
+=========================== */
+
+/* Bubble menu */
+.uf-bubble{
+  display:flex;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: var(--shadow2);
+  backdrop-filter: blur(12px);
+}
+
+/* Slash menu */
+.uf-slash{
+  position: fixed;
+  z-index: 9999;
+  width: 280px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transform: translateX(-8px);
+}
+.uf-slashHead{
+  padding: 10px 12px;
+  font-weight: 950;
+  letter-spacing: .06em;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--brand) 6%, var(--panel));
+}
+.uf-slashList{ padding: 8px; display:flex; flex-direction:column; gap: 6px; }
+.uf-slashItem{
+  text-align:left;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  border-radius: 12px;
+  padding: 10px 10px;
+  cursor:pointer;
+}
+.uf-slashItem.is-on{
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, var(--panel2));
+}
+.uf-slashLabel{ font-weight: 900; }
+.uf-slashDesc{ font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+.uf-slashEmpty{ padding: 10px; color: var(--muted); }
+
+/* TOC (View side) */
+.uf-tocList{ display:flex; flex-direction:column; gap: 6px; margin-top: 8px; }
+.uf-tocItem{
+  text-align:left;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  cursor:pointer;
+  font-size: 13px;
+}
+.uf-tocItem.is-h3{ opacity: .88; padding-left: 18px; }
+.uf-tocItem:hover{
+  border-color: color-mix(in srgb, var(--brand) 45%, transparent);
+  background: color-mix(in srgb, var(--brand) 7%, var(--panel2));
+}
+
+/* UfImage caption styles */
+.ProseMirror figure[data-uf="image"].is-capAlign-left figcaption{ text-align:left; }
+.ProseMirror figure[data-uf="image"].is-capAlign-center figcaption{ text-align:center; }
+.ProseMirror figure[data-uf="image"].is-capAlign-right figcaption{ text-align:right; }
+
+.ProseMirror figure[data-uf="image"].is-capStyle-regular figcaption{ font-style: normal; font-size: 13px; opacity: .78; }
+.ProseMirror figure[data-uf="image"].is-capStyle-italic figcaption{ font-style: italic; font-size: 13px; opacity: .78; }
+.ProseMirror figure[data-uf="image"].is-capStyle-small figcaption{ font-style: normal; font-size: 12px; opacity: .72; }
+
+/* Gallery */
+.uf-gallery{
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+.uf-gallery--2{ grid-template-columns: 1fr 1fr; }
+.uf-gallery--3{ grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 860px){
+  .uf-gallery--3{ grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px){
+  .uf-gallery--2, .uf-gallery--3{ grid-template-columns: 1fr; }
+}
+
+.uf-galleryItem{ margin: 0; }
+.uf-galleryImgWrap{
+  position: relative;
+  border-radius: 14px;
+  overflow:hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+.uf-galleryItem img{
+  width: 100%;
+  height: 230px;
+  object-fit: cover;
+  display:block;
+}
+.uf-galleryDel{
+  position:absolute;
+  right: 8px;
+  top: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(0,0,0,0.55);
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+.uf-galleryCap{
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: .75;
+}
+/* ===========================
+   Fix: UfImage align works in View
+=========================== */
+.ProseMirror figure[data-uf="image"].is-align-left{
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+.ProseMirror figure[data-uf="image"].is-align-center{
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.ProseMirror figure[data-uf="image"].is-align-right{
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+/* figure 폭이 max-width 기반일 때 정렬이 의미있게 되도록 */
+.ProseMirror figure[data-uf="image"]{
+  display: block;
+}
+

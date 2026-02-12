@@ -1,14 +1,33 @@
 // src/pages/ViewPage.jsx
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CommentBox from "../components/CommentBox";
 import { toggleSaved, getSavedIds } from "../services/bookmarks";
 import { getPublishedArticleByIdNumber, bumpLikes, bumpViews } from "../services/articles";
 
-/* =============================================================================
-  util
-============================================================================= */
+const TYPO_KEY = "UF_TYPO_V1";
+const TYPO_DEFAULT = { font: "serif", size: 17, prose: 760, lh: 1.95 };
+
+function safeGetJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === "object" ? { ...fallback, ...obj } : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function applyTypoToRoot(t) {
+  const root = document.documentElement;
+  const fontVar = t.font === "sans" ? "var(--sans)" : "var(--serif)";
+  root.style.setProperty("--uf-font", fontVar);
+  root.style.setProperty("--uf-fontSize", `${Number(t.size || 17)}px`);
+  root.style.setProperty("--uf-prose", `${Number(t.prose || 760)}px`);
+  root.style.setProperty("--uf-lineHeight", String(t.lh || 1.95));
+}
+
 function formatDate(ts) {
   try {
     if (!ts) return "";
@@ -31,86 +50,42 @@ function calcReadingMin(html) {
     .replace(/\s+/g, " ")
     .trim();
   if (!text) return 1;
-
   const words = text.split(" ").filter(Boolean).length;
-  const chars = text.length;
-
-  const byWords = Math.ceil(words / 220);
-  const byChars = Math.ceil(chars / 900);
-  return Math.max(1, Math.min(99, Math.max(byWords, byChars)));
+  return Math.max(1, Math.min(99, Math.ceil(words / 220)));
 }
 
 function useToast() {
   const [toast, setToast] = useState(null);
-  const show = useCallback((msg) => setToast(msg), []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
-  return { toast, show };
+  return { toast, show: (msg) => setToast(msg) };
 }
 
-/* =============================================================================
-  ✅ View용: 블록 표준화 + reveal 대상 표시
-============================================================================= */
-function hydrateBlocks(rootEl) {
-  if (!rootEl) return;
-
-  rootEl.querySelectorAll("[data-uf-node-ui]").forEach((el) => (el.style.display = "none"));
-
-  // Sticky
-  rootEl.querySelectorAll('section[data-uf="stickyStory"]').forEach((sec) => {
-    const side = sec.getAttribute("data-side") || "left";
-    sec.classList.add("uf-stickyView", `is-${side}`, "uf-reveal");
-
-    const fig = sec.querySelector("figure");
-    if (fig) fig.classList.add("uf-stickyFigure");
-    const img = fig?.querySelector("img");
-    if (img) img.classList.add("uf-stickyImg");
-
-    // body 보정
-    let body = sec.querySelector(".uf-stickyBody");
-    if (!body) {
-      body = document.createElement("div");
-      body.className = "uf-stickyBody";
-      const kids = Array.from(sec.children).filter((c) => c !== fig);
-      kids.forEach((k) => body.appendChild(k));
-      sec.appendChild(body);
-    }
-  });
-
-  // Parallax
-  rootEl.querySelectorAll('figure[data-uf="parallax"]').forEach((fig) => {
-    fig.classList.add("uf-parallaxFigure", "uf-reveal");
-    const img = fig.querySelector("img");
-    if (img) img.classList.add("uf-parallaxImg");
-
-    if (!fig.getAttribute("data-speed")) fig.setAttribute("data-speed", img?.getAttribute("data-speed") || "0.18");
-  });
-
-  // 기본 reveal
-  rootEl.querySelectorAll("hr, blockquote, figure, h2, h3, p, ul, ol").forEach((el) => el.classList.add("uf-reveal"));
+function slugify(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9\-가-힣]/g, "");
 }
 
-/* =============================================================================
-  ✅ reveal: 화면에 있는 건 즉시 보이게(사라짐 방지)
-============================================================================= */
-function revealImmediatelyInViewport(rootEl) {
-  if (!rootEl) return;
-  const vh = window.innerHeight || 800;
-  const els = Array.from(rootEl.querySelectorAll(".uf-reveal"));
-
-  els.forEach((el) => {
-    const r = el.getBoundingClientRect();
-    // 화면에 걸쳐있으면(혹은 조금 위/아래 여유) 즉시 표시
-    if (r.bottom > -80 && r.top < vh + 120) el.classList.add("is-in");
+function buildTocAndAnchors(rootEl) {
+  if (!rootEl) return [];
+  const headings = Array.from(rootEl.querySelectorAll("h2, h3"));
+  let idx = 0;
+  const toc = headings.map((h) => {
+    idx += 1;
+    const title = h.textContent?.trim() || "untitled";
+    const id = `h-${idx}-${slugify(title)}`;
+    h.id = id;
+    return { id, level: h.tagName === "H3" ? 3 : 2, title };
   });
+  return toc;
 }
 
-/* =============================================================================
-  ViewPage
-============================================================================= */
 export default function ViewPage({ theme, toggleTheme }) {
   const nav = useNavigate();
   const { id } = useParams();
@@ -127,14 +102,29 @@ export default function ViewPage({ theme, toggleTheme }) {
   const bodyRef = useRef(null);
   const heroBgRef = useRef(null);
 
-  // progress
-  const progressRef = useRef(0);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+
+  const [toc, setToc] = useState([]);
+
+  // Lightbox (이미 구현되어 있으면 유지)
+  const [lightbox, setLightbox] = useState(null);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    const t = safeGetJSON(TYPO_KEY, TYPO_DEFAULT);
+    applyTypoToRoot(t);
+  }, []);
 
   const cover = article?.coverMedium || article?.coverThumb || article?.cover || "";
   const readingMin = useMemo(() => calcReadingMin(article?.contentHTML || ""), [article?.contentHTML]);
 
-  /* load */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -153,9 +143,7 @@ export default function ViewPage({ theme, toggleTheme }) {
 
         try {
           await bumpViews(idNum);
-        } catch (e) {
-          console.warn("bumpViews failed:", e?.message || e);
-        }
+        } catch {}
       } catch (e) {
         console.error(e);
         setArticle(null);
@@ -164,87 +152,43 @@ export default function ViewPage({ theme, toggleTheme }) {
         if (alive) setLoading(false);
       }
     })();
+    return () => (alive = false);
+  }, [idNum]);
 
-    return () => {
-      alive = false;
-    };
-  }, [idNum, show]);
-
-  /* ✅ hydrate + reveal observer (사라짐 방지 포함) */
+  // Build TOC + image zoom click
   useEffect(() => {
     if (!article) return;
     const root = bodyRef.current;
     if (!root) return;
 
-    hydrateBlocks(root);
+    // TOC + anchor ids
+    const nextToc = buildTocAndAnchors(root);
+    setToc(nextToc);
 
-    // 1) 일단 현재 화면에 걸친 요소는 즉시 보이게(=저장 후 사라짐 방지)
-    revealImmediatelyInViewport(root);
-
-    // 2) 다음 프레임에서 한 번 더(레이아웃/이미지 로딩 반영)
-    const raf = requestAnimationFrame(() => {
-      revealImmediatelyInViewport(root);
-    });
-
-    // 3) IntersectionObserver로 스크롤 애니메이션 유지
-    const els = Array.from(root.querySelectorAll(".uf-reveal"));
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const ent of entries) {
-          if (ent.isIntersecting) ent.target.classList.add("is-in");
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -10% 0px" }
-    );
-
-    els.forEach((el) => io.observe(el));
-
-    return () => {
-      cancelAnimationFrame(raf);
-      io.disconnect();
+    const onClick = (e) => {
+      const img = e.target?.closest?.("img");
+      if (!img) return;
+      setLightbox({ src: img.currentSrc || img.src, alt: img.alt || "" });
     };
+    root.addEventListener("click", onClick);
+    return () => root.removeEventListener("click", onClick);
   }, [article?.contentHTML]);
 
-  /* ✅ Parallax engine (강력 버전) */
+  // progress + hero bg
   useEffect(() => {
     if (!article) return;
     const root = bodyRef.current;
     if (!root) return;
 
     let raf = 0;
-
     const tick = () => {
       raf = 0;
 
-      // hero bg
       if (heroBgRef.current) {
         const y = window.scrollY || 0;
-        heroBgRef.current.style.transform = `translate3d(0, ${Math.min(90, y * 0.12)}px, 0) scale(1.04)`;
+        heroBgRef.current.style.transform = `translateY(${Math.min(90, y * 0.12)}px) scale(1.04)`;
       }
 
-      // parallax figures
-      const figs = Array.from(root.querySelectorAll(".uf-parallaxFigure"));
-      if (figs.length) {
-        const vh = window.innerHeight || 800;
-
-        figs.forEach((fig) => {
-          const img = fig.querySelector(".uf-parallaxImg") || fig.querySelector("img");
-          if (!img) return;
-
-          const rect = fig.getBoundingClientRect();
-          const speed = Number(fig.getAttribute("data-speed") || 0.18);
-
-          const center = rect.top + rect.height / 2;
-          const t = (center - vh / 2) / (vh / 2); // -1..1
-
-          const range = 140;
-          const offset = Math.max(-range, Math.min(range, -t * range * speed * 2.2));
-
-          img.style.transform = `translate3d(0, ${offset}px, 0) scale(1.12)`;
-        });
-      }
-
-      // progress
       const scrollTop = window.scrollY || 0;
       const top = root.offsetTop;
       const height = root.scrollHeight;
@@ -266,7 +210,6 @@ export default function ViewPage({ theme, toggleTheme }) {
     tick();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
@@ -292,9 +235,23 @@ export default function ViewPage({ theme, toggleTheme }) {
     show(r.saved ? "★ 저장했어요!" : "☆ 저장 해제");
   }
 
+  function goAnchor(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <div className="uf-page">
       {toast && <div className="uf-toast">{toast}</div>}
+
+      {lightbox?.src ? (
+        <div className="uf-lightbox" onClick={() => setLightbox(null)} role="presentation">
+          <div className="uf-lightbox__inner" onClick={(e) => e.stopPropagation()} role="presentation">
+            <img src={lightbox.src} alt={lightbox.alt || "image"} />
+          </div>
+        </div>
+      ) : null}
 
       <header className="uf-topbar">
         <div className="uf-wrap">
@@ -307,7 +264,7 @@ export default function ViewPage({ theme, toggleTheme }) {
             </div>
 
             <div style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 3, background: "color-mix(in srgb, var(--line) 30%, transparent)", overflow: "hidden", borderRadius: 999 }}>
-              <div style={{ height: "100%", width: `${Math.round(progress * 100)}%`, background: "var(--brand)", transition: "width .08s linear" }} />
+              <div style={{ height: "100%", width: `${Math.round(progress * 100)}%`, background: "var(--brand)" }} />
             </div>
           </div>
         </div>
@@ -360,7 +317,11 @@ export default function ViewPage({ theme, toggleTheme }) {
             <div className="uf-wrap">
               <div className="uf-viewGrid">
                 <main className="uf-card uf-article" style={{ minWidth: 0 }}>
-                  <div ref={bodyRef} className="ProseMirror" dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }} />
+                  <div
+                    ref={bodyRef}
+                    className="ProseMirror uf-prose"
+                    dangerouslySetInnerHTML={{ __html: article.contentHTML || "" }}
+                  />
 
                   <div style={{ marginTop: 28 }}>
                     <CommentBox articleId={idNum} />
@@ -372,24 +333,32 @@ export default function ViewPage({ theme, toggleTheme }) {
                     <div className="uf-sideTitle">Quick Actions</div>
                     <div className="uf-sideInfo">좋아요 3시간 쿨다운 · 저장은 로컬</div>
 
-                    <div className="uf-sideBtns">
+                    <div className="uf-sideBtns" style={{ marginBottom: 14 }}>
                       <button className="uf-btn uf-btn--primary" onClick={onLike}>💗 Like</button>
                       <button className="uf-btn" onClick={onToggleSave}>{saved ? "★ Saved" : "☆ Save"}</button>
                       <button className="uf-btn uf-btn--ghost" onClick={() => nav(`/write/${idNum}`)}>✍️ Edit</button>
                       <button className="uf-btn uf-btn--ghost" onClick={() => nav("/")}>← Back to list</button>
                     </div>
+
+                    {toc.length > 0 && (
+                      <div className="uf-toc">
+                        <div className="uf-sideTitle" style={{ marginTop: 6 }}>TOC</div>
+                        <div className="uf-tocList">
+                          {toc.map((t) => (
+                            <button
+                              key={t.id}
+                              className={`uf-tocItem ${t.level === 3 ? "is-h3" : ""}`}
+                              onClick={() => goAnchor(t.id)}
+                            >
+                              {t.title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </aside>
               </div>
-            </div>
-
-            <div style={{ position: "fixed", right: 18, bottom: 18, zIndex: 80, display: "flex", flexDirection: "column", gap: 10 }}>
-              <button type="button" onClick={onLike} title="Like" style={fabStyle}>💗</button>
-              <button type="button" onClick={onToggleSave} title="Save" style={{ ...fabStyle, borderColor: saved ? "color-mix(in srgb, var(--brand) 55%, transparent)" : "var(--line)" }}>
-                {saved ? "★" : "☆"}
-              </button>
-              <button type="button" onClick={toggleTheme} title="Theme" style={fabStyle}>{theme === "dark" ? "🌙" : "☀️"}</button>
-              <button type="button" onClick={() => nav("/")} title="Back" style={fabStyle}>←</button>
             </div>
           </section>
         </>
@@ -397,18 +366,3 @@ export default function ViewPage({ theme, toggleTheme }) {
     </div>
   );
 }
-
-const fabStyle = {
-  width: 46,
-  height: 46,
-  borderRadius: 999,
-  border: "1px solid var(--line)",
-  background: "var(--panel)",
-  color: "var(--text)",
-  cursor: "pointer",
-  boxShadow: "var(--shadow)",
-  display: "grid",
-  placeItems: "center",
-  fontSize: 18,
-  backdropFilter: "blur(10px)",
-};
