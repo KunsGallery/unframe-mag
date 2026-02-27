@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-white text-zinc-900 antialiased;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+  }
+}
+
+/* 매거진 레이아웃용 커스텀 클래스 */
+.magazine-container {
+  @apply max-w-[1200px] mx-auto px-6 md:px-12;
+}
