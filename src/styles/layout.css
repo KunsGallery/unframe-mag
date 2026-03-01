@@ -1,0 +1,38 @@
+/* src/styles/layout.css */
+
+/* ===== Custom Layout Class ===== */
+@layer components {
+  .magazine-container {
+    @apply max-w-[1200px] mx-auto px-6 md:px-12;
+  }
+  .mag-kicker {
+    @apply text-[10px] font-black uppercase italic tracking-[0.6em] opacity-60;
+  }
+  .mag-meta {
+    @apply text-[10px] font-black uppercase italic tracking-[0.5em] opacity-80;
+  }
+  .mag-h1 {
+    @apply font-black italic uppercase tracking-tighter leading-[0.9]
+           text-6xl md:text-[96px] lg:text-[120px];
+  }
+  .mag-h2 {
+    @apply font-black italic uppercase tracking-tighter leading-[0.95]
+           text-4xl md:text-6xl;
+  }
+  .mag-h3 {
+    @apply font-black italic uppercase tracking-tighter leading-[0.95]
+           text-3xl md:text-5xl;
+  }
+  .mag-deck {
+    @apply italic leading-relaxed text-lg md:text-2xl opacity-80;
+  }
+  .mag-body {
+    @apply italic leading-relaxed text-lg md:text-xl text-zinc-500;
+  }
+  .mag-grid {
+    @apply px-6 md:px-12;
+  }
+  .mag-section {
+    @apply py-24;
+  }
+}

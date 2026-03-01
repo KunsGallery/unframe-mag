@@ -1,0 +1,40 @@
+/* src/styles/view.css */
+
+/* ✅ StickyStory: contentHTML 본문(uf-prose) 안에서만 동작 (View 전용) */
+article.uf-prose [data-uf="sticky-story"]{
+  min-height: var(--uf-sticky-height, 220vh);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+article.uf-prose .uf-sticky-story__visual{
+  position: sticky;
+  top: 72px;
+  height: calc(100vh - 96px);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #111;
+}
+
+article.uf-prose .uf-sticky-story__visual img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+article.uf-prose .uf-sticky-story__content{
+  padding: 8px 0 64px;
+}
+
+article.uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__visual{ order: 2; }
+article.uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__content{ order: 1; }
+
+/* 2.5 안전장치: uf-view에서는 편집용 outline 제거 */
+.ProseMirror.uf-view [data-uf="poll"],
+.ProseMirror.uf-view [data-uf="parallax"],
+.ProseMirror.uf-view [data-uf="sticky-story"],
+.ProseMirror.uf-view figure[data-uf="image"]{
+  outline: none !important;
+}

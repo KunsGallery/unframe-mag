@@ -3,12 +3,12 @@ import { Node, mergeAttributes } from '@tiptap/core';
 export const StickyStory = Node.create({
   name: 'stickyStory',
   group: 'block',
-  content: 'block+', // 우측 스크롤될 텍스트 영역
+  content: 'block+',
 
   addAttributes() {
     return {
       imageSrc: { default: null },
-      imagePos: { default: 'left' }, // 이미지가 왼쪽인지 오른쪽인지
+      imagePos: { default: 'left' },
       stickyHeight: { default: '100vh' },
     };
   },
@@ -18,17 +18,28 @@ export const StickyStory = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { imageSrc, imagePos } = HTMLAttributes;
+    const { imageSrc, imagePos, stickyHeight } = HTMLAttributes;
+
+    const visualChildren = imageSrc
+      ? [[
+          "img",
+          { src: String(imageSrc), alt: "", class: "uf-sticky-story__img" },
+        ]]
+      : [[
+          "div",
+          { class: "uf-sticky-story__placeholder" },
+          "No Image",
+        ]];
+
     return [
-      'div',
+      "div",
       mergeAttributes(HTMLAttributes, {
-        'data-uf': 'sticky-story',
-        class: `uf-sticky-story is-${imagePos}`
+        "data-uf": "sticky-story",
+        class: `uf-sticky-story is-${imagePos || "left"}`,
+        style: `--uf-sticky-height: ${stickyHeight || "100vh"};`,
       }),
-      ['div', { class: 'uf-sticky-story__visual' },
-        ['img', { src: imageSrc }]
-      ],
-      ['div', { class: 'uf-sticky-story__content' }, 0]
+      ["div", { class: "uf-sticky-story__visual" }, ...visualChildren],
+      ["div", { class: "uf-sticky-story__content" }, 0],
     ];
   },
 });

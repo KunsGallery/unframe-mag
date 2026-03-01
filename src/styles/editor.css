@@ -1,0 +1,178 @@
+/* src/styles/editor.css */
+
+/* =========================
+   U# Editor UX (scoped)
+   에디터에서만 적용: .ProseMirror.uf-editor
+   ========================= */
+
+.ProseMirror.uf-editor{
+  line-height: 1.85;
+  font-size: 16px;
+  color: #111;
+}
+
+.dark .ProseMirror.uf-editor{
+  color: #f4f4f5;
+}
+
+/* 블록 리듬 */
+.ProseMirror.uf-editor > *{
+  margin: 0.9rem 0;
+}
+
+/* 선택/포커스 표시 */
+.ProseMirror.uf-editor :is(p, h1, h2, h3, blockquote, ul, ol, pre){
+  position: relative;
+}
+
+.ProseMirror.uf-editor :is(p, h1, h2, h3, blockquote, ul, ol, pre):hover{
+  outline: 1px dashed rgba(0,0,0,0.14);
+  outline-offset: 8px;
+  border-radius: 12px;
+}
+
+.dark .ProseMirror.uf-editor :is(p, h1, h2, h3, blockquote, ul, ol, pre):hover{
+  outline-color: rgba(255,255,255,0.18);
+}
+
+.ProseMirror.uf-editor .ProseMirror-selectednode{
+  outline: 2px solid rgba(0,74,173,0.55);
+  outline-offset: 6px;
+  border-radius: 14px;
+}
+
+/* 테이블 가독성(에디터 강화) */
+.ProseMirror.uf-editor table{
+  margin: 1rem 0;
+  background: rgba(255,255,255,0.85);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.06);
+}
+
+.dark .ProseMirror.uf-editor table{
+  background: rgba(9,9,11,0.55);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.35);
+}
+
+.ProseMirror.uf-editor th,
+.ProseMirror.uf-editor td{
+  border: 1px solid rgba(0,0,0,0.14);
+  padding: 10px 12px;
+}
+
+.dark .ProseMirror.uf-editor th,
+.dark .ProseMirror.uf-editor td{
+  border-color: rgba(255,255,255,0.16);
+}
+
+.ProseMirror.uf-editor th{
+  background: rgba(0,74,173,0.10);
+}
+
+.dark .ProseMirror.uf-editor th{
+  background: rgba(0,74,173,0.22);
+}
+
+.ProseMirror.uf-editor .selectedCell{
+  background: rgba(0,74,173,0.12) !important;
+}
+
+.ProseMirror.uf-editor .column-resize-handle{
+  background: rgba(0,74,173,0.6);
+}
+
+/* 커스텀 블록 “친절한 박스” */
+.ProseMirror.uf-editor [data-uf="poll"],
+.ProseMirror.uf-editor [data-uf="parallax"],
+.ProseMirror.uf-editor [data-uf="sticky-story"],
+.ProseMirror.uf-editor figure[data-uf="image"]{
+  outline: 1px dashed rgba(0,0,0,0.18);
+  outline-offset: 10px;
+  border-radius: 18px;
+}
+
+.dark .ProseMirror.uf-editor [data-uf="poll"],
+.dark .ProseMirror.uf-editor [data-uf="parallax"],
+.dark .ProseMirror.uf-editor [data-uf="sticky-story"],
+.dark .ProseMirror.uf-editor figure[data-uf="image"]{
+  outline-color: rgba(255,255,255,0.18);
+}
+
+/* Editor: StickyStory / Parallax (scoped) */
+.ProseMirror.uf-editor [data-uf="sticky-story"]{
+  min-height: var(--uf-sticky-height, 140vh);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+  margin: 2rem 0;
+}
+
+.ProseMirror.uf-editor [data-uf="sticky-story"].is-right .uf-sticky-story__visual{ order: 2; }
+.ProseMirror.uf-editor [data-uf="sticky-story"].is-right .uf-sticky-story__content{ order: 1; }
+
+.ProseMirror.uf-editor .uf-sticky-story__visual{
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.06);
+  min-height: 42vh;
+}
+
+.dark .ProseMirror.uf-editor .uf-sticky-story__visual{
+  background: rgba(255,255,255,0.06);
+}
+
+.ProseMirror.uf-editor .uf-sticky-story__img{
+  width: 100%;
+  height: 100%;
+  min-height: 42vh;
+  object-fit: cover;
+  display: block;
+}
+
+.ProseMirror.uf-editor .uf-sticky-story__placeholder{
+  height: 42vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+
+.ProseMirror.uf-editor .uf-sticky-story__content{
+  padding: 6px 0 40px;
+}
+
+.ProseMirror.uf-editor figure[data-uf="parallax"]{
+  margin: 2rem 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.06);
+}
+
+.dark .ProseMirror.uf-editor figure[data-uf="parallax"]{
+  background: rgba(255,255,255,0.06);
+}
+
+.ProseMirror.uf-editor .uf-parallax__wrapper{
+  height: var(--uf-height, 70vh);
+  position: relative;
+  overflow: hidden;
+}
+
+.ProseMirror.uf-editor .uf-parallax__img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+}
+
+.ProseMirror.uf-editor .uf-parallax__caption{
+  padding: 10px 12px;
+  font-size: 12px;
+  opacity: .75;
+}

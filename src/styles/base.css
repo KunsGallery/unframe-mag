@@ -1,0 +1,13 @@
+/* src/styles/base.css */
+
+/* Tailwind v4 */
+@import "tailwindcss";
+@reference "tailwindcss";
+
+/* ===== Base ===== */
+@layer base {
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    @apply bg-white text-zinc-900 antialiased;
+  }
+}

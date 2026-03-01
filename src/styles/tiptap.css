@@ -1,0 +1,52 @@
+/* src/styles/tiptap.css */
+
+/* TipTap Table styling (Editor + View) */
+.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2rem 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: white;
+}
+
+.ProseMirror th, .ProseMirror td {
+  padding: 12px 14px;
+  border-right: 1px solid rgba(0,0,0,.06);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  vertical-align: top;
+}
+
+.ProseMirror th {
+  background: rgba(0,0,0,.04);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 11px;
+}
+
+.ProseMirror td { font-size: 14px; }
+.ProseMirror tr:last-child td { border-bottom: none; }
+.ProseMirror td:last-child, .ProseMirror th:last-child { border-right: none; }
+
+/* 선택 셀(편집 UX) */
+.ProseMirror .selectedCell {
+  outline: 2px solid rgba(0,74,173,.55);
+  outline-offset: -2px;
+}
+
+/* Poll 편집 강조(에디터/뷰 공통으로 들어가도 괜찮지만, 에디터에서만 원하면 editor.css로 옮겨도 됨) */
+.ProseMirror .uf-poll {
+  outline: 1px dashed rgba(0,0,0,0.12);
+  outline-offset: 10px;
+  border-radius: 18px;
+}
+
+.dark .ProseMirror .uf-poll {
+  outline-color: rgba(255,255,255,0.18);
+}
+
+.ProseMirror .uf-poll.ProseMirror-selectednode {
+  outline: 2px solid rgba(0,74,173,0.55);
+}

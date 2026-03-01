@@ -1,17 +1,17 @@
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, mergeAttributes } from "@tiptap/core";
 
 export const ParallaxImage = Node.create({
-  name: 'parallaxImage',
-  group: 'block',
+  name: "parallaxImage",
+  group: "block",
   draggable: true,
 
   addAttributes() {
     return {
       src: { default: null },
-      caption: { default: '' },
-      speed: { default: 0.2 }, // 패럴랙스 강도
-      height: { default: '70vh' },
-      bleed: { default: true }, // 전체 너비 사용 여부
+      caption: { default: "" },
+      speed: { default: 0.2 },
+      height: { default: "70vh" },
+      bleed: { default: true },
     };
   },
 
@@ -20,18 +20,22 @@ export const ParallaxImage = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { src, caption, height, bleed } = HTMLAttributes;
+    const { src, caption, height, bleed, speed } = HTMLAttributes;
+
     return [
-      'figure',
+      "figure",
       mergeAttributes(HTMLAttributes, {
-        'data-uf': 'parallax',
-        class: `uf-parallax ${bleed ? 'is-full' : ''}`,
-        style: `--uf-height: ${height};`
+        "data-uf": "parallax",
+        "data-speed": String(speed ?? 0.2), // ✅ 런타임에서 읽기 좋게
+        class: `uf-parallax ${bleed ? "is-full" : ""}`,
+        style: `--uf-height: ${height || "70vh"};`,
       }),
-      ['div', { class: 'uf-parallax__wrapper' },
-        ['img', { src: src, class: 'uf-parallax__img' }]
+      [
+        "div",
+        { class: "uf-parallax__wrapper" },
+        ["img", { src: src || "", class: "uf-parallax__img", alt: "" }],
       ],
-      caption ? ['figcaption', { class: 'uf-parallax__caption' }, caption] : '',
+      ...(caption ? [["figcaption", { class: "uf-parallax__caption" }, caption]] : []),
     ];
   },
 });

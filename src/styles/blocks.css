@@ -1,0 +1,69 @@
+/* src/styles/blocks.css */
+
+/* ===== UF blocks ===== */
+
+/* UfImage */
+.uf-img { margin: 2.5rem auto; }
+.uf-img img { width: 100%; display: block; border-radius: 18px; }
+.uf-img__caption {
+  margin-top: .8rem;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .55;
+  font-style: italic;
+}
+
+/* Parallax */
+.uf-parallax { margin: 3rem 0; }
+.uf-parallax.is-full { width: 100vw; margin-left: calc(50% - 50vw); }
+.uf-parallax__wrapper { height: var(--uf-height, 70vh); overflow: hidden; border-radius: 24px; }
+.uf-parallax__img { width: 100%; height: 180%; object-fit: cover; transform: translate3d(0, 0, 0); will-change: transform; }
+.uf-parallax__caption {
+  margin-top: .8rem;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .55;
+  font-style: italic;
+}
+
+/* StickyStory (View runtime 느낌은 view.css로 스코프 권장, 여기엔 공통 최소만) */
+
+/* Gallery */
+.uf-gallery { margin: 3rem 0; }
+.uf-gallery__grid { display: grid; gap: var(--uf-gap, 12px); }
+.uf-gallery.cols-2 .uf-gallery__grid { grid-template-columns: repeat(2, 1fr); }
+.uf-gallery.cols-3 .uf-gallery__grid { grid-template-columns: repeat(3, 1fr); }
+.uf-gallery.cols-4 .uf-gallery__grid { grid-template-columns: repeat(4, 1fr); }
+.uf-gallery__img { width: 100%; height: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 16px; display: block; }
+
+/* (Legacy) uf-table */
+.uf-table { margin: 3rem 0; overflow-x: auto; border-radius: 18px; border: 1px solid rgba(0,0,0,.06); }
+.uf-table__table { width: 100%; border-collapse: collapse; min-width: 560px; background: white; }
+.uf-table__th, .uf-table__td { padding: 12px 14px; border-bottom: 1px solid rgba(0,0,0,.06); border-right: 1px solid rgba(0,0,0,.06); }
+.uf-table__th { background: rgba(0,0,0,.03); font-weight: 900; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
+.uf-table__td { font-size: 14px; }
+
+/* UF Poll (공통) */
+.uf-poll { margin: 2rem 0; }
+.uf-poll .uf-poll__hint { font-size: 12px; opacity: 0.7; }
+
+.uf-poll .uf-poll__card {
+  border-radius: 18px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 12px 34px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+.dark .uf-poll .uf-poll__card {
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(9,9,11,0.6);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+}
+
+.uf-poll button { position: relative; }
+.uf-poll button > .uf-poll__bar {
+  transition: width 420ms cubic-bezier(.2,.8,.2,1);
+}

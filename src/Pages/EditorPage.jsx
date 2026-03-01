@@ -1,136 +1,230 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Camera, Type, Layout, Image as ImageIcon, Youtube, 
-  Save, Send, Hash, ChevronRight, Clock, BarChart2,
-  Bold, Italic, List, Quote, Heading1, Heading2, Code
-} from 'lucide-react';
+// src/Pages/EditorPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Save, Send, Plus } from "lucide-react";
 
-// --- Tiptap Extensions ---
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import Image from '@tiptap/extension-image';
-import Link from '@tiptap/extension-link';
+import { useEditor, EditorContent } from "@tiptap/react";
 
-// --- Firebase ---
-import { db } from '../firebase/config';
-import { 
-  collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp 
-} from 'firebase/firestore';
+import { db } from "../firebase/config";
 
-const EditorPage = ({ isDarkMode, onToast, user }) => {
+import SlashMenu from "../components/editor/SlashMenu";
+import EditorToolbar from "../components/editor/EditorToolbar";
+import InspectorPanel from "../components/editor/InspectorPanel";
+
+import UploadButton from "../components/editor/UploadButton";
+import { useUploadImage } from "../hooks/useUploadImage";
+import { uploadImageWithProgress } from "../lib/uploadWithProgress";
+
+import { createEditorConfig } from "../tiptap/editorConfig";
+import { useDrafts } from "../hooks/useDrafts";
+import { useSlashMenu } from "../hooks/useSlashMenu";
+
+const ADMIN_EMAILS = [
+  "gallerykuns@gmail.com",
+  "cybog2004@gmail.com",
+  "sylove887@gmail.com",
+];
+
+export default function EditorPage({ isDarkMode, onToast, user }) {
   const navigate = useNavigate();
-  
-  // 기본 상태 관리
+  const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
+
+  const isAdmin = useMemo(
+    () => !!user && ADMIN_EMAILS.includes(user.email),
+    [user]
+  );
+
+  // 메타
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [category, setCategory] = useState("EDITORIAL");
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
 
-  // --- Tiptap 에디터 설정 ---
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Image,
-      Link.configure({ openOnClick: false }),
-      Placeholder.configure({
-        placeholder: '당신의 이야기를 언프레임 하세요... (/ 를 눌러 명령어 메뉴)',
-      }),
-    ],
-    content: '',
-    editorProps: {
-      attributes: {
-        class: 'prose prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[500px] italic font-light leading-relaxed',
-      },
-    },
+  // ✅ cover 업로드(진행률 포함)
+  const {
+    upload: uploadCover,
+    uploading: coverUploading,
+    progress: coverProgress,
+  } = useUploadImage();
+
+  // SlashMenu
+  const { slashPos, closeSlashMenu, onEditorKeyDown } = useSlashMenu();
+
+  // TipTap config
+  const editor = useEditor(
+    createEditorConfig({
+      // ✅ 붙여넣기/드롭 업로드도 progress 엔진으로 통일(진행률 UI는 추후)
+      onUploadImage: async (file) => uploadImageWithProgress(file),
+      onToast,
+    })
+  );
+
+  // extension debug (원하면 유지)
+  useEffect(() => {
+    if (!editor) return;
+    const names = editor.extensionManager.extensions.map((e) => e.name);
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+    console.log("[UF] extensions:", names);
+    console.log("[UF] dupes:", dupes);
+  }, [editor]);
+
+  // 업로드 이벤트(붙여넣기/드롭에서 url 전달받아 이미지 삽입)
+  useEffect(() => {
+    if (!editor) return;
+    const handler = (e) => {
+      const url = e.detail?.url;
+      if (url) editor.chain().focus().setImage({ src: url }).run();
+    };
+    window.addEventListener("uf:insert-image", handler);
+    return () => window.removeEventListener("uf:insert-image", handler);
+  }, [editor]);
+
+  // Draft hook
+  const draftsApi = useDrafts({
+    db,
+    editor,
+    isAdmin,
+    onToast,
+    navigate,
   });
 
-  // --- 자동 에디션 넘버링 및 저장 로직 ---
-  const getNextEditionInfo = async () => {
-    try {
-      const q = query(collection(db, "articles"), orderBy("sortIndex", "desc"), limit(1));
-      const querySnapshot = await getDocs(q);
-      let nextIndex = 1;
-      if (!querySnapshot.empty) {
-        nextIndex = querySnapshot.docs[0].data().sortIndex + 1;
-      }
-      const nextEditionNo = String(nextIndex).padStart(3, '0');
-      return { nextIndex, nextEditionNo };
-    } catch (error) {
-      console.error("Error fetching edition info:", error);
-      return { nextIndex: Date.now(), nextEditionNo: "999" };
-    }
-  };
+  // editor update → dirty
+  useEffect(() => {
+    if (!editor) return;
+    const onUpdate = () => draftsApi.setIsDirty(true);
+    editor.on("update", onUpdate);
+    return () => editor.off("update", onUpdate);
+  }, [editor, draftsApi]);
 
-  const handlePublish = async (status = "published") => {
-    if (!title.trim()) {
-      onToast("제목을 입력해야 합니다.");
-      return;
-    }
-
-    setIsSaving(true);
-    const { nextIndex, nextEditionNo } = await getNextEditionInfo();
-    const contentHTML = editor?.getHTML(); // Tiptap에서 HTML 데이터 추출
-
-    const articleData = {
+  // autosave
+  useEffect(() => {
+    const cleanup = draftsApi.runAutosave({
       title,
       subtitle,
-      contentHTML,
       category,
       cover,
       coverMedium,
-      editionNo: nextEditionNo,
-      sortIndex: nextIndex,
-      author: user?.displayName || "Admin",
-      authorEmail: user?.email,
-      status: status,
-      likes: 0,
-      views: 0,
-      tags: [],
-      createdAt: serverTimestamp(),
-    };
+      author: { name: user?.displayName || "Admin", email: user?.email || "" },
+    });
+    return typeof cleanup === "function" ? cleanup : undefined;
+  }, [
+    draftsApi,
+    title,
+    subtitle,
+    category,
+    cover,
+    coverMedium,
+    user?.displayName,
+    user?.email,
+  ]);
 
-    try {
-      await addDoc(collection(db, "articles"), articleData);
-      onToast(status === "published" ? "아티클이 발행되었습니다!" : "임시 저장이 완료되었습니다.");
-      if (status === "published") navigate('/');
-    } catch (error) {
-      console.error("Save Error:", error);
-      onToast("저장 중 오류가 발생했습니다.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // 관리자 권한 체크
-  const ADMIN_EMAILS = ["gallerykuns@gmail.com", "cybog2004@gmail.com", "sylove887@gmail.com"];
-  if (!user || !ADMIN_EMAILS.includes(user.email)) {
-    return <div className="p-40 text-center font-black italic uppercase tracking-widest text-zinc-400">Access Denied.</div>;
+  if (!isAdmin) {
+    return (
+      <div className="p-40 text-center font-black italic uppercase tracking-widest text-zinc-400">
+        Access Denied.
+      </div>
+    );
   }
 
   return (
-    <div className={`min-h-[calc(100vh-80px)] grid grid-cols-1 lg:grid-cols-12 gap-px animate-in fade-in duration-500 ${isDarkMode ? 'bg-zinc-950' : 'bg-zinc-100'}`}>
-      
-      {/* --- 왼쪽 사이드바: 설정 및 메트릭 --- */}
-      <aside className={`lg:col-span-3 p-10 flex flex-col gap-10 sticky top-[80px] h-[calc(100vh-80px)] overflow-y-auto transition-colors ${isDarkMode ? 'bg-zinc-900 border-zinc-800 shadow-2xl' : 'bg-white border-zinc-50 shadow-xl'}`}>
-        <div className="p-8 bg-[#004aad] text-white rounded-[3rem] shadow-xl border border-white/10 italic">
-          <p className="text-[9px] font-black tracking-[0.5em] uppercase mb-4 opacity-60">Article Metrics</p>
-          <div className="flex justify-between items-end">
-            <div><p className="text-4xl font-black tracking-tighter">READ</p><p className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-80">TIME ENGINE</p></div>
-            <div className="text-right"><p className="text-2xl font-black">U#</p><p className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-80">EDITION</p></div>
+    <div
+      className={`min-h-[calc(100vh-80px)] grid grid-cols-1 lg:grid-cols-12 gap-px animate-in fade-in duration-500 ${
+        isDarkMode ? "bg-zinc-950" : "bg-zinc-100"
+      }`}
+    >
+      {/* --- Sidebar --- */}
+      <aside
+        className={`lg:col-span-3 p-10 flex flex-col gap-10 sticky top-[80px] h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
+          isDarkMode
+            ? "bg-zinc-900 border-zinc-800 shadow-2xl"
+            : "bg-white border-zinc-50 shadow-xl"
+        }`}
+      >
+        {/* Draft list */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-black italic">
+              Drafts
+            </p>
+            <button
+              onClick={() =>
+                draftsApi.startNewDraft({
+                  setTitle,
+                  setSubtitle,
+                  setCategory,
+                  setCover,
+                  setCoverMedium,
+                })
+              }
+              className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70 transition"
+              title="New Draft"
+            >
+              <Plus size={14} /> NEW
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {draftsApi.drafts.length === 0 ? (
+              <div
+                className={`p-5 rounded-2xl border text-[10px] tracking-widest uppercase italic opacity-60 ${
+                  isDarkMode
+                    ? "border-zinc-800 text-zinc-400"
+                    : "border-zinc-100 text-zinc-500"
+                }`}
+              >
+                No drafts yet.
+              </div>
+            ) : (
+              draftsApi.drafts.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() =>
+                    draftsApi.loadDraft(d.id, {
+                      setTitle,
+                      setSubtitle,
+                      setCategory,
+                      setCover,
+                      setCoverMedium,
+                    })
+                  }
+                  className={`w-full text-left p-4 rounded-2xl border transition ${
+                    draftsApi.draftId === d.id
+                      ? "border-[#004aad] bg-[#004aad]/5"
+                      : isDarkMode
+                      ? "border-zinc-800 hover:border-zinc-600"
+                      : "border-zinc-100 hover:border-zinc-300"
+                  }`}
+                >
+                  <div className="text-[11px] font-black italic tracking-tight line-clamp-1">
+                    {d.title || "(Untitled)"}
+                  </div>
+                  <div className="mt-1 text-[9px] tracking-widest uppercase opacity-50">
+                    {d.category || "EDITORIAL"}
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </div>
 
+        {/* Meta */}
         <div className="space-y-8 px-2 uppercase tracking-widest font-black italic">
           <div className="space-y-3">
-            <label className="text-[10px] text-zinc-400 uppercase tracking-widest">Category</label>
-            <select 
-              value={category} 
-              onChange={(e) => setCategory(e.target.value)}
-              className={`w-full p-4 border-2 text-[12px] focus:outline-none focus:border-[#004aad] transition-colors ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-zinc-50 border-zinc-100 text-black'}`}
+            <label className="text-[10px] text-zinc-400 uppercase tracking-widest">
+              Category
+            </label>
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                draftsApi.setIsDirty(true);
+              }}
+              className={`w-full p-4 border-2 text-[12px] focus:outline-none focus:border-[#004aad] transition-colors ${
+                isDarkMode
+                  ? "bg-zinc-900 border-zinc-700 text-white"
+                  : "bg-zinc-50 border-zinc-100 text-black"
+              }`}
             >
               <option value="EDITORIAL">EDITORIAL</option>
               <option value="INTERVIEW">INTERVIEW</option>
@@ -139,89 +233,171 @@ const EditorPage = ({ isDarkMode, onToast, user }) => {
             </select>
           </div>
 
+          {/* ✅ Cover Upload + URL inputs */}
           <div className="space-y-3">
-            <label className="text-[10px] text-zinc-400 uppercase tracking-widest">Cover Media (Medium)</label>
-            <input 
-              type="text" 
-              placeholder="Cover Medium URL" 
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-[10px] text-zinc-400 uppercase tracking-widest">
+                Cover
+              </label>
+
+              <UploadButton
+                label="Upload"
+                title="Upload Cover (auto sets Medium)"
+                uploading={coverUploading}
+                progress={coverProgress}
+                onPickFile={async (file) => {
+                  try {
+                    const { url, coverMedium: cm } = await uploadCover(file, {
+                      variant: "cover",
+                    });
+                    setCover(url);
+                    setCoverMedium(cm || url);
+                    draftsApi.setIsDirty(true);
+                    toast("커버 업로드 완료");
+                  } catch (e) {
+                    console.error(e);
+                    toast("커버 업로드 실패");
+                  }
+                }}
+              />
+            </div>
+
+            <input
+              type="text"
+              placeholder="Cover URL"
+              value={cover}
+              onChange={(e) => {
+                setCover(e.target.value);
+                draftsApi.setIsDirty(true);
+              }}
+              className={`w-full p-3 text-[10px] border-b focus:outline-none bg-transparent ${
+                isDarkMode ? "border-zinc-800" : "border-zinc-200"
+              }`}
+            />
+
+            <input
+              type="text"
+              placeholder="Cover Medium URL (auto)"
               value={coverMedium}
-              onChange={(e) => setCoverMedium(e.target.value)}
-              className={`w-full p-3 text-[10px] border-b focus:outline-none bg-transparent ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}
+              onChange={(e) => {
+                setCoverMedium(e.target.value);
+                draftsApi.setIsDirty(true);
+              }}
+              className={`w-full p-3 text-[10px] border-b focus:outline-none bg-transparent ${
+                isDarkMode ? "border-zinc-800" : "border-zinc-200"
+              }`}
             />
           </div>
         </div>
 
+        {/* Actions */}
         <div className="mt-auto space-y-4 px-2 pb-6">
-          <button 
-            onClick={() => handlePublish("draft")}
-            disabled={isSaving}
-            className={`w-full py-5 font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 transition-all hover:opacity-70 rounded-2xl ${isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-50 text-zinc-400'}`}
+          <button
+            onClick={() =>
+              draftsApi.saveDraft(
+                { silent: false, markClean: true },
+                {
+                  title,
+                  subtitle,
+                  category,
+                  cover,
+                  coverMedium,
+                  author: {
+                    name: user?.displayName || "Admin",
+                    email: user?.email || "",
+                  },
+                }
+              )
+            }
+            disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+            className={`w-full py-5 font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 transition-all hover:opacity-70 rounded-2xl ${
+              isDarkMode
+                ? "bg-zinc-800 text-zinc-300"
+                : "bg-zinc-50 text-zinc-500"
+            }`}
           >
-            <Save size={14}/> {isSaving ? "SAVING..." : "Save Draft"}
+            <Save size={14} /> {draftsApi.isSaving ? "SAVING..." : "Save Draft"}
           </button>
-          <button 
-            onClick={() => handlePublish("published")}
-            disabled={isSaving}
+
+          <button
+            onClick={() =>
+              draftsApi.publish({
+                title,
+                subtitle,
+                category,
+                cover,
+                coverMedium,
+                author: {
+                  name: user?.displayName || "Admin",
+                  email: user?.email || "",
+                },
+              })
+            }
+            disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
             className="w-full py-5 bg-[#004aad] text-white font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 hover:bg-black shadow-xl transition-all rounded-2xl italic"
           >
-            <Send size={14}/> {isSaving ? "PUBLISHING..." : "Publish Issue"}
+            <Send size={14} /> {draftsApi.isSaving ? "PUBLISHING..." : "Publish Issue"}
           </button>
         </div>
       </aside>
 
-      {/* --- 메인 에디터 영역 --- */}
-      <main className={`lg:col-span-9 flex flex-col transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
-        
-        {/* Tiptap 툴바 */}
-        <div className={`p-6 border-b flex flex-wrap gap-4 items-center sticky top-[80px] z-30 backdrop-blur-3xl transition-colors ${isDarkMode ? 'bg-black/90 border-zinc-900' : 'bg-white/90 border-zinc-50'}`}>
-          <div className="flex bg-zinc-50 dark:bg-zinc-900 p-1.5 rounded-xl gap-1">
-            <button onClick={() => editor.chain().focus().toggleBold().run()} className={`p-2 rounded-lg ${editor?.isActive('bold') ? 'bg-[#004aad] text-white' : 'text-zinc-400 hover:bg-white'}`}><Bold size={18}/></button>
-            <button onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-2 rounded-lg ${editor?.isActive('italic') ? 'bg-[#004aad] text-white' : 'text-zinc-400 hover:bg-white'}`}><Italic size={18}/></button>
-          </div>
-          <div className="flex bg-zinc-50 dark:bg-zinc-900 p-1.5 rounded-xl gap-1">
-            <button onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={`p-2 rounded-lg ${editor?.isActive('heading', { level: 1 }) ? 'bg-[#004aad] text-white' : 'text-zinc-400 hover:bg-white'}`}><Heading1 size={18}/></button>
-            <button onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={`p-2 rounded-lg ${editor?.isActive('heading', { level: 2 }) ? 'bg-[#004aad] text-white' : 'text-zinc-400 hover:bg-white'}`}><Heading2 size={18}/></button>
-          </div>
-          <div className="flex bg-zinc-50 dark:bg-zinc-900 p-1.5 rounded-xl gap-1">
-            <button onClick={() => editor.chain().focus().toggleBulletList().run()} className={`p-2 rounded-lg ${editor?.isActive('bulletList') ? 'bg-[#004aad] text-white' : 'text-zinc-400 hover:bg-white'}`}><List size={18}/></button>
-            <button onClick={() => editor.chain().focus().toggleBlockquote().run()} className={`p-2 rounded-lg ${editor?.isActive('blockquote') ? 'bg-[#004aad] text-white' : 'text-zinc-400 hover:bg-white'}`}><Quote size={18}/></button>
-          </div>
-          <button onClick={() => {
-            const url = window.prompt('Image URL');
-            if (url) editor.chain().focus().setImage({ src: url }).run();
-          }} className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-zinc-400 hover:text-[#004aad] transition-all"><ImageIcon size={20}/></button>
-        </div>
+      {/* --- Main --- */}
+      <main className={`lg:col-span-9 flex transition-colors duration-500 ${isDarkMode ? "bg-black" : "bg-white"}`}>
+        <div className="flex-1 flex flex-col">
+          <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+          <div className="grow p-12 md:p-32 overflow-y-auto">
 
-        {/* 에디터 캔버스 */}
-        <div className="flex-grow p-12 md:p-32 overflow-y-auto">
           <div className="max-w-4xl mx-auto space-y-16">
             <div className="space-y-4">
-              <input 
-                type="text" 
-                placeholder="ENTER TITLE..." 
+              <input
+                type="text"
+                placeholder="ENTER TITLE..."
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className={`w-full text-7xl font-black italic tracking-tighter focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${isDarkMode ? 'text-white' : 'text-black'}`} 
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  draftsApi.setIsDirty(true);
+                }}
+                className={`w-full text-7xl font-black italic tracking-tighter focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
+                  isDarkMode ? "text-white" : "text-black"
+                }`}
               />
-              <div className="h-2 w-24 bg-[#004aad] shadow-[0_0_15px_#004aad]"></div>
+              <div className="h-2 w-24 bg-[#004aad] shadow-[0_0_15px_#004aad]" />
             </div>
-            
-            <input 
-              type="text" 
-              placeholder="Subtitle here..." 
+
+            <input
+              type="text"
+              placeholder="Subtitle here..."
               value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-              className={`w-full text-2xl font-light italic focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`} 
+              onChange={(e) => {
+                setSubtitle(e.target.value);
+                draftsApi.setIsDirty(true);
+              }}
+              className={`w-full text-2xl font-light italic focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${
+                isDarkMode ? "text-zinc-500" : "text-zinc-400"
+              }`}
             />
 
-            {/* Tiptap 실제 에디터 컴포넌트 */}
-            <div className="editor-container">
-              <EditorContent editor={editor} />
+            <div className="editor-container relative">
+              <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} />
+
+              <EditorContent
+                editor={editor}
+                onKeyDown={(e) => onEditorKeyDown(editor, e)}
+                onClick={() => closeSlashMenu()}
+              />
+            </div>
+
+            <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
+              {draftsApi.lastAutoSavedAt ? "AUTOSAVED" : ""}
+              {draftsApi.isDirty ? "  •  EDITING…" : ""}
             </div>
           </div>
         </div>
+      </div>
+         <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
       </main>
 
+      {/* ✅ Editor-only inline styles (View 영향 X) */}
       <style>{`
         .ProseMirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
@@ -230,10 +406,26 @@ const EditorPage = ({ isDarkMode, onToast, user }) => {
           pointer-events: none;
           height: 0;
         }
-        .ProseMirror { min-height: 500px; outline: none; }
+
+        /* ✅ 오타 수정: .ProseMirror.uf-editor */
+        .ProseMirror.uf-editor { min-height: 500px; outline: none; }
+
+        /* Editor-only block UX (ViewPage에 영향 0) */
+        .uf-editor :is(p, h1, h2, h3, blockquote, ul, ol, pre){
+          position: relative;
+        }
+
+        .uf-editor :is(p, h1, h2, h3, blockquote, ul, ol, pre):hover::before{
+          content: "⋮⋮";
+          position: absolute;
+          left: -28px;
+          top: .2rem;
+          font-size: 14px;
+          letter-spacing: 2px;
+          opacity: .35;
+          color: #004aad;
+        }
       `}</style>
     </div>
   );
-};
-
-export default EditorPage;
+}
