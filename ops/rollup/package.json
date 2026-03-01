@@ -1,0 +1,11 @@
+{
+  "name": "uf-rollup-run",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": { "node": "18" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "firebase-admin": "^12.5.0"
+  }
+}
