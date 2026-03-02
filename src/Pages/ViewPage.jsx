@@ -6,7 +6,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { doc, serverTimestamp, runTransaction, deleteDoc } from "firebase/firestore";
 
 import { db } from "../firebase/config";
-import { trackEvent } from "../lib/trackEvent";
+import { trackEvent, trackEventOnce } from "../lib/trackEvent";
 
 import { Scene } from "../tiptap/nodes/Scene";
 import { UfImage } from "../tiptap/nodes/UfImage";
@@ -176,7 +176,7 @@ export default function ViewPage({ onToast }) {
     sessionStorage.setItem(viewKey, "1");
 
     // (A) 트래킹
-    trackEvent("view", { editionNo });
+    trackEventOnce("view", `view_${editionNo}`, { editionNo });
 
     // (B) Firestore views +1 (rules: published 글 likes/views 증가 허용)
     // docId가 실제 firestore 문서ID여야 함.
@@ -353,20 +353,44 @@ export default function ViewPage({ onToast }) {
 
     const url = window.location.href;
     const title = article?.title || "U# Article";
+    const editionNo = String(article.editionNo);
 
-    // Web Share API(모바일) 우선
     try {
       if (navigator.share) {
         await navigator.share({ title, url });
-      } else {
-        const ok = await copyToClipboard(url);
-        toast(ok ? "링크를 복사했어요." : "복사에 실패했어요.");
+
+        await trackEventOnce("share", `share_${editionNo}`, {
+          editionNo,
+        });
+        return;
       }
 
-      trackEvent("share", { editionNo: String(article.editionNo) });
+      const ok = await copyToClipboard(url);
+      if (!ok) {
+        toast("복사에 실패했어요.");
+        return;
+      }
+
+      toast("링크를 복사했어요.");
+
+      await trackEventOnce("share", `share_${editionNo}`, {
+        editionNo,
+      });
     } catch (e) {
-      // share 취소도 여기로 올 수 있음
-      console.warn("[share] cancelled/failed:", e?.message || e);
+      const msg = String(e?.message || "");
+      const name = String(e?.name || "");
+
+      if (
+        name === "AbortError" ||
+        name === "NotAllowedError" ||
+        msg.toLowerCase().includes("canceled") ||
+        msg.toLowerCase().includes("cancelled")
+      ) {
+        return;
+      }
+
+      console.warn("[share] failed:", e?.message || e);
+      toast("공유에 실패했어요.");
     }
   };
 

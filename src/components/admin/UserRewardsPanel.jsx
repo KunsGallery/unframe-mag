@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { useAdminUsers } from "../../hooks/useAdminUsers";
 import { STICKERS } from "../../data/stickers";
+import { ACHIEVEMENTS } from "../../data/achievements";
 import { TIERS } from "../../data/tiers";
 import { calcLevelFromXP, calcTierFromXP } from "../../lib/tierUtils";
 import {
   grantSticker,
   revokeSticker,
+  grantAchievement,
+  revokeAchievement,
   setUserTier,
   setUserXP,
 } from "../../hooks/useUserRewards";
@@ -59,7 +62,7 @@ export default function UserRewardsPanel({
     setRoleSaving(true);
     try {
       await updateDoc(doc(db, "users", uid), {
-        role: nextRole, // user | editor | admin
+        role: nextRole,
         updatedAt: serverTimestamp(),
         updatedBy: adminEmail || null,
       });
@@ -72,7 +75,7 @@ export default function UserRewardsPanel({
     }
   };
 
-  const onGrant = async (stickerId) => {
+  const onGrantSticker = async (stickerId) => {
     if (!selected) return;
     try {
       await grantSticker({ uid: selected.uid, stickerId, adminEmail });
@@ -83,7 +86,7 @@ export default function UserRewardsPanel({
     }
   };
 
-  const onRevoke = async (stickerId) => {
+  const onRevokeSticker = async (stickerId) => {
     if (!selected) return;
     try {
       await revokeSticker({ uid: selected.uid, stickerId });
@@ -91,6 +94,28 @@ export default function UserRewardsPanel({
     } catch (e) {
       console.error(e);
       toast("스티커 회수 실패");
+    }
+  };
+
+  const onGrantAchievement = async (achievementId) => {
+    if (!selected) return;
+    try {
+      await grantAchievement({ uid: selected.uid, achievementId, adminEmail });
+      toast(`업적 지급: ${achievementId}`);
+    } catch (e) {
+      console.error(e);
+      toast("업적 지급 실패");
+    }
+  };
+
+  const onRevokeAchievement = async (achievementId) => {
+    if (!selected) return;
+    try {
+      await revokeAchievement({ uid: selected.uid, achievementId });
+      toast(`업적 회수: ${achievementId}`);
+    } catch (e) {
+      console.error(e);
+      toast("업적 회수 실패");
     }
   };
 
@@ -196,7 +221,6 @@ export default function UserRewardsPanel({
                         ? "border-zinc-800 opacity-80"
                         : "border-zinc-200 opacity-80"
                     }`}
-                    title="role"
                   >
                     {roleLabel(u.role)}
                   </span>
@@ -230,7 +254,6 @@ export default function UserRewardsPanel({
           </div>
         ) : (
           <div className="mt-6 space-y-8">
-            {/* Role */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-black">Role</div>
@@ -263,18 +286,12 @@ export default function UserRewardsPanel({
                   disabled={roleSaving}
                   className={roleBtnClass(selected.role === "admin")}
                   type="button"
-                  title="주의: 관리자 권한 부여"
                 >
                   ADMIN
                 </button>
               </div>
-
-              <div className="text-[11px] opacity-60">
-                * editor는 글 작성/발행 가능, admin은 시스템 전체 관리 가능
-              </div>
             </div>
 
-            {/* XP / Tier */}
             <div className="space-y-3">
               <div className="text-sm font-black">XP / Tier</div>
 
@@ -294,7 +311,6 @@ export default function UserRewardsPanel({
                   onClick={onAutoTier}
                   className="px-4 py-2 rounded-xl bg-[#004aad] text-white text-xs font-black"
                   type="button"
-                  title="XP 기반 자동 등급/레벨"
                 >
                   AUTO TIER
                 </button>
@@ -326,7 +342,6 @@ export default function UserRewardsPanel({
                     className="px-3 py-3 rounded-xl border text-xs font-black"
                     type="button"
                     style={{ borderColor: t.color }}
-                    title="수동 등급 지정"
                   >
                     {t.label}
                   </button>
@@ -334,7 +349,6 @@ export default function UserRewardsPanel({
               </div>
             </div>
 
-            {/* Stickers */}
             <div className="space-y-3">
               <div className="text-sm font-black">Stickers</div>
 
@@ -360,7 +374,7 @@ export default function UserRewardsPanel({
 
                     <div className="mt-3 flex gap-2">
                       <button
-                        onClick={() => onGrant(s.id)}
+                        onClick={() => onGrantSticker(s.id)}
                         className="px-3 py-2 rounded-xl bg-[#004aad] text-white text-xs font-black"
                         type="button"
                       >
@@ -368,7 +382,7 @@ export default function UserRewardsPanel({
                       </button>
 
                       <button
-                        onClick={() => onRevoke(s.id)}
+                        onClick={() => onRevokeSticker(s.id)}
                         className="px-3 py-2 rounded-xl border text-xs font-black"
                         type="button"
                       >
@@ -378,9 +392,50 @@ export default function UserRewardsPanel({
                   </div>
                 ))}
               </div>
+            </div>
 
-              <div className="text-[11px] opacity-60">
-                * 지급/회수 기록은 users/{`{uid}`}/stickers/{`{stickerId}`} 문서로 남습니다.
+            <div className="space-y-3">
+              <div className="text-sm font-black">Achievements</div>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                {ACHIEVEMENTS.map((a) => (
+                  <div
+                    key={a.id}
+                    className={`rounded-xl border p-4 ${
+                      isDarkMode ? "border-zinc-800" : "border-zinc-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-black">
+                        <span className="mr-2">{a.icon || "🏆"}</span>
+                        {a.title || a.name}
+                      </div>
+                      <div className="text-[10px] tracking-[0.35em] uppercase opacity-60">
+                        {a.rarity || "common"}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-xs opacity-70">{a.desc}</div>
+
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => onGrantAchievement(a.id)}
+                        className="px-3 py-2 rounded-xl bg-[#004aad] text-white text-xs font-black"
+                        type="button"
+                      >
+                        GRANT
+                      </button>
+
+                      <button
+                        onClick={() => onRevokeAchievement(a.id)}
+                        className="px-3 py-2 rounded-xl border text-xs font-black"
+                        type="button"
+                      >
+                        REVOKE
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

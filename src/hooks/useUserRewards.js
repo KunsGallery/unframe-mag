@@ -1,5 +1,11 @@
 // src/hooks/useUserRewards.js
-import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import {
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 
 export async function grantSticker({ uid, stickerId, adminEmail, note }) {
@@ -13,6 +19,20 @@ export async function grantSticker({ uid, stickerId, adminEmail, note }) {
 
 export async function revokeSticker({ uid, stickerId }) {
   await deleteDoc(doc(db, "users", uid, "stickers", stickerId));
+}
+
+export async function grantAchievement({ uid, achievementId, adminEmail, note }) {
+  await setDoc(doc(db, "users", uid, "achievements", achievementId), {
+    achievementId,
+    createdAt: serverTimestamp(),
+    grantedAt: serverTimestamp(),
+    grantedBy: adminEmail || null,
+    note: note || null,
+  });
+}
+
+export async function revokeAchievement({ uid, achievementId }) {
+  await deleteDoc(doc(db, "users", uid, "achievements", achievementId));
 }
 
 export async function setUserXP({ uid, xp }) {

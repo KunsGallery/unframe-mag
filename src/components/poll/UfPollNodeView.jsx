@@ -5,7 +5,7 @@ import { getAuth } from "firebase/auth";
 import { db } from "../../firebase/config";
 import { usePollResults } from "../../hooks/usePollResults";
 import { usePollMeta } from "../../hooks/usePollMeta";
-import { trackEvent } from "../../lib/trackEvent"; // ✅ NEW
+import { trackEventOnce } from "../../lib/trackEvent";
 
 const MAX_OPTIONS = 6;
 const MIN_OPTIONS = 2;
@@ -65,8 +65,11 @@ export default function UfPollNodeView(props) {
         createdAt: serverTimestamp(),
       });
 
-      // ✅ NEW: 트래킹(투표)
-      trackEvent("vote", { pollKey: String(pollKey), optionId: String(optionId) });
+      await trackEventOnce(
+        "vote",
+        `vote_${String(pollKey)}`,
+        { pollKey: String(pollKey), optionId: String(optionId) }
+      );
     } catch (e) {
       console.error(e);
       setVoteError("투표 저장에 실패했어요. (이미 투표했거나 권한/마감 상태)");
