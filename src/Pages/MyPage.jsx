@@ -1,6 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { useSavedArticles } from "../hooks/useSavedArticles";
@@ -10,6 +22,7 @@ import { useMyStickers } from "../hooks/useMyStickers";
 import TierBadge from "../components/my/TierBadge";
 import StickerGrid from "../components/my/StickerGrid";
 import AchievementGrid from "../components/my/AchievementGrid";
+import EditorContentDashboard from "../components/my/EditorContentDashboard";
 import "../styles/achievements.css";
 
 const NICK_MIN = 2;
@@ -41,23 +54,35 @@ function yyyymmddLocal(date = new Date()) {
   return `${y}${m}${d}`;
 }
 
+function timeAgo(ts) {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const diff = Date.now() - d.getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "방금";
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  const day = Math.floor(h / 24);
+  return `${day}일 전`;
+}
+
 export default function MyPage({ isDarkMode, onToast }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
   const { user, profile, loading } = useUserProfile();
 
   // Achievements
-  const { items: achItems = [], ids: achIds = [], loading: achLoading } = useMyAchievements(user?.uid);
+  const { items: achItems = [], ids: achIds = [], loading: achLoading } =
+    useMyAchievements(user?.uid);
 
   // Saved Articles
-  const {
-    user: authUser,
-    loading: savingLoading,
-    savedDocs,
-    unsave,
-  } = useSavedArticles();
+  const { user: authUser, loading: savingLoading, savedDocs, unsave } =
+    useSavedArticles();
 
   // Stickers
-  const { ids: myStickerIds = [], loading: stickersLoading } = useMyStickers(user?.uid);
+  const { ids: myStickerIds = [], loading: stickersLoading } = useMyStickers(
+    user?.uid
+  );
   const hasFirstSave = useMemo(
     () => new Set(myStickerIds).has("first_save"),
     [myStickerIds]
@@ -194,6 +219,149 @@ export default function MyPage({ isDarkMode, onToast }) {
     shares: Number(daily?.shares || 0),
   };
 
+  // -----------------------------
+  // NEW: Following Editors (유저 공통)
+  // -----------------------------
+  const [followingEditors, setFollowingEditors] = useState([]);
+  const [followingLoading, setFollowingLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setFollowingEditors([]);
+      setFollowingLoading(false);
+      return;
+    }
+
+    setFollowingLoading(true);
+    const ref = collection(db, "users", user.uid, "followingEditors");
+
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // 최근 팔로우 순
+        list.sort((a, b) => {
+          const at = a?.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const bt = b?.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return bt - at;
+        });
+        setFollowingEditors(list);
+        setFollowingLoading(false);
+      },
+      (e) => {
+        console.error("[MyPage] followingEditors error:", e);
+        setFollowingEditors([]);
+        setFollowingLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [user?.uid]);
+
+  const unfollow = async (editorUid) => {
+    if (!user?.uid || !editorUid) return;
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "users", user.uid, "followingEditors", editorUid));
+      batch.delete(doc(db, "users", editorUid, "followers", user.uid));
+      await batch.commit();
+      toast("언팔로우 완료");
+    } catch (e) {
+      console.error(e);
+      toast("언팔로우 실패");
+    }
+  };
+
+  // -----------------------------
+  // NEW: Editor Dashboard (editor/admin만)
+  // -----------------------------
+  const role = String(profile?.role || "user");
+  const isEditorOrAdmin = role === "editor" || role === "admin";
+
+  const [fansCount, setFansCount] = useState(0);
+  const [myPublishedCount, setMyPublishedCount] = useState(0);
+  const [latestComments, setLatestComments] = useState([]);
+  const [latestLoading, setLatestLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isEditorOrAdmin || !user?.uid) {
+      setFansCount(0);
+      return;
+    }
+
+    const ref = collection(db, "users", user.uid, "followers");
+    const unsub = onSnapshot(
+      ref,
+      (snap) => setFansCount(snap.size),
+      (e) => {
+        console.error("[MyPage] fans error:", e);
+        setFansCount(0);
+      }
+    );
+    return () => unsub();
+  }, [isEditorOrAdmin, user?.uid]);
+
+  useEffect(() => {
+    const email = String(user?.email || "").trim();
+    if (!isEditorOrAdmin || !email) {
+      setMyPublishedCount(0);
+      return;
+    }
+
+    const qy = query(
+      collection(db, "articles"),
+      where("status", "==", "published"),
+      where("authorEmail", "==", email)
+    );
+
+    const unsub = onSnapshot(
+      qy,
+      (snap) => setMyPublishedCount(snap.size),
+      (e) => {
+        console.error("[MyPage] my articles error:", e);
+        setMyPublishedCount(0);
+      }
+    );
+
+    return () => unsub();
+  }, [isEditorOrAdmin, user?.email]);
+
+  useEffect(() => {
+    const email = String(user?.email || "").trim();
+    if (!isEditorOrAdmin || !email) {
+      setLatestComments([]);
+      setLatestLoading(false);
+      return;
+    }
+
+    // ✅ CommentSection에 articleAuthorEmail 저장한 이후부터 정상적으로 잡힘
+    // 기존 댓글은 field 없을 수 있음(정상)
+    setLatestLoading(true);
+
+    const qy = query(
+      collection(db, "comments"),
+      where("articleAuthorEmail", "==", email),
+      orderBy("createdAt", "desc"),
+      limit(12)
+    );
+
+    const unsub = onSnapshot(
+      qy,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setLatestComments(list);
+        setLatestLoading(false);
+      },
+      (e) => {
+        console.error("[MyPage] latest comments error:", e);
+        setLatestComments([]);
+        setLatestLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [isEditorOrAdmin, user?.email]);
+
   if (loading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center font-black italic tracking-widest uppercase text-zinc-400">
@@ -216,11 +384,7 @@ export default function MyPage({ isDarkMode, onToast }) {
   }
 
   return (
-    <div
-      className={`${
-        isDarkMode ? "bg-zinc-950 text-white" : "bg-white text-black"
-      } min-h-screen`}
-    >
+    <div className={`${isDarkMode ? "bg-zinc-950 text-white" : "bg-white text-black"} min-h-screen`}>
       <div className="max-w-[1100px] mx-auto px-6 py-16">
         {/* Header */}
         <div className="flex items-end justify-between gap-6">
@@ -231,31 +395,102 @@ export default function MyPage({ isDarkMode, onToast }) {
             <h1 className="mt-4 text-5xl font-black italic tracking-tighter uppercase leading-[0.9]">
               Your Library
             </h1>
-            <p className="mt-3 text-sm opacity-70">닉네임 / 저장 / 스티커 / 활동 / 업적</p>
+            <p className="mt-3 text-sm opacity-70">
+              닉네임 / 저장 / 스티커 / 활동 / 업적
+              {isEditorOrAdmin ? " / 에디터 대시보드" : ""}
+            </p>
           </div>
         </div>
 
+        {/* Editor Dashboard */}
+        {isEditorOrAdmin && (
+          <>
+            <div className={`mt-10 rounded-3xl border p-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
+              <div className="flex items-end justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
+                    / EDITOR DASHBOARD
+                  </div>
+                  <div className="mt-2 text-sm opacity-70">
+                    팬과 독자 반응을 빠르게 확인해요.
+                  </div>
+                </div>
+                <div className="text-[11px] font-black opacity-60">
+                  role: {role.toUpperCase()}
+                </div>
+              </div>
+
+              <div className="mt-6 grid md:grid-cols-3 gap-3">
+                <StatPill label="FANS" value={`${fansCount}`} isDarkMode={isDarkMode} />
+                <StatPill label="PUBLISHED" value={`${myPublishedCount}`} isDarkMode={isDarkMode} />
+                <StatPill label="EMAIL" value={`${user.email || "-"}`} isDarkMode={isDarkMode} />
+              </div>
+
+             <div className="mt-6">
+                <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
+                  Latest Comments on My Articles
+                </div>
+
+                {latestLoading ? (
+                  <div className="mt-3 text-sm opacity-70">불러오는 중…</div>
+                ) : latestComments.length === 0 ? (
+                  <div className="mt-3 text-sm opacity-70">
+                    아직 잡힌 댓글이 없어요. (새 댓글부터 자동 반영돼요)
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {latestComments.map((c) => (
+                      <div
+                        key={c.id}
+                        className={`rounded-2xl border px-4 py-3 ${
+                          isDarkMode ? "border-zinc-800" : "border-zinc-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-black line-clamp-1">
+                            {c.articleTitle || `#${padEdition(c.editionNo)}`}
+                          </div>
+                          <div className="text-[11px] opacity-60">{timeAgo(c.createdAt)}</div>
+                        </div>
+                        <div className="mt-2 text-sm opacity-80 line-clamp-2">
+                          <b className="mr-2">{c.nickname || "익명"}</b>
+                          {c.text || ""}
+                        </div>
+                        {c.editionNo && (
+                          <div className="mt-3">
+                            <Link
+                              to={`/article/${String(c.editionNo)}`}
+                              className="text-[11px] font-black tracking-[0.25em] uppercase italic text-[#004aad]"
+                            >
+                              OPEN ARTICLE →
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <EditorContentDashboard
+              userEmail={user?.email || ""}
+              isDarkMode={isDarkMode}
+            />
+          </>
+        )}
+
         {/* Profile card */}
-        <div
-          className={`mt-10 rounded-3xl border p-8 ${
-            isDarkMode ? "border-zinc-800" : "border-zinc-200"
-          }`}
-        >
+        <div className={`mt-10 rounded-3xl border p-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
           <div className="flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0">
               {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
+                <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
               ) : null}
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-black tracking-widest uppercase opacity-60">
-                signed in
-              </div>
+              <div className="text-xs font-black tracking-widest uppercase opacity-60">signed in</div>
 
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <div className="text-xl font-black truncate">
@@ -292,24 +527,12 @@ export default function MyPage({ isDarkMode, onToast }) {
               {/* XP / LV / STREAK */}
               <div className="mt-4 grid grid-cols-3 gap-3">
                 <StatPill label="XP" value={`${xp}`} isDarkMode={isDarkMode} />
-                <StatPill
-                  label="LEVEL"
-                  value={`Lv ${level}`}
-                  isDarkMode={isDarkMode}
-                />
-                <StatPill
-                  label="STREAK"
-                  value={`${streak} day`}
-                  isDarkMode={isDarkMode}
-                />
+                <StatPill label="LEVEL" value={`Lv ${level}`} isDarkMode={isDarkMode} />
+                <StatPill label="STREAK" value={`${streak} day`} isDarkMode={isDarkMode} />
               </div>
 
               {/* TODAY DAILY */}
-              <div
-                className={`mt-4 rounded-2xl border p-4 ${
-                  isDarkMode ? "border-zinc-800" : "border-zinc-200"
-                }`}
-              >
+              <div className={`mt-4 rounded-2xl border p-4 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
                 <div className="flex items-center justify-between">
                   <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
                     TODAY
@@ -379,20 +602,75 @@ export default function MyPage({ isDarkMode, onToast }) {
           </div>
         </div>
 
+        {/* Following Editors */}
+        <div className={`mt-10 rounded-3xl border p-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
+                Following Editors
+              </div>
+              <div className="mt-2 text-sm opacity-70">
+                내가 팬이 된 에디터들
+              </div>
+            </div>
+            <div className="text-xs font-black opacity-60">
+              {followingLoading ? "…" : `${followingEditors.length}`}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {followingLoading ? (
+              <div className="text-sm opacity-70">불러오는 중…</div>
+            ) : followingEditors.length === 0 ? (
+              <div className="text-sm opacity-70">
+                아직 팬이 된 에디터가 없어요. 아티클 하단에서 “팬 되기”를 눌러보세요.
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-3">
+                {followingEditors.map((e) => (
+                  <div
+                    key={e.id}
+                    className={`rounded-2xl border p-4 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-black line-clamp-1">
+                          {e.editorName || "Editor"}
+                        </div>
+                        <div className="mt-1 text-[11px] opacity-60 line-clamp-1">
+                          {e.editorEmail ? e.editorEmail.replace(/(.{2}).+@/, "$1***@") : "—"}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => unfollow(e.id)}
+                        className={`text-[10px] font-black tracking-[0.35em] uppercase italic px-3 py-2 rounded-xl border ${
+                          isDarkMode
+                            ? "border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                            : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                        }`}
+                        type="button"
+                      >
+                        UNFOLLOW
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Saved / Stickers */}
         <div className="mt-10 grid md:grid-cols-2 gap-6">
           {/* Saved Articles */}
-          <div
-            className={`rounded-3xl border p-8 ${
-              isDarkMode ? "border-zinc-800" : "border-zinc-200"
-            }`}
-          >
+          <div className={`rounded-3xl border p-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
                   Saved Articles
                 </div>
-                <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <div className="mt-2 text-sm opacity-70">
                   저장한 글은 여기서 모아볼 수 있어요.
                 </div>
               </div>
@@ -404,15 +682,11 @@ export default function MyPage({ isDarkMode, onToast }) {
 
             <div className="mt-6 space-y-4">
               {!authUser ? (
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                  저장 목록은 로그인 후 확인할 수 있어요.
-                </div>
+                <div className="text-sm opacity-70">저장 목록은 로그인 후 확인할 수 있어요.</div>
               ) : savingLoading ? (
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                  불러오는 중…
-                </div>
+                <div className="text-sm opacity-70">불러오는 중…</div>
               ) : savedList.length === 0 ? (
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                <div className="text-sm opacity-70">
                   아직 저장한 글이 없어요. 글에서 <b>SAVE</b>를 눌러보세요.
                 </div>
               ) : (
@@ -423,9 +697,7 @@ export default function MyPage({ isDarkMode, onToast }) {
                   return (
                     <div
                       key={editionNo}
-                      className={`rounded-2xl border overflow-hidden ${
-                        isDarkMode ? "border-zinc-800" : "border-zinc-200"
-                      }`}
+                      className={`rounded-2xl border overflow-hidden ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}
                     >
                       <Link to={`/article/${editionNo}`} className="block group">
                         <div className="h-36 bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
@@ -446,9 +718,7 @@ export default function MyPage({ isDarkMode, onToast }) {
                         <div className="p-5">
                           <div className="flex items-center justify-between text-[10px] font-black italic tracking-[0.4em] uppercase opacity-60">
                             <span>#{padEdition(editionNo)}</span>
-                            <span className="text-[#004aad]">
-                              {s.category || "—"}
-                            </span>
+                            <span className="text-[#004aad]">{s.category || "—"}</span>
                           </div>
                           <div className="mt-2 text-lg font-black italic tracking-tight line-clamp-2">
                             {s.title || "Untitled"}
@@ -477,15 +747,9 @@ export default function MyPage({ isDarkMode, onToast }) {
           </div>
 
           {/* Stickers */}
-          <div
-            className={`rounded-3xl border p-8 ${
-              isDarkMode ? "border-zinc-800" : "border-zinc-200"
-            }`}
-          >
-            <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
-              Stickers
-            </div>
-            <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+          <div className={`rounded-3xl border p-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
+            <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">Stickers</div>
+            <div className="mt-4 text-sm opacity-70">
               {stickersLoading ? "불러오는 중…" : `보유 스티커 ${myStickerIds.length}개`}
             </div>
             <div className="mt-6">
@@ -495,21 +759,16 @@ export default function MyPage({ isDarkMode, onToast }) {
         </div>
 
         {/* Achievements */}
-        <div
-          className={`mt-10 rounded-3xl border p-8 ${
-            isDarkMode ? "border-zinc-800" : "border-zinc-200"
-          }`}
-        >
+        <div className={`mt-10 rounded-3xl border p-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
                 Achievements
               </div>
-              <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="mt-2 text-sm opacity-70">
                 획득한 업적과 잠겨 있는 업적을 확인할 수 있어요.
               </div>
             </div>
-
             <div className="text-xs font-black opacity-60">
               {achLoading ? "…" : `보유 업적 ${achIds.length}개`}
             </div>
@@ -517,14 +776,9 @@ export default function MyPage({ isDarkMode, onToast }) {
 
           <div className="mt-6">
             {achLoading ? (
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                업적을 불러오는 중…
-              </div>
+              <div className="text-sm opacity-70">업적을 불러오는 중…</div>
             ) : (
-              <AchievementGrid
-                ownedAchievements={achItems}
-                title="My Achievements"
-              />
+              <AchievementGrid ownedAchievements={achItems} title="My Achievements" />
             )}
           </div>
         </div>
@@ -532,7 +786,7 @@ export default function MyPage({ isDarkMode, onToast }) {
 
       {/* Intro Modal */}
       {showIntro && canChange && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 p-6">
+        <div className="fixed inset-0 z-999 flex items-center justify-center bg-black/60 p-6">
           <div
             className={`w-full max-w-lg rounded-3xl p-8 border ${
               isDarkMode ? "bg-zinc-950 border-zinc-800" : "bg-white border-zinc-200"
@@ -544,17 +798,15 @@ export default function MyPage({ isDarkMode, onToast }) {
             <div className="mt-3 text-2xl font-black italic tracking-tighter uppercase">
               Set your nickname
             </div>
-            <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-              닉네임은 <b>1회만 변경</b>할 수 있어요. 댓글/랭킹에 이 이름이 표시됩니다.
+            <div className="mt-3 text-sm opacity-70">
+              닉네임은 <b>1회만 변경</b>할 수 있어요. 댓글에 이 이름이 표시됩니다.
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowIntro(false)}
                 className={`px-4 py-3 rounded-2xl text-xs font-black tracking-[0.3em] uppercase italic border ${
-                  isDarkMode
-                    ? "border-zinc-800 text-zinc-300"
-                    : "border-zinc-200 text-zinc-700"
+                  isDarkMode ? "border-zinc-800 text-zinc-300" : "border-zinc-200 text-zinc-700"
                 }`}
                 type="button"
               >
@@ -579,15 +831,11 @@ export default function MyPage({ isDarkMode, onToast }) {
 
 function StatPill({ label, value, isDarkMode }) {
   return (
-    <div
-      className={`rounded-2xl border px-4 py-3 ${
-        isDarkMode ? "border-zinc-800" : "border-zinc-200"
-      }`}
-    >
+    <div className={`rounded-2xl border px-4 py-3 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
       <div className="text-[10px] tracking-[0.4em] uppercase italic font-black opacity-60">
         {label}
       </div>
-      <div className="mt-1 text-sm font-black">{value}</div>
+      <div className="mt-1 text-sm font-black break-all">{value}</div>
     </div>
   );
 }

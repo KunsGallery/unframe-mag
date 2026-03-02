@@ -179,6 +179,7 @@ export default function CommentSection({ article }) {
         editionNo,
         sortIndex: typeof article?.sortIndex === "number" ? article.sortIndex : null,
         articleTitle: article?.title ? String(article.title) : null,
+        articleAuthorEmail: article?.authorEmail ? String(article.authorEmail) : null,
 
         text: clean,
         nickname, // ✅ 댓글에서 수정 불가

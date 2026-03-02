@@ -14,13 +14,15 @@ import {
   where,
 } from "firebase/firestore";
 
+const AUTOSAVE_DELAY_MS = 180000; // 3분, 5분 원하면 300000
+
 export function useDrafts({
   db,
   editor,
-  canWrite = false,   // admin/editor
-  isAdmin = false,    // admin only
-  authorEmail = "",   // ✅ 권한 기준
-  authorName = "",    // 표시용
+  canWrite = false,
+  isAdmin = false,
+  authorEmail = "",
+  authorName = "",
   onToast,
   navigate,
 }) {
@@ -38,17 +40,13 @@ export function useDrafts({
     if (!canWrite) return;
 
     try {
-      const base = [
-        collection(db, "articles"),
-        where("status", "==", "draft"),
-        orderBy("createdAt", "desc"),
-        limit(50),
-      ];
-
-      // ✅ admin: draft 전체
-      // ✅ editor: 내 draft만
       const q = isAdmin
-        ? query(...base)
+        ? query(
+            collection(db, "articles"),
+            where("status", "==", "draft"),
+            orderBy("createdAt", "desc"),
+            limit(50)
+          )
         : query(
             collection(db, "articles"),
             where("status", "==", "draft"),
@@ -71,17 +69,19 @@ export function useDrafts({
   const loadDraft = useCallback(
     async (docId, setters) => {
       if (!editor) return;
+
       setIsDraftLoading(true);
       try {
         const ref = doc(db, "articles", docId);
         const s = await getDoc(ref);
+
         if (!s.exists()) {
           toast("초안을 찾을 수 없습니다.");
           return;
         }
+
         const data = s.data() || {};
 
-        // editor는 본인 글만
         if (!isAdmin && String(data.authorEmail || "") !== String(authorEmail || "")) {
           toast("이 초안에 접근할 권한이 없어요.");
           return;
@@ -127,8 +127,8 @@ export function useDrafts({
   const saveDraft = useCallback(
     async ({ silent = false, markClean = false } = {}, meta) => {
       if (!editor || !canWrite) return;
-      setIsSaving(true);
 
+      setIsSaving(true);
       try {
         const contentHTML = editor.getHTML();
 
@@ -148,15 +148,12 @@ export function useDrafts({
             category: meta.category,
             cover: meta.cover,
             coverMedium: meta.coverMedium,
-
             status: "draft",
             likes: 0,
             views: 0,
             tags: [],
-
             author: safeAuthorName,
             authorEmail: safeAuthorEmail,
-
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -175,11 +172,9 @@ export function useDrafts({
           category: meta.category,
           cover: meta.cover,
           coverMedium: meta.coverMedium,
-
           status: "draft",
           author: safeAuthorName,
           authorEmail: safeAuthorEmail,
-
           updatedAt: serverTimestamp(),
         });
 
@@ -197,7 +192,6 @@ export function useDrafts({
   );
 
   const getNextEditionInfo = useCallback(async () => {
-   // ✅ published만 대상으로 번호 매기기 (editor 권한/쿼리 권한 문제 해결)
     const q = query(
       collection(db, "articles"),
       where("status", "==", "published"),
@@ -248,15 +242,12 @@ export function useDrafts({
             category: meta.category,
             cover: meta.cover,
             coverMedium: meta.coverMedium,
-
             status: "draft",
             likes: 0,
             views: 0,
             tags: [],
-
             author: safeAuthorName,
             authorEmail: safeAuthorEmail,
-
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -270,10 +261,8 @@ export function useDrafts({
             category: meta.category,
             cover: meta.cover,
             coverMedium: meta.coverMedium,
-
             author: safeAuthorName,
             authorEmail: safeAuthorEmail,
-
             updatedAt: serverTimestamp(),
           });
         }
@@ -299,7 +288,18 @@ export function useDrafts({
         setIsSaving(false);
       }
     },
-    [db, editor, draftId, getNextEditionInfo, refreshDrafts, toast, navigate, canWrite, authorEmail, authorName]
+    [
+      db,
+      editor,
+      draftId,
+      getNextEditionInfo,
+      refreshDrafts,
+      toast,
+      navigate,
+      canWrite,
+      authorEmail,
+      authorName,
+    ]
   );
 
   const runAutosave = useCallback(
@@ -321,7 +321,7 @@ export function useDrafts({
         if (isSaving || isDraftLoading) return;
         await saveDraft({ silent: true, markClean: true }, meta);
         setLastAutoSavedAt(Date.now());
-      }, 1500);
+      }, AUTOSAVE_DELAY_MS);
 
       return () => clearTimeout(t);
     },
@@ -333,18 +333,15 @@ export function useDrafts({
     draftId,
     isDraftLoading,
     isSaving,
-
     isDirty,
     setIsDirty,
     lastAutoSavedAt,
     setLastAutoSavedAt,
-
     refreshDrafts,
     startNewDraft,
     loadDraft,
     saveDraft,
     publish,
-
     runAutosave,
     setDraftId,
   };

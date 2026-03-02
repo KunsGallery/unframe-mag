@@ -54,7 +54,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
 
   return (
     <nav
-      className={`h-[80px] border-b px-6 md:px-12 flex justify-between items-center sticky top-0 z-[100] transition-all duration-500 ${
+      className={`h-[80px] border-b px-6 md:px-12 flex justify-between items-center sticky top-0 z-100 transition-all duration-500 ${
         isDarkMode ? "bg-black/90 border-zinc-900" : "bg-white/90 border-zinc-50"
       } backdrop-blur-3xl shadow-sm`}
     >

@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function ArticleHero({ article }) {
+export default function ArticleHero({ article, readMinutes = 1, readEmoji = "☕️" }) {
   const heroSrc = (article.coverMedium || article.cover || "").trim() || null;
 
   return (
@@ -20,13 +20,19 @@ export default function ArticleHero({ article }) {
         <span className="text-[10px] font-black tracking-[0.5em] uppercase text-[#004aad] mb-8 inline-block bg-[#004aad]/10 px-4 py-1 rounded">
           {article.category}
         </span>
+
         <h1 className="text-5xl md:text-8xl font-black italic tracking-tighter leading-none dark:text-white break-keep drop-shadow-sm">
           {article.title}
         </h1>
-        <div className="mt-12 flex items-center justify-center gap-8 text-xs font-bold tracking-widest text-zinc-400 uppercase italic">
+
+        <div className="mt-12 flex items-center justify-center gap-3 sm:gap-4 text-[11px] sm:text-xs font-bold tracking-widest text-zinc-400 uppercase italic flex-wrap">
           <span>By {article.author || "Kim Jae Woo"}</span>
           <div className="w-1 h-1 bg-zinc-300 rounded-full" />
           <span>Archive No.{article.editionNo}</span>
+          <div className="w-1 h-1 bg-zinc-300 rounded-full" />
+          <span>
+            {readEmoji} 예상 {readMinutes}분
+          </span>
         </div>
       </div>
     </section>

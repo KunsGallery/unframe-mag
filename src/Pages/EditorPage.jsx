@@ -1,6 +1,6 @@
 // src/Pages/EditorPage.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Save, Send, Plus } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -26,6 +26,9 @@ const ADMIN_EMAILS = new Set([
 
 export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const preloadedDraftId = location.state?.draftId || null;
+  const loadedDraftRef = useRef(null);
   const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
 
   // ✅ role 기반 + admin 이메일 fallback
@@ -121,6 +124,31 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     });
     return typeof cleanup === "function" ? cleanup : undefined;
   }, [draftsApi, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (!preloadedDraftId) return;
+    if (loadedDraftRef.current === preloadedDraftId) return;
+
+    loadedDraftRef.current = preloadedDraftId;
+
+    draftsApi.loadDraft(preloadedDraftId, {
+      setTitle,
+      setSubtitle,
+      setCategory,
+      setCover,
+      setCoverMedium,
+    });
+  }, [
+    editor,
+    preloadedDraftId,
+    draftsApi,
+    setTitle,
+    setSubtitle,
+    setCategory,
+    setCover,
+    setCoverMedium,
+  ]);
 
   if (!canWrite) {
     return (

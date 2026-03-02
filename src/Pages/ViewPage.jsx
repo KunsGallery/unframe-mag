@@ -7,6 +7,7 @@ import { doc, serverTimestamp, runTransaction, deleteDoc } from "firebase/firest
 
 import { db } from "../firebase/config";
 import { trackEvent, trackEventOnce } from "../lib/trackEvent";
+import { estimateReadMinutes, timeEmoji } from "../lib/readingMeta";
 
 import { Scene } from "../tiptap/nodes/Scene";
 import { UfImage } from "../tiptap/nodes/UfImage";
@@ -31,6 +32,8 @@ import CommentSection from "../components/view/CommentSection";
 import PrevNextCards from "../components/view/PrevNextCards";
 import ArticleNav from "../components/view/ArticleNav";
 import Lightbox from "../components/view/Lightbox";
+import EditorInfoBox from "../components/view/EditorInfoBox";
+import MoreFromEditor from "../components/view/MoreFromEditor";
 
 function clamp01(v) {
   const n = Number(v || 0);
@@ -59,7 +62,7 @@ async function copyToClipboard(text) {
   return false;
 }
 
-export default function ViewPage({ onToast }) {
+export default function ViewPage({ isDarkMode, onToast }) {
   const { id } = useParams(); // editionNo
   const nav = useNavigate();
 
@@ -158,6 +161,9 @@ export default function ViewPage({ onToast }) {
   // ✅ 저장 기능
   const { user, isSaved, toggleSave } = useSavedArticles();
   const saved = article?.editionNo ? isSaved(article.editionNo) : false;
+
+  const readMinutes = useMemo(() => estimateReadMinutes(article), [article]);
+  const readEmoji = useMemo(() => timeEmoji(readMinutes), [readMinutes]);
 
   // ---------------------------------------
   // 1) 조회수 + trackEvent("view") (세션 1회)
@@ -415,7 +421,7 @@ export default function ViewPage({ onToast }) {
       <style>{viewRuntimeCSS}</style>
 
       {/* TOP PROGRESS BAR */}
-      <div className="fixed top-0 left-0 w-full h-1 bg-zinc-100 dark:bg-zinc-800 z-50">
+      <div className="fixed top-[80px] left-0 w-full h-[3px] bg-zinc-200/70 dark:bg-zinc-800/80 z-90 backdrop-blur-sm">
         <div
           className="h-full bg-[#004aad] transition-all duration-150 shadow-[0_0_10px_#004aad]"
           style={{ width: `${clamp01(progress) * 100}%` }}
@@ -433,12 +439,28 @@ export default function ViewPage({ onToast }) {
         onShare={onShare}
       />
 
-      <ArticleHero article={article} />
+      <ArticleHero
+        article={article}
+        readMinutes={readMinutes}
+        readEmoji={readEmoji}
+      />
 
       <main className="max-w-[1200px] mx-auto px-6 pb-20">
+
         <ArticleBody ref={bodyRef} article={article} editor={editor} />
 
-        <CommentSection article={article} />
+      <EditorInfoBox
+        article={article}
+        currentUser={user}
+        onToast={onToast}
+      />
+
+      <MoreFromEditor
+        article={article}
+        isDarkMode={isDarkMode}
+      />
+
+      <CommentSection article={article} />
 
         <PrevNextCards currentArticle={article} />
 

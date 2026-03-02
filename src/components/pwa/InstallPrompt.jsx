@@ -66,7 +66,7 @@ export default function InstallPrompt() {
     <>
       <div
         className={[
-          "fixed z-[999] rounded-2xl border shadow-2xl backdrop-blur-xl",
+          "fixed z-999 rounded-2xl border shadow-2xl backdrop-blur-xl",
           "bg-white/95 dark:bg-zinc-950/95 border-zinc-200 dark:border-zinc-800",
           desktopMode
             ? "bottom-6 right-6 w-[360px] p-5"
@@ -117,7 +117,7 @@ export default function InstallPrompt() {
       </div>
 
       {showIOSGuide && (
-        <div className="fixed inset-0 z-[1000] bg-black/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-1000 bg-black/60 flex items-center justify-center p-4">
           <div className="w-full max-w-[420px] rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6">
             <div className="text-[10px] tracking-[0.35em] uppercase font-black opacity-50">
               iPhone / iPad

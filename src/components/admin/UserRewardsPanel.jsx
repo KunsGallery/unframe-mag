@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAdminUsers } from "../../hooks/useAdminUsers";
 import { STICKERS } from "../../data/stickers";
 import { ACHIEVEMENTS } from "../../data/achievements";
@@ -29,6 +29,10 @@ export default function UserRewardsPanel({
   const [selectedUid, setSelectedUid] = useState(null);
   const [roleSaving, setRoleSaving] = useState(false);
 
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [bio, setBio] = useState("");
+  const [photoURL, setPhotoURL] = useState("");
+
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return users;
@@ -52,6 +56,11 @@ export default function UserRewardsPanel({
     [filtered, selectedUid]
   );
 
+  useEffect(() => {
+    setBio(selected?.bio || "");
+    setPhotoURL(selected?.photoURL || "");
+  }, [selected?.uid, selected?.bio, selected?.photoURL]);
+
   const setUserRole = async (uid, nextRole) => {
     if (!uid) return;
     if (!isAdmin) {
@@ -72,6 +81,26 @@ export default function UserRewardsPanel({
       toast("Role 변경 실패");
     } finally {
       setRoleSaving(false);
+    }
+  };
+
+  const saveEditorProfile = async () => {
+    if (!selected?.uid) return;
+
+    setProfileSaving(true);
+    try {
+      await updateDoc(doc(db, "users", selected.uid), {
+        bio: String(bio || "").trim(),
+        photoURL: String(photoURL || "").trim() || null,
+        updatedAt: serverTimestamp(),
+        updatedBy: adminEmail || null,
+      });
+      toast("에디터 프로필 저장 완료");
+    } catch (e) {
+      console.error(e);
+      toast("에디터 프로필 저장 실패");
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -254,6 +283,7 @@ export default function UserRewardsPanel({
           </div>
         ) : (
           <div className="mt-6 space-y-8">
+            {/* Role */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-black">Role</div>
@@ -292,6 +322,53 @@ export default function UserRewardsPanel({
               </div>
             </div>
 
+            {/* Editor Profile */}
+            <div className="space-y-3">
+              <div className="text-sm font-black">Editor Profile</div>
+
+              <div className="grid gap-3">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.25em] opacity-55">
+                    Photo URL
+                  </div>
+                  <input
+                    value={photoURL}
+                    onChange={(e) => setPhotoURL(e.target.value)}
+                    placeholder="https://..."
+                    className={`mt-2 w-full px-4 py-3 rounded-xl border bg-transparent text-sm ${
+                      isDarkMode ? "border-zinc-800" : "border-zinc-200"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.25em] opacity-55">
+                    Bio
+                  </div>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="에디터 소개 문구"
+                    className={`mt-2 w-full min-h-[110px] px-4 py-3 rounded-xl border bg-transparent text-sm ${
+                      isDarkMode ? "border-zinc-800" : "border-zinc-200"
+                    }`}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={saveEditorProfile}
+                    disabled={profileSaving}
+                    className="px-4 py-3 rounded-xl bg-[#004aad] text-white text-xs font-black disabled:opacity-50"
+                    type="button"
+                  >
+                    {profileSaving ? "SAVING…" : "SAVE PROFILE"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* XP / Tier */}
             <div className="space-y-3">
               <div className="text-sm font-black">XP / Tier</div>
 
@@ -349,6 +426,7 @@ export default function UserRewardsPanel({
               </div>
             </div>
 
+            {/* Stickers */}
             <div className="space-y-3">
               <div className="text-sm font-black">Stickers</div>
 
@@ -394,6 +472,7 @@ export default function UserRewardsPanel({
               </div>
             </div>
 
+            {/* Achievements */}
             <div className="space-y-3">
               <div className="text-sm font-black">Achievements</div>
 
