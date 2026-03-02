@@ -14,7 +14,16 @@ import {
   where,
 } from "firebase/firestore";
 
-export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
+export function useDrafts({
+  db,
+  editor,
+  canWrite = false,   // admin/editor
+  isAdmin = false,    // admin only
+  authorEmail = "",   // ✅ 권한 기준
+  authorName = "",    // 표시용
+  onToast,
+  navigate,
+}) {
   const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
 
   const [drafts, setDrafts] = useState([]);
@@ -22,25 +31,38 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
   const [isDraftLoading, setIsDraftLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // autosave meta
   const [isDirty, setIsDirty] = useState(false);
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState(null);
 
   const refreshDrafts = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canWrite) return;
+
     try {
-      const q = query(
+      const base = [
         collection(db, "articles"),
         where("status", "==", "draft"),
         orderBy("createdAt", "desc"),
-        limit(50)
-      );
+        limit(50),
+      ];
+
+      // ✅ admin: draft 전체
+      // ✅ editor: 내 draft만
+      const q = isAdmin
+        ? query(...base)
+        : query(
+            collection(db, "articles"),
+            where("status", "==", "draft"),
+            where("authorEmail", "==", String(authorEmail || "")),
+            orderBy("createdAt", "desc"),
+            limit(50)
+          );
+
       const snap = await getDocs(q);
       setDrafts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error("Draft list error:", e);
     }
-  }, [db, isAdmin]);
+  }, [db, canWrite, isAdmin, authorEmail]);
 
   useEffect(() => {
     refreshDrafts();
@@ -57,7 +79,13 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
           toast("초안을 찾을 수 없습니다.");
           return;
         }
-        const data = s.data();
+        const data = s.data() || {};
+
+        // editor는 본인 글만
+        if (!isAdmin && String(data.authorEmail || "") !== String(authorEmail || "")) {
+          toast("이 초안에 접근할 권한이 없어요.");
+          return;
+        }
 
         setDraftId(docId);
 
@@ -68,7 +96,6 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
         setters.setCoverMedium(data.coverMedium || "");
 
         editor.commands.setContent(data.contentHTML || "");
-
         setIsDirty(false);
         setLastAutoSavedAt(null);
       } catch (e) {
@@ -78,76 +105,86 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
         setIsDraftLoading(false);
       }
     },
-    [db, editor, toast]
+    [db, editor, toast, isAdmin, authorEmail]
   );
 
-  const startNewDraft = useCallback((setters) => {
-    setDraftId(null);
-    setters.setTitle("");
-    setters.setSubtitle("");
-    setters.setCategory("EDITORIAL");
-    setters.setCover("");
-    setters.setCoverMedium("");
-    editor?.commands?.setContent("");
-
-    setIsDirty(false);
-    setLastAutoSavedAt(null);
-    toast("새 초안을 시작합니다.");
-  }, [editor, toast]);
+  const startNewDraft = useCallback(
+    (setters) => {
+      setDraftId(null);
+      setters.setTitle("");
+      setters.setSubtitle("");
+      setters.setCategory("EDITORIAL");
+      setters.setCover("");
+      setters.setCoverMedium("");
+      editor?.commands?.setContent("");
+      setIsDirty(false);
+      setLastAutoSavedAt(null);
+      toast("새 초안을 시작합니다.");
+    },
+    [editor, toast]
+  );
 
   const saveDraft = useCallback(
     async ({ silent = false, markClean = false } = {}, meta) => {
-      if (!editor) return;
+      if (!editor || !canWrite) return;
       setIsSaving(true);
 
-      const { title, subtitle, category, cover, coverMedium, author } = meta;
       try {
         const contentHTML = editor.getHTML();
 
-        // 최초 저장: draft 문서 생성
+        const safeAuthorEmail = String(meta.authorEmail || authorEmail || "");
+        const safeAuthorName = String(meta.author || authorName || "Unknown");
+
+        if (!safeAuthorEmail) {
+          toast("로그인 이메일이 없어 저장할 수 없어요.");
+          return;
+        }
+
         if (!draftId) {
           const docRef = await addDoc(collection(db, "articles"), {
-            title,
-            subtitle,
+            title: meta.title,
+            subtitle: meta.subtitle,
             contentHTML,
-            category,
-            cover,
-            coverMedium,
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
+
             status: "draft",
             likes: 0,
             views: 0,
             tags: [],
-            author: author?.name || "Admin",
-            authorEmail: author?.email || "",
+
+            author: safeAuthorName,
+            authorEmail: safeAuthorEmail,
+
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
 
           setDraftId(docRef.id);
-          if (!silent) toast("임시 저장이 완료되었습니다.");
+          if (!silent) toast("임시 저장 완료");
           await refreshDrafts();
-
           if (markClean) setIsDirty(false);
           return;
         }
 
-        // 이후 저장: updateDoc
         await updateDoc(doc(db, "articles", draftId), {
-          title,
-          subtitle,
+          title: meta.title,
+          subtitle: meta.subtitle,
           contentHTML,
-          category,
-          cover,
-          coverMedium,
+          category: meta.category,
+          cover: meta.cover,
+          coverMedium: meta.coverMedium,
+
           status: "draft",
-          author: author?.name || "Admin",
-          authorEmail: author?.email || "",
+          author: safeAuthorName,
+          authorEmail: safeAuthorEmail,
+
           updatedAt: serverTimestamp(),
         });
 
-        if (!silent) toast("임시 저장이 완료되었습니다.");
+        if (!silent) toast("임시 저장 완료");
         await refreshDrafts();
-
         if (markClean) setIsDirty(false);
       } catch (e) {
         console.error("Save draft error:", e);
@@ -156,12 +193,18 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
         setIsSaving(false);
       }
     },
-    [db, editor, draftId, refreshDrafts, toast]
+    [db, editor, draftId, refreshDrafts, toast, canWrite, authorEmail, authorName]
   );
 
   const getNextEditionInfo = useCallback(async () => {
-    // ✅ 복합 인덱스 요구 방지: status 조건 제거
-    const q = query(collection(db, "articles"), orderBy("sortIndex", "desc"), limit(1));
+   // ✅ published만 대상으로 번호 매기기 (editor 권한/쿼리 권한 문제 해결)
+    const q = query(
+      collection(db, "articles"),
+      where("status", "==", "published"),
+      orderBy("sortIndex", "desc"),
+      limit(1)
+    );
+
     const snap = await getDocs(q);
 
     let nextIndex = 1;
@@ -176,10 +219,9 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
 
   const publish = useCallback(
     async (meta) => {
-      if (!editor) return;
-      const { title, subtitle, category, cover, coverMedium, author } = meta;
+      if (!editor || !canWrite) return;
 
-      if (!title.trim()) {
+      if (!meta.title?.trim()) {
         toast("제목을 입력해야 합니다.");
         return;
       }
@@ -188,22 +230,33 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
       try {
         const contentHTML = editor.getHTML();
 
-        // draft 없으면 생성 후 publish
+        const safeAuthorEmail = String(meta.authorEmail || authorEmail || "");
+        const safeAuthorName = String(meta.author || authorName || "Unknown");
+
+        if (!safeAuthorEmail) {
+          toast("로그인 이메일이 없어 발행할 수 없어요.");
+          return;
+        }
+
         let targetId = draftId;
+
         if (!targetId) {
           const docRef = await addDoc(collection(db, "articles"), {
-            title,
-            subtitle,
+            title: meta.title,
+            subtitle: meta.subtitle,
             contentHTML,
-            category,
-            cover,
-            coverMedium,
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
+
             status: "draft",
             likes: 0,
             views: 0,
             tags: [],
-            author: author?.name || "Admin",
-            authorEmail: author?.email || "",
+
+            author: safeAuthorName,
+            authorEmail: safeAuthorEmail,
+
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -211,14 +264,16 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
           setDraftId(targetId);
         } else {
           await updateDoc(doc(db, "articles", targetId), {
-            title,
-            subtitle,
+            title: meta.title,
+            subtitle: meta.subtitle,
             contentHTML,
-            category,
-            cover,
-            coverMedium,
-            author: author?.name || "Admin",
-            authorEmail: author?.email || "",
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
+
+            author: safeAuthorName,
+            authorEmail: safeAuthorEmail,
+
             updatedAt: serverTimestamp(),
           });
         }
@@ -234,10 +289,8 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
 
         toast("아티클이 발행되었습니다!");
         await refreshDrafts();
-
         setIsDirty(false);
         setLastAutoSavedAt(null);
-
         navigate("/");
       } catch (e) {
         console.error("Publish error:", e);
@@ -246,14 +299,12 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
         setIsSaving(false);
       }
     },
-    [db, editor, draftId, getNextEditionInfo, refreshDrafts, toast, navigate]
+    [db, editor, draftId, getNextEditionInfo, refreshDrafts, toast, navigate, canWrite, authorEmail, authorName]
   );
 
-  // autosave debounce (호출쪽에서 meta를 넘겨줌)
   const runAutosave = useCallback(
     (meta) => {
-      if (!editor || !isAdmin) return;
-
+      if (!editor || !canWrite) return;
       if (!isDirty) return;
       if (isSaving || isDraftLoading) return;
 
@@ -274,7 +325,7 @@ export function useDrafts({ db, editor, isAdmin, onToast, navigate }) {
 
       return () => clearTimeout(t);
     },
-    [editor, isAdmin, isDirty, isSaving, isDraftLoading, saveDraft]
+    [editor, canWrite, isDirty, isSaving, isDraftLoading, saveDraft]
   );
 
   return {

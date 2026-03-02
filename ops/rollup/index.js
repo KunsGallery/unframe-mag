@@ -5,7 +5,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ strict: false }));
 
 function yyyymmddUTC(date = new Date()) {
   const y = date.getUTCFullYear();
@@ -93,7 +93,7 @@ async function runRollupOnce() {
   return { updated: docs.length, today };
 }
 
-app.post("/rollup", async (_req, res) => {
+app.post("/rollup", express.json({ strict: false }), async (_req, res) => {
   try {
     const result = await runRollupOnce();
     res.json({ ok: true, ...result });

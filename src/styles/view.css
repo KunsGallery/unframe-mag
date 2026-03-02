@@ -38,3 +38,19 @@ article.uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__content{ or
 .ProseMirror.uf-view figure[data-uf="image"]{
   outline: none !important;
 }
+
+/* =========================
+   UF Embed (Playlist/Podcast) - View only
+   ========================= */
+.ProseMirror.uf-view .uf-embed {
+  margin: 2.5rem 0;
+}
+
+.ProseMirror.uf-view .uf-embed iframe {
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
+}
+
+.dark .ProseMirror.uf-view .uf-embed iframe {
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+}

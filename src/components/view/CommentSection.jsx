@@ -13,6 +13,7 @@ import {
 import { GoogleAuthProvider, signInWithPopup, signOut, getAuth } from "firebase/auth";
 import { db } from "../../firebase/config";
 import { useUserProfile } from "../../hooks/useUserProfile";
+import { trackEvent } from "../../lib/trackEvent"; // ✅ NEW
 
 /** ✅ 관리자 이메일 allowlist (rules와 동일하게 유지) */
 const ADMIN_EMAILS = new Set([
@@ -131,11 +132,10 @@ export default function CommentSection({ article }) {
     }
   };
 
-  /** ✅ 1.7 스팸 방지(쿨타임 + 연속 중복 방지) */
+  /** ✅ 스팸 방지(쿨타임 + 연속 중복 방지) */
   const canPostNow = () => {
     if (!user || !editionNo) return { ok: false, msg: "로그인이 필요해요." };
 
-    // 30초 쿨타임
     try {
       const raw = localStorage.getItem(lsKey(user.uid, editionNo, "lastAt"));
       const lastAt = raw ? Number(raw) : 0;
@@ -143,11 +143,8 @@ export default function CommentSection({ article }) {
         const sec = Math.ceil((COOLDOWN_MS - (Date.now() - lastAt)) / 1000);
         return { ok: false, msg: `잠깐! ${sec}초 후에 다시 작성할 수 있어요.` };
       }
-    } catch {
-      // localStorage 실패 시엔 쿨타임 무시(치명적이지 않게)
-    }
+    } catch {}
 
-    // 같은 내용 연속 등록 방지(간단)
     try {
       const raw = localStorage.getItem(lsKey(user.uid, editionNo, "lastText"));
       const lastText = raw ? String(raw) : "";
@@ -173,7 +170,6 @@ export default function CommentSection({ article }) {
     const nickname = profile?.nickname?.trim();
     if (!nickname) return setError("닉네임이 없어요. My#에서 닉네임을 설정해줘.");
 
-    // ✅ 스팸 방지 체크
     const gate = canPostNow();
     if (!gate.ok) return setError(gate.msg);
 
@@ -187,6 +183,8 @@ export default function CommentSection({ article }) {
         text: clean,
         nickname, // ✅ 댓글에서 수정 불가
 
+        // ✅ rules 호환: author(string) 필드 추가 (필수!)
+        author: nickname, // 또는 user.displayName
         authorUid: user.uid,
         authorEmail: user.email || null,
         authorPhotoURL: user.photoURL || null,
@@ -201,6 +199,9 @@ export default function CommentSection({ article }) {
       } catch {}
 
       setText("");
+
+      // ✅ NEW: 트래킹(댓글)
+      trackEvent("comment", { editionNo });
     } catch (e) {
       console.error(e);
       setError("댓글 등록에 실패했어요.");
@@ -209,7 +210,7 @@ export default function CommentSection({ article }) {
     }
   };
 
-  /** ✅ 1.6 관리자 삭제: 본인 OR 관리자 */
+  /** ✅ 삭제: 본인 OR 관리자 */
   const remove = async (commentId, authorUid) => {
     setError("");
     if (!user) return;
@@ -244,6 +245,7 @@ export default function CommentSection({ article }) {
               <button
                 onClick={logout}
                 className="px-3 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 text-xs font-bold"
+                type="button"
               >
                 로그아웃
               </button>
@@ -252,6 +254,7 @@ export default function CommentSection({ article }) {
             <button
               onClick={login}
               className="px-3 py-1.5 rounded-md bg-black text-white dark:bg-white dark:text-black text-xs font-black"
+              type="button"
             >
               Google로 로그인
             </button>
@@ -288,6 +291,7 @@ export default function CommentSection({ article }) {
                     ? `쿨타임: ${Math.ceil(cooldownLeft / 1000)}초`
                     : ""
                 }
+                type="button"
               >
                 {posting
                   ? "등록 중..."
@@ -347,6 +351,7 @@ export default function CommentSection({ article }) {
                         onClick={() => remove(c.id, c.authorUid)}
                         className="text-xs font-black text-zinc-500 hover:text-red-600"
                         title={isAdmin && user?.uid !== c.authorUid ? "관리자 삭제" : "삭제"}
+                        type="button"
                       >
                         삭제
                       </button>

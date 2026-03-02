@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { Save, Send, Plus } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-
 import { db } from "../firebase/config";
 
 import SlashMenu from "../components/editor/SlashMenu";
@@ -19,20 +18,33 @@ import { createEditorConfig } from "../tiptap/editorConfig";
 import { useDrafts } from "../hooks/useDrafts";
 import { useSlashMenu } from "../hooks/useSlashMenu";
 
-const ADMIN_EMAILS = [
+const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
   "cybog2004@gmail.com",
   "sylove887@gmail.com",
-];
+]);
 
-export default function EditorPage({ isDarkMode, onToast, user }) {
+export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
   const navigate = useNavigate();
   const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
 
-  const isAdmin = useMemo(
-    () => !!user && ADMIN_EMAILS.includes(user.email),
-    [user]
-  );
+  // ✅ role 기반 + admin 이메일 fallback
+  const isAdmin = useMemo(() => {
+    if (!user?.email) return false;
+    return role === "admin" || ADMIN_EMAILS.has(user.email);
+  }, [user, role]);
+
+  const isEditor = useMemo(() => !!user && role === "editor", [user, role]);
+  const canWrite = isAdmin || isEditor;
+
+  // ✅ Firestore rules(2.2) 기준: articles.author == request.auth.token.name 이어야 함
+  const authorName = useMemo(() => {
+    return user?.displayName || "Unknown";
+  }, [user?.displayName]);
+
+  const authorEmail = useMemo(() => {
+    return user?.email || "";
+  }, [user?.email]);
 
   // 메타
   const [title, setTitle] = useState("");
@@ -42,11 +54,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
   const [coverMedium, setCoverMedium] = useState("");
 
   // ✅ cover 업로드(진행률 포함)
-  const {
-    upload: uploadCover,
-    uploading: coverUploading,
-    progress: coverProgress,
-  } = useUploadImage();
+  const { upload: uploadCover, uploading: coverUploading, progress: coverProgress } = useUploadImage();
 
   // SlashMenu
   const { slashPos, closeSlashMenu, onEditorKeyDown } = useSlashMenu();
@@ -54,7 +62,6 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
   // TipTap config
   const editor = useEditor(
     createEditorConfig({
-      // ✅ 붙여넣기/드롭 업로드도 progress 엔진으로 통일(진행률 UI는 추후)
       onUploadImage: async (file) => uploadImageWithProgress(file),
       onToast,
     })
@@ -84,7 +91,10 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
   const draftsApi = useDrafts({
     db,
     editor,
-    isAdmin,
+    canWrite,          // admin/editor
+    isAdmin,           // admin only
+    authorName: user?.displayName || "",
+    authorEmail: user?.email || "", 
     onToast,
     navigate,
   });
@@ -105,21 +115,14 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
       category,
       cover,
       coverMedium,
-      author: { name: user?.displayName || "Admin", email: user?.email || "" },
+      // ✅ author(문서 필드)는 displayName으로 고정
+      author: authorName,
+      authorEmail,
     });
     return typeof cleanup === "function" ? cleanup : undefined;
-  }, [
-    draftsApi,
-    title,
-    subtitle,
-    category,
-    cover,
-    coverMedium,
-    user?.displayName,
-    user?.email,
-  ]);
+  }, [draftsApi, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
 
-  if (!isAdmin) {
+  if (!canWrite) {
     return (
       <div className="p-40 text-center font-black italic uppercase tracking-widest text-zinc-400">
         Access Denied.
@@ -136,9 +139,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
       {/* --- Sidebar --- */}
       <aside
         className={`lg:col-span-3 p-10 flex flex-col gap-10 sticky top-[80px] h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
-          isDarkMode
-            ? "bg-zinc-900 border-zinc-800 shadow-2xl"
-            : "bg-white border-zinc-50 shadow-xl"
+          isDarkMode ? "bg-zinc-900 border-zinc-800 shadow-2xl" : "bg-white border-zinc-50 shadow-xl"
         }`}
       >
         {/* Draft list */}
@@ -159,6 +160,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
               }
               className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70 transition"
               title="New Draft"
+              type="button"
             >
               <Plus size={14} /> NEW
             </button>
@@ -168,9 +170,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
             {draftsApi.drafts.length === 0 ? (
               <div
                 className={`p-5 rounded-2xl border text-[10px] tracking-widest uppercase italic opacity-60 ${
-                  isDarkMode
-                    ? "border-zinc-800 text-zinc-400"
-                    : "border-zinc-100 text-zinc-500"
+                  isDarkMode ? "border-zinc-800 text-zinc-400" : "border-zinc-100 text-zinc-500"
                 }`}
               >
                 No drafts yet.
@@ -195,6 +195,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
                       ? "border-zinc-800 hover:border-zinc-600"
                       : "border-zinc-100 hover:border-zinc-300"
                   }`}
+                  type="button"
                 >
                   <div className="text-[11px] font-black italic tracking-tight line-clamp-1">
                     {d.title || "(Untitled)"}
@@ -211,9 +212,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
         {/* Meta */}
         <div className="space-y-8 px-2 uppercase tracking-widest font-black italic">
           <div className="space-y-3">
-            <label className="text-[10px] text-zinc-400 uppercase tracking-widest">
-              Category
-            </label>
+            <label className="text-[10px] text-zinc-400 uppercase tracking-widest">Category</label>
             <select
               value={category}
               onChange={(e) => {
@@ -221,9 +220,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
                 draftsApi.setIsDirty(true);
               }}
               className={`w-full p-4 border-2 text-[12px] focus:outline-none focus:border-[#004aad] transition-colors ${
-                isDarkMode
-                  ? "bg-zinc-900 border-zinc-700 text-white"
-                  : "bg-zinc-50 border-zinc-100 text-black"
+                isDarkMode ? "bg-zinc-900 border-zinc-700 text-white" : "bg-zinc-50 border-zinc-100 text-black"
               }`}
             >
               <option value="EDITORIAL">EDITORIAL</option>
@@ -247,9 +244,7 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
                 progress={coverProgress}
                 onPickFile={async (file) => {
                   try {
-                    const { url, coverMedium: cm } = await uploadCover(file, {
-                      variant: "cover",
-                    });
+                    const { url, coverMedium: cm } = await uploadCover(file, { variant: "cover" });
                     setCover(url);
                     setCoverMedium(cm || url);
                     draftsApi.setIsDirty(true);
@@ -302,19 +297,17 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
                   category,
                   cover,
                   coverMedium,
-                  author: {
-                    name: user?.displayName || "Admin",
-                    email: user?.email || "",
-                  },
+                  // ✅ rules용 author는 displayName으로 저장
+                  author: authorName,
+                  authorEmail,
                 }
               )
             }
             disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
             className={`w-full py-5 font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 transition-all hover:opacity-70 rounded-2xl ${
-              isDarkMode
-                ? "bg-zinc-800 text-zinc-300"
-                : "bg-zinc-50 text-zinc-500"
+              isDarkMode ? "bg-zinc-800 text-zinc-300" : "bg-zinc-50 text-zinc-500"
             }`}
+            type="button"
           >
             <Save size={14} /> {draftsApi.isSaving ? "SAVING..." : "Save Draft"}
           </button>
@@ -327,14 +320,13 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
                 category,
                 cover,
                 coverMedium,
-                author: {
-                  name: user?.displayName || "Admin",
-                  email: user?.email || "",
-                },
+                author: authorName, // ✅ 중요
+                authorEmail,
               })
             }
             disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
             className="w-full py-5 bg-[#004aad] text-white font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 hover:bg-black shadow-xl transition-all rounded-2xl italic"
+            type="button"
           >
             <Send size={14} /> {draftsApi.isSaving ? "PUBLISHING..." : "Publish Issue"}
           </button>
@@ -345,56 +337,56 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
       <main className={`lg:col-span-9 flex transition-colors duration-500 ${isDarkMode ? "bg-black" : "bg-white"}`}>
         <div className="flex-1 flex flex-col">
           <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
-          <div className="grow p-12 md:p-32 overflow-y-auto">
 
-          <div className="max-w-4xl mx-auto space-y-16">
-            <div className="space-y-4">
+          <div className="grow p-12 md:p-32 overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-16">
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="ENTER TITLE..."
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    draftsApi.setIsDirty(true);
+                  }}
+                  className={`w-full text-7xl font-black italic tracking-tighter focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
+                    isDarkMode ? "text-white" : "text-black"
+                  }`}
+                />
+                <div className="h-2 w-24 bg-[#004aad] shadow-[0_0_15px_#004aad]" />
+              </div>
+
               <input
                 type="text"
-                placeholder="ENTER TITLE..."
-                value={title}
+                placeholder="Subtitle here..."
+                value={subtitle}
                 onChange={(e) => {
-                  setTitle(e.target.value);
+                  setSubtitle(e.target.value);
                   draftsApi.setIsDirty(true);
                 }}
-                className={`w-full text-7xl font-black italic tracking-tighter focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
-                  isDarkMode ? "text-white" : "text-black"
+                className={`w-full text-2xl font-light italic focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${
+                  isDarkMode ? "text-zinc-500" : "text-zinc-400"
                 }`}
               />
-              <div className="h-2 w-24 bg-[#004aad] shadow-[0_0_15px_#004aad]" />
-            </div>
 
-            <input
-              type="text"
-              placeholder="Subtitle here..."
-              value={subtitle}
-              onChange={(e) => {
-                setSubtitle(e.target.value);
-                draftsApi.setIsDirty(true);
-              }}
-              className={`w-full text-2xl font-light italic focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${
-                isDarkMode ? "text-zinc-500" : "text-zinc-400"
-              }`}
-            />
+              <div className="editor-container relative">
+                <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} />
+                <EditorContent
+                  editor={editor}
+                  onKeyDown={(e) => onEditorKeyDown(editor, e)}
+                  onClick={() => closeSlashMenu()}
+                />
+              </div>
 
-            <div className="editor-container relative">
-              <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} />
-
-              <EditorContent
-                editor={editor}
-                onKeyDown={(e) => onEditorKeyDown(editor, e)}
-                onClick={() => closeSlashMenu()}
-              />
-            </div>
-
-            <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
-              {draftsApi.lastAutoSavedAt ? "AUTOSAVED" : ""}
-              {draftsApi.isDirty ? "  •  EDITING…" : ""}
+              <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
+                {draftsApi.lastAutoSavedAt ? "AUTOSAVED" : ""}
+                {draftsApi.isDirty ? "  •  EDITING…" : ""}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-         <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+
+        <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
       </main>
 
       {/* ✅ Editor-only inline styles (View 영향 X) */}
@@ -407,10 +399,8 @@ export default function EditorPage({ isDarkMode, onToast, user }) {
           height: 0;
         }
 
-        /* ✅ 오타 수정: .ProseMirror.uf-editor */
         .ProseMirror.uf-editor { min-height: 500px; outline: none; }
 
-        /* Editor-only block UX (ViewPage에 영향 0) */
         .uf-editor :is(p, h1, h2, h3, blockquote, ul, ol, pre){
           position: relative;
         }

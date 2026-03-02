@@ -5,9 +5,10 @@ import { getAuth } from "firebase/auth";
 import { db } from "../../firebase/config";
 import { usePollResults } from "../../hooks/usePollResults";
 import { usePollMeta } from "../../hooks/usePollMeta";
+import { trackEvent } from "../../lib/trackEvent"; // ✅ NEW
 
-const MAX_OPTIONS = 6; // ✅ 옵션 최대 개수
-const MIN_OPTIONS = 2; // ✅ 옵션 최소 개수(삭제 제한)
+const MAX_OPTIONS = 6;
+const MIN_OPTIONS = 2;
 
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
@@ -25,11 +26,7 @@ export default function UfPollNodeView(props) {
 
   const { pollKey, question = "투표", options } = node.attrs || {};
 
-  // ✅ options 방어: 배열이 아니면 빈 배열
   const safeOptionsRaw = Array.isArray(options) ? options : [];
-
-  // ✅ options가 없으면(빈 poll) 에디터에서 바로 보이도록 기본 2개 자동 주입
-  //    (editable일 때만 자동생성)
   const safeOptions =
     safeOptionsRaw.length > 0
       ? safeOptionsRaw
@@ -44,7 +41,6 @@ export default function UfPollNodeView(props) {
   const user = auth.currentUser;
   const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
 
-  // ✅ 결과 집계용 optionIds는 safeOptions 기준
   const optionIds = useMemo(
     () => safeOptions.map((o) => o?.id).filter(Boolean),
     [safeOptions]
@@ -54,7 +50,6 @@ export default function UfPollNodeView(props) {
   const { meta, loadingMeta } = usePollMeta(pollKey);
 
   const isClosed = !!meta?.closed;
-
   const [voteError, setVoteError] = useState("");
 
   const vote = async (optionId) => {
@@ -64,19 +59,20 @@ export default function UfPollNodeView(props) {
     if (isClosed) return setVoteError("투표가 마감되었어요.");
 
     try {
-      // ✅ 중복 방지: votes/{uid}
       await setDoc(doc(db, "polls", String(pollKey), "votes", user.uid), {
         optionId: String(optionId),
         uid: user.uid,
         createdAt: serverTimestamp(),
       });
+
+      // ✅ NEW: 트래킹(투표)
+      trackEvent("vote", { pollKey: String(pollKey), optionId: String(optionId) });
     } catch (e) {
       console.error(e);
       setVoteError("투표 저장에 실패했어요. (이미 투표했거나 권한/마감 상태)");
     }
   };
 
-  // ---------- editor helpers ----------
   const setQuestion = (v) => updateAttributes({ question: v });
 
   const addOption = () => {
@@ -88,7 +84,7 @@ export default function UfPollNodeView(props) {
 
   const removeOption = (id) => {
     const next = [...safeOptions];
-    if (next.length <= MIN_OPTIONS) return; // ✅ 최소 2개 유지
+    if (next.length <= MIN_OPTIONS) return;
     updateAttributes({ options: next.filter((o) => o.id !== id) });
   };
 
@@ -97,7 +93,6 @@ export default function UfPollNodeView(props) {
     updateAttributes({ options: next });
   };
 
-  // ---------- admin close toggle ----------
   const toggleClose = async () => {
     if (!isAdmin) return;
     if (!pollKey) return;
@@ -125,7 +120,6 @@ export default function UfPollNodeView(props) {
   return (
     <NodeViewWrapper className="uf-poll my-8">
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5">
-        {/* Header */}
         <div className="flex items-start justify-between gap-3">
           {editable ? (
             <input
@@ -143,7 +137,6 @@ export default function UfPollNodeView(props) {
               {loadingMeta ? "상태…" : isClosed ? "마감됨" : "진행중"}
             </div>
 
-            {/* ✅ 관리자 마감/재오픈 */}
             {isAdmin && (
               <button
                 onClick={toggleClose}
@@ -163,7 +156,6 @@ export default function UfPollNodeView(props) {
           </div>
         </div>
 
-        {/* Options */}
         <div className="mt-4 space-y-2">
           {safeOptions.map((o) => {
             const c = counts[o.id] || 0;
@@ -217,7 +209,6 @@ export default function UfPollNodeView(props) {
           })}
         </div>
 
-        {/* Footer */}
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="text-xs text-zinc-500">
             총 <b>{total}</b>표

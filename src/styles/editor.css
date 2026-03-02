@@ -176,3 +176,16 @@
   font-size: 12px;
   opacity: .75;
 }
+
+/* =========================
+   UF Embed (Playlist/Podcast) - Editor only
+   ========================= */
+.ProseMirror.uf-editor .uf-embed {
+  outline: 1px dashed rgba(0, 0, 0, 0.18);
+  outline-offset: 10px;
+  border-radius: 18px;
+}
+
+.dark .ProseMirror.uf-editor .uf-embed {
+  outline-color: rgba(255, 255, 255, 0.18);
+}

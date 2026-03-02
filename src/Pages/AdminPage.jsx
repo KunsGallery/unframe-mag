@@ -1,6 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { collection, doc, getDocs, orderBy, query, updateDoc, where, setDoc } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
+import UserRewardsPanel from "../components/admin/UserRewardsPanel";
 
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
@@ -19,6 +29,27 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
   const [editorPicks, setEditorPicks] = useState([]); // editionNo[]
   const [saving, setSaving] = useState(false);
 
+  // ✅ 홈 큐레이션 config 불러오기(초기값)
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    (async () => {
+      try {
+        const ref = doc(db, "config", "home");
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          setHeroEditionNo(data.heroEditionNo || null);
+          setEditorPicks(Array.isArray(data.editorPicks) ? data.editorPicks : []);
+        }
+      } catch (e) {
+        console.error(e);
+        // config 읽기 실패는 치명적이지 않음
+      }
+    })();
+  }, [isAdmin]);
+
+  // ✅ published 글 목록 불러오기
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -31,8 +62,7 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
           orderBy("sortIndex", "desc")
         );
         const snap = await getDocs(q);
-        const list = snap.docs.map((d) => ({ docId: d.id, ...d.data() }));
-        setArticles(list);
+        setArticles(snap.docs.map((d) => ({ docId: d.id, ...d.data() })));
       } catch (e) {
         console.error(e);
         toast("published 글 목록을 불러오지 못했어요.");
@@ -61,7 +91,6 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
     setSaving(true);
     try {
       const ref = doc(db, "config", "home");
-      // 문서 없을 수도 있으니 setDoc merge로 안전하게
       await setDoc(
         ref,
         {
@@ -100,6 +129,7 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
   return (
     <div className={`${isDarkMode ? "bg-zinc-950 text-white" : "bg-white text-black"} min-h-screen`}>
       <div className="max-w-[1100px] mx-auto px-6 py-16">
+        {/* Header */}
         <div className="flex items-end justify-between gap-6">
           <div>
             <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
@@ -117,11 +147,21 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
             onClick={save}
             disabled={saving}
             className="px-6 py-4 rounded-2xl bg-[#004aad] text-white font-black text-xs tracking-[0.4em] uppercase italic disabled:opacity-50"
+            type="button"
           >
             {saving ? "SAVING…" : "SAVE"}
           </button>
         </div>
 
+        {/* ✅ Rewards Panel (유저 지급/회수/등급) */}
+        <UserRewardsPanel
+          isAdmin={isAdmin}
+          adminEmail={user?.email}
+          isDarkMode={isDarkMode}
+          onToast={onToast}
+        />
+
+        {/* Home Curation */}
         <div className="mt-10 grid md:grid-cols-2 gap-6">
           {/* Hero chooser */}
           <div className={`rounded-2xl border p-6 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
@@ -137,7 +177,9 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
                     checked={heroEditionNo === a.editionNo}
                     onChange={() => setHeroEditionNo(a.editionNo)}
                   />
-                  <span className="text-xs font-black opacity-70">#{String(a.editionNo).padStart(3, "0")}</span>
+                  <span className="text-xs font-black opacity-70">
+                    #{String(a.editionNo).padStart(3, "0")}
+                  </span>
                   <span className="text-sm font-black line-clamp-1">{a.title || "Untitled"}</span>
                 </label>
               ))}
@@ -159,7 +201,9 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
                       checked={checked}
                       onChange={() => togglePick(a.editionNo)}
                     />
-                    <span className="text-xs font-black opacity-70">#{String(a.editionNo).padStart(3, "0")}</span>
+                    <span className="text-xs font-black opacity-70">
+                      #{String(a.editionNo).padStart(3, "0")}
+                    </span>
                     <span className="text-sm font-black line-clamp-1">{a.title || "Untitled"}</span>
                   </label>
                 );

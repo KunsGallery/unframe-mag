@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -10,10 +10,11 @@ import {
 import { Sun, Moon, Edit3, LogOut } from "lucide-react";
 
 // Firebase
-import { auth, googleProvider } from "./firebase/config";
+import { auth, googleProvider, db } from "./firebase/config";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 
-// ✅ Pages (모두 src/pages/ 에 존재한다고 했으니 여기서 import)
+// Pages
 import HomePage from "./Pages/HomePage";
 import AboutPage from "./Pages/AboutPage";
 import EditorPage from "./Pages/EditorPage";
@@ -24,14 +25,29 @@ import AdminPage from "./Pages/AdminPage";
 // ----------------------------------------------------------------------------
 // Config
 // ----------------------------------------------------------------------------
-const ADMIN_EMAILS = ["gallerykuns@gmail.com", "cybog2004@gmail.com", "sylove887@gmail.com"];
+const ADMIN_EMAILS = new Set([
+  "gallerykuns@gmail.com",
+  "cybog2004@gmail.com",
+  "sylove887@gmail.com",
+]);
+
+function safeNicknameFromDisplayName(displayName) {
+  const base = String(displayName || "User")
+    .trim()
+    .replace(/\s+/g, ""); // 공백 제거(선택)
+  const nick = base.slice(0, 20);
+  return nick.length ? nick : "User";
+}
 
 // ----------------------------------------------------------------------------
 // Shared Components
 // ----------------------------------------------------------------------------
-const Navbar = ({ toggleTheme, isDarkMode, user, onLogin, onLogout }) => {
+const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
   const location = useLocation();
-  const isAdmin = !!user && ADMIN_EMAILS.includes(user.email);
+
+  const isAdmin = !!user && (role === "admin" || ADMIN_EMAILS.has(user.email));
+  const isEditor = !!user && role === "editor";
+  const canWrite = isAdmin || isEditor;
 
   return (
     <nav
@@ -73,7 +89,6 @@ const Navbar = ({ toggleTheme, isDarkMode, user, onLogin, onLogout }) => {
             />
           </Link>
 
-          {/* ✅ 네가 말한 마이페이지 경로: /mylibrary */}
           <Link
             to="/mylibrary"
             className={`hover:text-[#004aad] relative group ${
@@ -87,11 +102,27 @@ const Navbar = ({ toggleTheme, isDarkMode, user, onLogin, onLogout }) => {
               }`}
             />
           </Link>
+
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className={`hover:text-[#004aad] relative group ${
+                location.pathname === "/admin" ? (isDarkMode ? "text-white" : "text-black") : ""
+              }`}
+            >
+              Admin
+              <span
+                className={`absolute -bottom-2 left-0 h-1 bg-[#004aad] transition-all duration-500 ${
+                  location.pathname === "/admin" ? "w-full" : "w-0 group-hover:w-1/2"
+                }`}
+              />
+            </Link>
+          )}
         </div>
       </div>
 
       <div className="flex items-center gap-6">
-        {isAdmin && (
+        {canWrite && (
           <Link
             to="/write"
             className={`p-4 rounded-2xl hover:bg-[#004aad]/10 transition-all ${
@@ -108,6 +139,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, onLogin, onLogout }) => {
         <button
           onClick={toggleTheme}
           className="w-14 h-14 rounded-2xl flex items-center justify-center bg-zinc-50 dark:bg-zinc-900 text-zinc-400 hover:text-[#004aad] transition-all shadow-inner group"
+          type="button"
         >
           {isDarkMode ? (
             <Sun size={24} className="group-hover:rotate-90 transition-all duration-700" />
@@ -117,13 +149,14 @@ const Navbar = ({ toggleTheme, isDarkMode, user, onLogin, onLogout }) => {
         </button>
 
         {user ? (
-          <button onClick={onLogout} className="flex items-center gap-2 p-2 rounded-xl text-zinc-400 hover:text-red-500 transition-all">
+          <button onClick={onLogout} className="flex items-center gap-2 p-2 rounded-xl text-zinc-400 hover:text-red-500 transition-all" type="button">
             <LogOut size={20} />
           </button>
         ) : (
           <button
             onClick={onLogin}
             className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-lg hover:bg-[#004aad] hover:text-white transition-all"
+            type="button"
           >
             Login
           </button>
@@ -174,9 +207,9 @@ function ScrollToTop() {
   return null;
 }
 
-const RequireAdmin = ({ user, isAdmin, children }) => {
+const RequireRole = ({ user, role, allow = [], children }) => {
   if (!user) return <Navigate to="/" replace />;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!allow.includes(role)) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -197,10 +230,12 @@ const NotFound = () => (
 // ----------------------------------------------------------------------------
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const isAdmin = !!user && ADMIN_EMAILS.includes(user.email);
+  const [role, setRole] = useState("user");
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -210,8 +245,92 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // ✅ 로그인 시 users/{uid} 문서 자동 생성/보정 + role 구독
+  useEffect(() => {
+    if (!user) {
+      setRole("user");
+      setRoleLoading(false);
+      return;
+    }
+
+    const ref = doc(db, "users", user.uid);
+    setRoleLoading(true);
+
+    const unsub = onSnapshot(
+      ref,
+      async (snap) => {
+        const email = user.email || "";
+        const emailIsAdmin = !!email && ADMIN_EMAILS.has(email);
+
+        if (!snap.exists()) {
+          // ✅ 문서가 없으면 규칙에 맞춰 생성
+          // rules: nickname(string,<=20) + nicknameChanged(false) 필요
+          const nickname = safeNicknameFromDisplayName(user.displayName);
+
+          const initialRole = emailIsAdmin ? "admin" : "user";
+
+          await setDoc(ref, {
+            uid: user.uid,
+            email: email || null,
+            nickname,
+            nicknameChanged: false,
+            role: initialRole,
+            xp: 0,
+            level: 1,
+            tier: "ROOKIE",
+            tierLabel: "Rookie",
+            tierColor: "#9CA3AF",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          setRole(initialRole);
+          setRoleLoading(false);
+          return;
+        }
+
+        const data = snap.data() || {};
+        const currentRole = String(data.role || "user");
+
+        // ✅ role이 없으면 자동 보정 (admin email이면 admin으로)
+        if (!("role" in data)) {
+          const nextRole = emailIsAdmin ? "admin" : "user";
+          await setDoc(ref, { role: nextRole, updatedAt: serverTimestamp() }, { merge: true });
+          setRole(nextRole);
+          setRoleLoading(false);
+          return;
+        }
+
+        // ✅ admin 이메일은 role이 user로 박혀있어도 admin으로 올려줌(안전장치)
+        if (emailIsAdmin && currentRole !== "admin") {
+          await setDoc(ref, { role: "admin", updatedAt: serverTimestamp() }, { merge: true });
+          setRole("admin");
+          setRoleLoading(false);
+          return;
+        }
+
+        setRole(currentRole);
+        setRoleLoading(false);
+      },
+      (e) => {
+        console.error("[App] role snapshot error:", e);
+        setRole("user");
+        setRoleLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [user]);
+
+  const isAdmin = useMemo(() => {
+    if (!user?.email) return false;
+    return role === "admin" || ADMIN_EMAILS.has(user.email);
+  }, [user?.email, role]);
+
+  const effectiveRole = isAdmin ? "admin" : role;
+
   const handleLogin = async () => {
     try {
+      googleProvider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
       console.error(e);
@@ -236,7 +355,6 @@ export default function App() {
           isDarkMode ? "bg-black text-white dark" : "bg-white text-black"
         }`}
       >
-        {/* Background Grid */}
         <div
           className={`fixed inset-0 pointer-events-none transition-opacity duration-700 ${
             isDarkMode ? "opacity-[0.01]" : "opacity-[0.03]"
@@ -252,38 +370,38 @@ export default function App() {
           toggleTheme={toggleTheme}
           isDarkMode={isDarkMode}
           user={user}
+          role={effectiveRole}
           onLogin={handleLogin}
           onLogout={handleLogout}
         />
 
         <main className="relative">
           <Routes>
-            {/* Home */}
             <Route path="/" element={<HomePage isDarkMode={isDarkMode} user={user} authLoading={authLoading} />} />
-
-            {/* About */}
             <Route path="/about" element={<AboutPage isDarkMode={isDarkMode} user={user} />} />
-
-            {/* MyPage */}
             <Route path="/mylibrary" element={<MyPage isDarkMode={isDarkMode} user={user} authLoading={authLoading} />} />
-
-            {/* ViewPage */}
             <Route path="/article/:id" element={<ViewPage isDarkMode={isDarkMode} user={user} />} />
 
-            {/* EditorPage (admin only) */}
+            {/* ✅ write: admin/editor */}
             <Route
               path="/write"
               element={
-                <RequireAdmin user={user} isAdmin={isAdmin}>
-                  <EditorPage isDarkMode={isDarkMode} user={user} />
-                </RequireAdmin>
+                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]}>
+                  <EditorPage isDarkMode={isDarkMode} user={user} role={effectiveRole} />
+                </RequireRole>
               }
             />
 
-            {/* AdminPage */}
-            <Route path="/admin" element={<AdminPage user={user} isDarkMode={isDarkMode} />} />
+            {/* ✅ admin: admin only */}
+            <Route
+              path="/admin"
+              element={
+                <RequireRole user={user} role={effectiveRole} allow={["admin"]}>
+                  <AdminPage user={user} isDarkMode={isDarkMode} onToast={(m) => console.log("[TOAST]", m)} />
+                </RequireRole>
+              }
+            />
 
-            {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

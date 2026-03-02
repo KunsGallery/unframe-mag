@@ -24,6 +24,8 @@ import {
   MinusSquare,
   Columns2,
   CheckSquare,
+  Music,
+  Mic,
   Table as TableIcon,
   Vote,
 } from "lucide-react";
@@ -31,17 +33,24 @@ import {
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 
+// ✅ NEW: embed 변환 유틸 (playlist/podcast)
+import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
+
 export default function EditorToolbar({ editor, isDarkMode, onToast }) {
+  const toast = (m) => (onToast ? onToast(m) : console.log(m));
   const { upload, uploading, progress } = useUploadImage();
 
   if (!editor) return null;
 
   const btn = (active) =>
     `p-2 rounded-lg transition ${
-      active ? "bg-[#004aad] text-white" : "text-zinc-400 hover:bg-white dark:hover:bg-zinc-800"
+      active
+        ? "bg-[#004aad] text-white"
+        : "text-zinc-400 hover:bg-white dark:hover:bg-zinc-800"
     }`;
 
-  const group = "flex bg-zinc-50 dark:bg-zinc-900 p-1.5 rounded-xl gap-1 flex-wrap";
+  const group =
+    "flex bg-zinc-50 dark:bg-zinc-900 p-1.5 rounded-xl gap-1 flex-wrap";
 
   const insertLink = () => {
     const prev = editor.getAttributes("link").href;
@@ -56,7 +65,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
   // ✅ 단일 이미지 업로드 → ufImage 노드로 삽입(Inspector가 잡힘)
   const uploadInlineImage = async (file) => {
-   try {
+    try {
       const { url } = await upload(file, { variant: "inline" });
 
       editor
@@ -74,7 +83,8 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         })
         .run();
     } catch (e) {
-      onToast?.("이미지 업로드 실패");
+      console.error(e);
+      toast("이미지 업로드 실패");
     }
   };
 
@@ -91,7 +101,8 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         })
         .run();
     } catch (e) {
-      onToast?.("패럴랙스 업로드 실패");
+      console.error(e);
+      toast("패럴랙스 업로드 실패");
     }
   };
 
@@ -111,7 +122,8 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         })
         .run();
     } catch (e) {
-      onToast?.("스티키 업로드 실패");
+      console.error(e);
+      toast("스티키 업로드 실패");
     }
   };
 
@@ -119,8 +131,50 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
     if (editor?.commands?.insertUfPoll) {
       editor.chain().focus().insertUfPoll().run();
     } else {
-      onToast?.("Poll 커맨드가 아직 연결되지 않았어요.");
+      toast("Poll 커맨드가 아직 연결되지 않았어요.");
     }
+  };
+
+  // ✅ NEW: Playlist/Podcast 삽입(자동 embed 변환)
+  const insertEmbed = (kind) => {
+    const theme = isDarkMode ? "1" : "0"; // spotify: 0 light / 1 dark
+    const placeholder =
+      kind === "podcast"
+        ? "https://open.spotify.com/show/"
+        : "https://open.spotify.com/playlist/";
+
+    const url = window.prompt(
+      kind === "podcast"
+        ? "Podcast URL (Spotify show/episode)"
+        : "Playlist URL (Spotify playlist)",
+      placeholder
+    );
+
+    // 취소 눌렀으면 아무 것도 안함
+    if (url === null) return;
+
+    const r = url ? toEmbedURL(kind, url, { theme }) : null;
+
+    if (url && !r?.ok) {
+      toast("지원되지 않는 링크예요. (현재 Spotify 링크 권장)");
+    }
+
+    const nodeType = kind === "podcast" ? "ufPodcast" : "ufPlaylist";
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: nodeType,
+        attrs: {
+          kind,
+          url: url || "",
+          embedUrl: r?.ok ? r.embedUrl : "",
+          height: defaultEmbedHeight(kind),
+          theme,
+        },
+      })
+      .run();
   };
 
   const inTable = editor.isActive("table");
@@ -133,26 +187,47 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
     >
       {/* Text */}
       <div className={group}>
-        <button onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive("bold"))} title="Bold">
+        <button
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className={btn(editor.isActive("bold"))}
+          title="Bold"
+          type="button"
+        >
           <Bold size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive("italic"))} title="Italic">
+
+        <button
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={btn(editor.isActive("italic"))}
+          title="Italic"
+          type="button"
+        >
           <Italic size={18} />
         </button>
+
         <button
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={btn(editor.isActive("underline"))}
           title="Underline"
+          type="button"
         >
           <UnderlineIcon size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().toggleStrike().run()} className={btn(editor.isActive("strike"))} title="Strike">
+
+        <button
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          className={btn(editor.isActive("strike"))}
+          title="Strike"
+          type="button"
+        >
           <Strikethrough size={18} />
         </button>
+
         <button
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           className={btn(editor.isActive("codeBlock"))}
           title="Code Block"
+          type="button"
         >
           <Code size={18} />
         </button>
@@ -164,49 +239,94 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={btn(editor.isActive("heading", { level: 1 }))}
           title="H1"
+          type="button"
         >
           <Heading1 size={18} />
         </button>
+
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={btn(editor.isActive("heading", { level: 2 }))}
           title="H2"
+          type="button"
         >
           <Heading2 size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btn(editor.isActive("blockquote"))} title="Quote">
+
+        <button
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          className={btn(editor.isActive("blockquote"))}
+          title="Quote"
+          type="button"
+        >
           <Quote size={18} />
         </button>
       </div>
 
       {/* Lists */}
       <div className={group}>
-        <button onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive("bulletList"))} title="Bullets">
+        <button
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={btn(editor.isActive("bulletList"))}
+          title="Bullets"
+          type="button"
+        >
           <List size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive("orderedList"))} title="Numbered">
+
+        <button
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={btn(editor.isActive("orderedList"))}
+          title="Numbered"
+          type="button"
+        >
           <ListOrdered size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().toggleTaskList().run()} className={btn(editor.isActive("taskList"))} title="Tasks">
+
+        <button
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          className={btn(editor.isActive("taskList"))}
+          title="Tasks"
+          type="button"
+        >
           <CheckSquare size={18} />
         </button>
       </div>
 
       {/* Align */}
       <div className={group}>
-        <button onClick={() => editor.chain().focus().setTextAlign("left").run()} className={btn(editor.isActive({ textAlign: "left" }))} title="Align Left">
+        <button
+          onClick={() => editor.chain().focus().setTextAlign("left").run()}
+          className={btn(editor.isActive({ textAlign: "left" }))}
+          title="Align Left"
+          type="button"
+        >
           <AlignLeft size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().setTextAlign("center").run()} className={btn(editor.isActive({ textAlign: "center" }))} title="Align Center">
+
+        <button
+          onClick={() => editor.chain().focus().setTextAlign("center").run()}
+          className={btn(editor.isActive({ textAlign: "center" }))}
+          title="Align Center"
+          type="button"
+        >
           <AlignCenter size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().setTextAlign("right").run()} className={btn(editor.isActive({ textAlign: "right" }))} title="Align Right">
+
+        <button
+          onClick={() => editor.chain().focus().setTextAlign("right").run()}
+          className={btn(editor.isActive({ textAlign: "right" }))}
+          title="Align Right"
+          type="button"
+        >
           <AlignRight size={18} />
         </button>
+
         <button
           onClick={() => editor.chain().focus().setTextAlign("justify").run()}
           className={btn(editor.isActive({ textAlign: "justify" }))}
           title="Justify"
+          type="button"
         >
           <AlignJustify size={18} />
         </button>
@@ -214,10 +334,21 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
       {/* Insert + Uploads */}
       <div className={group}>
-        <button onClick={insertLink} className={btn(editor.isActive("link"))} title="Insert/Edit Link">
+        <button
+          onClick={insertLink}
+          className={btn(editor.isActive("link"))}
+          title="Insert/Edit Link"
+          type="button"
+        >
           <Link2 size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().unsetLink().run()} className={btn(false)} title="Remove Link">
+
+        <button
+          onClick={() => editor.chain().focus().unsetLink().run()}
+          className={btn(false)}
+          title="Remove Link"
+          type="button"
+        >
           <Unlink size={18} />
         </button>
 
@@ -229,6 +360,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           progress={progress}
           onPickFile={uploadInlineImage}
         />
+
         <UploadButton
           label="Parallax"
           title="Upload Parallax Image"
@@ -237,6 +369,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           onPickFile={uploadParallaxImage}
           icon={Layers}
         />
+
         <UploadButton
           label="Sticky"
           title="Upload Sticky Image"
@@ -246,7 +379,26 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           icon={Sticker}
         />
 
-        <button onClick={insertPoll} className={btn(false)} title="Insert Poll">
+        {/* ✅ NEW: playlist/podcast */}
+        <button
+          onClick={() => insertEmbed("playlist")}
+          className={btn(false)}
+          title="Insert Playlist"
+          type="button"
+        >
+          <Music size={18} />
+        </button>
+
+        <button
+          onClick={() => insertEmbed("podcast")}
+          className={btn(false)}
+          title="Insert Podcast"
+          type="button"
+        >
+          <Mic size={18} />
+        </button>
+
+        <button onClick={insertPoll} className={btn(false)} title="Insert Poll" type="button">
           <Vote size={18} />
         </button>
 
@@ -255,6 +407,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
           className={btn(editor.isActive("table"))}
           title="Insert Table"
+          type="button"
         >
           <TableIcon size={18} />
         </button>
@@ -262,33 +415,73 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
       {/* Table controls */}
       <div className={group}>
-        <button onClick={() => editor.chain().focus().addRowBefore().run()} className={btn(false)} title="Add Row Above" disabled={!inTable}>
+        <button
+          onClick={() => editor.chain().focus().addRowBefore().run()}
+          className={btn(false)}
+          title="Add Row Above"
+          disabled={!inTable}
+          type="button"
+        >
           <PlusSquare size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().addRowAfter().run()} className={btn(false)} title="Add Row Below" disabled={!inTable}>
+
+        <button
+          onClick={() => editor.chain().focus().addRowAfter().run()}
+          className={btn(false)}
+          title="Add Row Below"
+          disabled={!inTable}
+          type="button"
+        >
           <PlusSquare size={18} className="rotate-90" />
         </button>
-        <button onClick={() => editor.chain().focus().deleteRow().run()} className={btn(false)} title="Delete Row" disabled={!inTable}>
+
+        <button
+          onClick={() => editor.chain().focus().deleteRow().run()}
+          className={btn(false)}
+          title="Delete Row"
+          disabled={!inTable}
+          type="button"
+        >
           <MinusSquare size={18} />
         </button>
 
-        <button onClick={() => editor.chain().focus().addColumnBefore().run()} className={btn(false)} title="Add Column Left" disabled={!inTable}>
+        <button
+          onClick={() => editor.chain().focus().addColumnBefore().run()}
+          className={btn(false)}
+          title="Add Column Left"
+          disabled={!inTable}
+          type="button"
+        >
           <Columns2 size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().addColumnAfter().run()} className={btn(false)} title="Add Column Right" disabled={!inTable}>
+
+        <button
+          onClick={() => editor.chain().focus().addColumnAfter().run()}
+          className={btn(false)}
+          title="Add Column Right"
+          disabled={!inTable}
+          type="button"
+        >
           <Columns2 size={18} className="rotate-180" />
         </button>
-        <button onClick={() => editor.chain().focus().deleteColumn().run()} className={btn(false)} title="Delete Column" disabled={!inTable}>
+
+        <button
+          onClick={() => editor.chain().focus().deleteColumn().run()}
+          className={btn(false)}
+          title="Delete Column"
+          disabled={!inTable}
+          type="button"
+        >
           <MinusSquare size={18} className="rotate-90" />
         </button>
       </div>
 
       {/* History */}
       <div className={group}>
-        <button onClick={() => editor.chain().focus().undo().run()} className={btn(false)} title="Undo">
+        <button onClick={() => editor.chain().focus().undo().run()} className={btn(false)} title="Undo" type="button">
           <Undo2 size={18} />
         </button>
-        <button onClick={() => editor.chain().focus().redo().run()} className={btn(false)} title="Redo">
+        <button onClick={() => editor.chain().focus().redo().run()} className={btn(false)} title="Redo" type="button">
           <Redo2 size={18} />
         </button>
       </div>

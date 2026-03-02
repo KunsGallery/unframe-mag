@@ -10,7 +10,11 @@ import {
   Heading3,
   Layers,
   Sticker,
+  Music,
+  Mic,
 } from "lucide-react";
+
+import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
 
 const SLASH_ITEMS = [
   { key: "scene", label: "Scene", desc: "장면 블록 추가", icon: Layout },
@@ -21,6 +25,10 @@ const SLASH_ITEMS = [
   { key: "gallery", label: "Gallery", desc: "그리드 갤러리", icon: Box },
   { key: "poll", label: "Poll", desc: "참여형 투표", icon: PieChart },
   { key: "table", label: "Table", desc: "표 삽입", icon: Table },
+
+  // ✅ NEW: embeds
+  { key: "playlist", label: "Playlist", desc: "Unframe Playlist 플레이어", icon: Music },
+  { key: "podcast", label: "Podcast", desc: "Unframe Podcast 플레이어", icon: Mic },
 
   { key: "quote", label: "Quote", desc: "인용문", icon: Quote },
   { key: "h2", label: "H2", desc: "대제목", icon: Heading2 },
@@ -41,6 +49,51 @@ const SlashMenu = ({ pos, onClose, editor }) => {
     editor.chain().focus().deleteRange({ from: start, to: from }).run();
   }, [editor]);
 
+  const insertEmbed = useCallback(
+    (kind) => {
+      if (!editor) return;
+
+      const label = kind === "podcast" ? "Podcast URL (Spotify show/episode)" : "Playlist URL (Spotify playlist)";
+      const url = window.prompt(label, "https://open.spotify.com/");
+
+      const theme = "0";
+      const r = url ? toEmbedURL(kind, url, { theme }) : { ok: false };
+
+      if (kind === "podcast") {
+        editor
+          .chain()
+          .focus()
+          .insertUfPodcast({
+            url: url || "",
+            height: defaultEmbedHeight("podcast"),
+            theme,
+          })
+          .run();
+
+        // embedUrl은 Node 내부에서 재생성도 하지만, 입력 즉시 반영감 주기 위해 attrs 업데이트
+        if (url && r.ok) {
+          editor.commands.updateAttributes("ufPodcast", { embedUrl: r.embedUrl });
+        }
+        return;
+      }
+
+      editor
+        .chain()
+        .focus()
+        .insertUfPlaylist({
+          url: url || "",
+          height: defaultEmbedHeight("playlist"),
+          theme,
+        })
+        .run();
+
+      if (url && r.ok) {
+        editor.commands.updateAttributes("ufPlaylist", { embedUrl: r.embedUrl });
+      }
+    },
+    [editor]
+  );
+
   const handleSelect = useCallback(
     (item) => {
       if (!editor) return;
@@ -56,11 +109,11 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
         case "h3":
           editor.chain().focus().toggleHeading({ level: 3 }).run();
-          break;
+         break;
 
         case "quote":
-          editor.chain().focus().toggleBlockquote().run();
-          break;
+         editor.chain().focus().toggleBlockquote().run();
+         break;
 
         case "scene":
           editor
@@ -103,18 +156,14 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
         case "sticky": {
           const url = window.prompt("Sticky Story Image URL");
-          editor
-            .chain()
+         editor
+           .chain()
             .focus()
             .insertContent({
               type: "stickyStory",
               attrs: { imageSrc: url || null, imagePos: "left", stickyHeight: "100vh" },
-              // stickyStory는 content: 'block+' 이라 최소 1개 block이 필요!
               content: [
-                {
-                  type: "paragraph",
-                  content: [{ type: "text", text: "Sticky story text..." }],
-                },
+                { type: "paragraph", content: [{ type: "text", text: "Sticky story text..." }] },
               ],
             })
             .run();
@@ -128,7 +177,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
             url1 ? { src: url1, alt: "" } : null,
             url2 ? { src: url2, alt: "" } : null,
           ].filter(Boolean);
-
+ 
           editor
             .chain()
             .focus()
@@ -140,23 +189,63 @@ const SlashMenu = ({ pos, onClose, editor }) => {
           break;
         }
 
-        case "poll": {
+        case "poll":
+          editor.chain().focus().insertUfPoll().run();
+          break;
+
+        case "table":
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+          break;
+
+        // ✅ NEW: Playlist
+        case "playlist": {
+          const url = window.prompt(
+            "Playlist URL (Spotify playlist)",
+            "https://open.spotify.com/playlist/"
+          );
+
+          const theme = "0";
+          const r = url ? toEmbedURL("playlist", url, { theme }) : null;
+
           editor
             .chain()
             .focus()
-            .insertUfPoll()
+            .insertContent({
+              type: "ufPlaylist",
+              attrs: {
+                kind: "playlist",
+                url: url || "",
+                embedUrl: r?.ok ? r.embedUrl : "",
+                height: defaultEmbedHeight("playlist"),
+                theme,
+              },
+            })
             .run();
           break;
         }
 
-        case "table": {
+        // ✅ NEW: Podcast
+        case "podcast": {
+          const url = window.prompt(
+            "Podcast URL (Spotify show/episode)",
+            "https://open.spotify.com/show/"
+         );
+
+         const theme = "0";
+          const r = url ? toEmbedURL("podcast", url, { theme }) : null;
+
           editor
             .chain()
             .focus()
-            .insertTable({
-              rows: 3,
-              cols: 3,
-              withHeaderRow: true 
+            .insertContent({
+              type: "ufPodcast",
+              attrs: {
+                kind: "podcast",
+                url: url || "",
+                embedUrl: r?.ok ? r.embedUrl : "",
+                height: defaultEmbedHeight("podcast"),
+                theme,
+              },
             })
             .run();
           break;
@@ -217,6 +306,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
               className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                 active ? "bg-[#004aad] text-white" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
+              type="button"
             >
               <div className={`p-1.5 rounded-lg ${active ? "bg-white/20" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>
                 <Icon size={16} />
