@@ -201,7 +201,7 @@ export default function CommentSection({ article }) {
       setText("");
 
       // ✅ NEW: 트래킹(댓글)
-      trackEvent("comment", { editionNo });
+      await trackEvent("comment", { editionNo });
     } catch (e) {
       console.error(e);
       setError("댓글 등록에 실패했어요.");

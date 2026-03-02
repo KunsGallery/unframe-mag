@@ -14,6 +14,9 @@ import { auth, googleProvider, db } from "./firebase/config";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 
+// PWA
+import InstallPrompt from "./components/pwa/InstallPrompt";
+
 // Pages
 import HomePage from "./Pages/HomePage";
 import AboutPage from "./Pages/AboutPage";
@@ -34,7 +37,7 @@ const ADMIN_EMAILS = new Set([
 function safeNicknameFromDisplayName(displayName) {
   const base = String(displayName || "User")
     .trim()
-    .replace(/\s+/g, ""); // 공백 제거(선택)
+    .replace(/\s+/g, "");
   const nick = base.slice(0, 20);
   return nick.length ? nick : "User";
 }
@@ -51,12 +54,15 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
 
   return (
     <nav
-      className={`h-[80px] border-b px-6 md:px-12 flex justify-between items-center sticky top-0 z-100 transition-all duration-500 ${
+      className={`h-[80px] border-b px-6 md:px-12 flex justify-between items-center sticky top-0 z-[100] transition-all duration-500 ${
         isDarkMode ? "bg-black/90 border-zinc-900" : "bg-white/90 border-zinc-50"
       } backdrop-blur-3xl shadow-sm`}
     >
       <div className="flex items-center gap-20">
-        <Link to="/" className="text-4xl font-black italic tracking-tighter hover:text-[#004aad] transition-colors">
+        <Link
+          to="/"
+          className="text-4xl font-black italic tracking-tighter hover:text-[#004aad] transition-colors"
+        >
           U<span className="text-[#004aad]">#</span>
         </Link>
 
@@ -149,7 +155,11 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
         </button>
 
         {user ? (
-          <button onClick={onLogout} className="flex items-center gap-2 p-2 rounded-xl text-zinc-400 hover:text-red-500 transition-all" type="button">
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-2 p-2 rounded-xl text-zinc-400 hover:text-red-500 transition-all"
+            type="button"
+          >
             <LogOut size={20} />
           </button>
         ) : (
@@ -176,6 +186,7 @@ const GlobalFooter = () => (
           <p>0502-1322-8906</p>
         </div>
       </div>
+
       <div className="space-y-6">
         <p className="text-[#004aad] tracking-[1.2em]">/ INFO</p>
         <div className="space-y-3 opacity-50 dark:text-white">
@@ -184,14 +195,20 @@ const GlobalFooter = () => (
           <p>Mail Order: 2026-서울종로-0250</p>
         </div>
       </div>
+
       <div className="space-y-6">
         <p className="text-[#004aad] tracking-[1.2em]">/ LEGAL</p>
         <div className="space-y-3 flex flex-col gap-2 opacity-50 dark:text-white">
-          <a href="#" className="hover:text-[#004aad]">Terms of Service</a>
-          <a href="#" className="hover:text-[#004aad]">Privacy Policy</a>
+          <a href="#" className="hover:text-[#004aad]">
+            Terms of Service
+          </a>
+          <a href="#" className="hover:text-[#004aad]">
+            Privacy Policy
+          </a>
         </div>
       </div>
     </div>
+
     <div className="mt-40 text-center opacity-30 text-[9px] tracking-[1.2em] dark:text-white italic uppercase">
       © UNFRAME MAG · Breaking frames, Building resonance.
     </div>
@@ -218,7 +235,10 @@ const NotFound = () => (
     <h1 className="text-4xl font-black italic tracking-tighter mb-4">404</h1>
     <p className="opacity-60 italic">Page not found.</p>
     <div className="mt-10">
-      <Link to="/" className="text-[#004aad] font-black italic underline underline-offset-8">
+      <Link
+        to="/"
+        className="text-[#004aad] font-black italic underline underline-offset-8"
+      >
         Go Home
       </Link>
     </div>
@@ -245,7 +265,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // ✅ 로그인 시 users/{uid} 문서 자동 생성/보정 + role 구독
   useEffect(() => {
     if (!user) {
       setRole("user");
@@ -263,10 +282,7 @@ export default function App() {
         const emailIsAdmin = !!email && ADMIN_EMAILS.has(email);
 
         if (!snap.exists()) {
-          // ✅ 문서가 없으면 규칙에 맞춰 생성
-          // rules: nickname(string,<=20) + nicknameChanged(false) 필요
           const nickname = safeNicknameFromDisplayName(user.displayName);
-
           const initialRole = emailIsAdmin ? "admin" : "user";
 
           await setDoc(ref, {
@@ -283,6 +299,7 @@ export default function App() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
+
           setRole(initialRole);
           setRoleLoading(false);
           return;
@@ -291,7 +308,6 @@ export default function App() {
         const data = snap.data() || {};
         const currentRole = String(data.role || "user");
 
-        // ✅ role이 없으면 자동 보정 (admin email이면 admin으로)
         if (!("role" in data)) {
           const nextRole = emailIsAdmin ? "admin" : "user";
           await setDoc(ref, { role: nextRole, updatedAt: serverTimestamp() }, { merge: true });
@@ -300,7 +316,6 @@ export default function App() {
           return;
         }
 
-        // ✅ admin 이메일은 role이 user로 박혀있어도 admin으로 올려줌(안전장치)
         if (emailIsAdmin && currentRole !== "admin") {
           await setDoc(ref, { role: "admin", updatedAt: serverTimestamp() }, { merge: true });
           setRole("admin");
@@ -350,6 +365,7 @@ export default function App() {
   return (
     <Router>
       <ScrollToTop />
+
       <div
         className={`min-h-screen font-sans transition-all duration-700 selection:bg-[#004aad] selection:text-white ${
           isDarkMode ? "bg-black text-white dark" : "bg-white text-black"
@@ -375,29 +391,61 @@ export default function App() {
           onLogout={handleLogout}
         />
 
+        <InstallPrompt />
+
         <main className="relative">
           <Routes>
-            <Route path="/" element={<HomePage isDarkMode={isDarkMode} user={user} authLoading={authLoading} />} />
-            <Route path="/about" element={<AboutPage isDarkMode={isDarkMode} user={user} />} />
-            <Route path="/mylibrary" element={<MyPage isDarkMode={isDarkMode} user={user} authLoading={authLoading} />} />
-            <Route path="/article/:id" element={<ViewPage isDarkMode={isDarkMode} user={user} />} />
+            <Route
+              path="/"
+              element={
+                <HomePage
+                  isDarkMode={isDarkMode}
+                  user={user}
+                  authLoading={authLoading}
+                />
+              }
+            />
+            <Route
+              path="/about"
+              element={<AboutPage isDarkMode={isDarkMode} user={user} />}
+            />
+            <Route
+              path="/mylibrary"
+              element={
+                <MyPage
+                  isDarkMode={isDarkMode}
+                  user={user}
+                  authLoading={authLoading}
+                />
+              }
+            />
+            <Route
+              path="/article/:id"
+              element={<ViewPage isDarkMode={isDarkMode} user={user} />}
+            />
 
-            {/* ✅ write: admin/editor */}
             <Route
               path="/write"
               element={
                 <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]}>
-                  <EditorPage isDarkMode={isDarkMode} user={user} role={effectiveRole} />
+                  <EditorPage
+                    isDarkMode={isDarkMode}
+                    user={user}
+                    role={effectiveRole}
+                  />
                 </RequireRole>
               }
             />
 
-            {/* ✅ admin: admin only */}
             <Route
               path="/admin"
               element={
                 <RequireRole user={user} role={effectiveRole} allow={["admin"]}>
-                  <AdminPage user={user} isDarkMode={isDarkMode} onToast={(m) => console.log("[TOAST]", m)} />
+                  <AdminPage
+                    user={user}
+                    isDarkMode={isDarkMode}
+                    onToast={(m) => console.log("[TOAST]", m)}
+                  />
                 </RequireRole>
               }
             />
