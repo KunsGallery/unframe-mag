@@ -11,6 +11,24 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+console.log("[firebase env check]", {
+  apiKey: firebaseConfig.apiKey ? "OK" : "MISSING",
+  authDomain: firebaseConfig.authDomain ? "OK" : "MISSING",
+  projectId: firebaseConfig.projectId ? "OK" : "MISSING",
+  storageBucket: firebaseConfig.storageBucket ? "OK" : "MISSING",
+  messagingSenderId: firebaseConfig.messagingSenderId ? "OK" : "MISSING",
+  appId: firebaseConfig.appId ? "OK" : "MISSING",
+});
+
+if (
+  !firebaseConfig.apiKey ||
+  !firebaseConfig.authDomain ||
+  !firebaseConfig.projectId ||
+  !firebaseConfig.appId
+) {
+  throw new Error("Firebase env missing in deployed build");
+}
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
