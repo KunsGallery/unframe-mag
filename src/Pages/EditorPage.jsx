@@ -1,10 +1,11 @@
 // src/Pages/EditorPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Save, Send, Plus } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { db } from "../firebase/config";
+import { collection, query, where, limit, getDocs } from "firebase/firestore";
 
 import SlashMenu from "../components/editor/SlashMenu";
 import EditorToolbar from "../components/editor/EditorToolbar";
@@ -27,6 +28,7 @@ const ADMIN_EMAILS = new Set([
 export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { editionNo } = useParams();
   const preloadedDraftId = location.state?.draftId || null;
   const loadedDraftRef = useRef(null);
   const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
@@ -73,11 +75,44 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   // extension debug (원하면 유지)
   useEffect(() => {
     if (!editor) return;
-    const names = editor.extensionManager.extensions.map((e) => e.name);
-    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
-    console.log("[UF] extensions:", names);
-    console.log("[UF] dupes:", dupes);
-  }, [editor]);
+    if (!editionNo) return;
+
+    const loadArticle = async () => {
+      try {
+        const q = query(
+          collection(db, "articles"),
+          where("editionNo", "==", editionNo),
+          limit(1)
+        );
+
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          toast("아티클을 찾을 수 없습니다.");
+          return;
+        }
+
+        const docSnap = snap.docs[0];
+        const data = docSnap.data();
+
+        setTitle(data.title || "");
+        setSubtitle(data.subtitle || "");
+        setCategory(data.category || "EDITORIAL");
+        setCover(data.cover || "");
+        setCoverMedium(data.coverMedium || "");
+
+        editor.commands.setContent(data.contentHTML || "");
+
+        draftsApi.setDraftId(docSnap.id);
+
+      } catch (e) {
+        console.error(e);
+        toast("아티클 로딩 실패");
+      }
+    };
+
+    loadArticle();
+  }, [editor, editionNo]);
 
   // 업로드 이벤트(붙여넣기/드롭에서 url 전달받아 이미지 삽입)
   useEffect(() => {

@@ -438,6 +438,19 @@ export default function App() {
             />
 
             <Route
+              path="/edit/:editionNo"
+              element={
+                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]}>
+                  <EditorPage
+                    isDarkMode={isDarkMode}
+                    user={user}
+                    role={effectiveRole}
+                  />
+                </RequireRole>
+              }
+            />
+
+            <Route
               path="/admin"
               element={
                 <RequireRole user={user} role={effectiveRole} allow={["admin"]}>
