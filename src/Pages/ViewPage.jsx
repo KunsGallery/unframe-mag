@@ -4,7 +4,23 @@ import { Link } from "react-router-dom";
 import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
-import { doc, serverTimestamp, runTransaction, deleteDoc } from "firebase/firestore";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import FontFamily from "@tiptap/extension-font-family";
+import Highlight from "@tiptap/extension-highlight";
+import { FontSize } from "../tiptap/extensions/FontSize";
+import { LineHeight } from "../tiptap/extensions/LineHeight";
+import { LetterSpacing } from "../tiptap/extensions/LetterSpacing";
+import { UfDivider } from "../tiptap/nodes/UfDivider";
+import { UfCallout } from "../tiptap/nodes/UfCallout";
+import {
+  doc,
+  serverTimestamp,
+  runTransaction,
+  deleteDoc,
+  updateDoc,
+  increment,
+} from "firebase/firestore";
 
 import { db } from "../firebase/config";
 import { trackEvent, trackEventOnce } from "../lib/trackEvent";
@@ -35,6 +51,12 @@ import ArticleNav from "../components/view/ArticleNav";
 import Lightbox from "../components/view/Lightbox";
 import EditorInfoBox from "../components/view/EditorInfoBox";
 import MoreFromEditor from "../components/view/MoreFromEditor";
+
+const ADMIN_EMAILS = new Set([
+  "gallerykuns@gmail.com",
+  "cybog2004@gmail.com",
+  "sylove887@gmail.com",
+]);
 
 function clamp01(v) {
   const n = Number(v || 0);
@@ -148,6 +170,78 @@ export default function ViewPage({ isDarkMode, onToast }) {
   margin-bottom: 0;
 }
 
+
+.uf-prose .uf-divider{
+  width: 100%;
+  margin: 3em 0;
+  position: relative;
+}
+
+.uf-prose .uf-divider.is-line{
+  height: 1px;
+  background: rgba(113,113,122,.25);
+}
+
+.uf-prose .uf-divider.is-dashed{
+  height: 0;
+  border-top: 1px dashed rgba(113,113,122,.35);
+}
+
+.uf-prose .uf-divider.is-double{
+  height: 8px;
+  border-top: 1px solid rgba(113,113,122,.28);
+  border-bottom: 1px solid rgba(113,113,122,.28);
+}
+
+.uf-prose .uf-divider.is-dots{
+  height: 10px;
+  background:
+    radial-gradient(circle, rgba(113,113,122,.45) 1.5px, transparent 1.7px)
+    center / 14px 10px repeat-x;
+}
+
+.uf-prose .uf-divider.is-fade{
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(113,113,122,.38), transparent);
+}
+
+.uf-prose .uf-divider.is-glow{
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #004aad, transparent);
+  box-shadow: 0 0 18px rgba(0,74,173,.35);
+}
+
+.uf-prose .uf-divider.is-space{
+  height: 48px;
+}
+
+.uf-prose .uf-callout{
+  margin: 2.2em 0;
+  padding: 1.2em 1.2em 1.15em;
+  border: 1px solid rgba(113,113,122,.18);
+  border-radius: 22px;
+  background: rgba(255,255,255,.45);
+  backdrop-filter: blur(12px);
+}
+
+.dark .uf-prose .uf-callout{
+  background: rgba(24,24,27,.55);
+  border-color: rgba(255,255,255,.08);
+}
+
+.uf-prose .uf-callout__label{
+  margin-bottom: .8em;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: #004aad;
+}
+
+.uf-prose .uf-callout__body > :last-child{
+  margin-bottom: 0;
+}
+
 /* StickyStory */
 .uf-prose [data-uf="sticky-story"]{
   min-height: var(--uf-sticky-height, 220vh);
@@ -196,8 +290,25 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
   const editor = useEditor({
     editable: false,
+    onCreate: ({ editor }) => {
+      console.log(
+        "[VIEW extensions]",
+        editor.extensionManager.extensions.map((e) => e.name)
+      );
+    },
     extensions: [
       StarterKit,
+      TextStyle,
+      Color,
+      FontFamily.configure({
+        types: ["textStyle"],
+      }),
+      FontSize,
+      LetterSpacing,
+      LineHeight,
+      Highlight.configure({
+        multicolor: true,
+      }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Scene,
       UfImage,
@@ -207,10 +318,12 @@ export default function ViewPage({ isDarkMode, onToast }) {
       UfPoll,
       UfPlaylist,
       UfPodcast,
+      UfDivider,
+      UfCallout,
     ],
     editorProps: {
       attributes: {
-        class: "ProseMirror uf-prose uf-view max-w-none focus:outline-none min-h-[500px]",
+       class: "ProseMirror uf-prose uf-view max-w-none focus:outline-none min-h-[500px]",
       },
     },
   });
@@ -230,10 +343,13 @@ export default function ViewPage({ isDarkMode, onToast }) {
   // ✅ 저장 기능
   const { user, isSaved, toggleSave } = useSavedArticles();
   const saved = article?.editionNo ? isSaved(article.editionNo) : false;
-  const isAdmin =
-    user?.email === "gallerykuns@gmail.com" ||
-    user?.email === "cybog2004@gmail.com" ||
-    user?.email === "sylove887@gmail.com";
+  const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
+  const isOwnerEditor =
+    !!user?.email &&
+    !!article?.authorEmail &&
+    user.email === article.authorEmail;
+
+const canEditArticle = isAdmin || isOwnerEditor;
 
   const readMinutes = useMemo(() => estimateReadMinutes(article), [article]);
   const readEmoji = useMemo(() => timeEmoji(readMinutes), [readMinutes]);
@@ -518,7 +634,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
         readEmoji={readEmoji}
       />
 
-      {isAdmin && (
+      {canEditArticle && (
         <div className="max-w-[1200px] mx-auto px-6 mt-10">
           <Link
             to={`/edit/${article.id}`}

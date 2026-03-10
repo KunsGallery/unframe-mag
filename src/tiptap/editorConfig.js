@@ -3,9 +3,12 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
-
 import Strike from "@tiptap/extension-strike";
 import TextAlign from "@tiptap/extension-text-align";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import FontFamily from "@tiptap/extension-font-family";
+import Highlight from "@tiptap/extension-highlight";
 
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
@@ -15,17 +18,20 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
 
-// 커스텀 노드
+import { FontSize } from "./extensions/FontSize";
+import { LineHeight } from "./extensions/LineHeight";
+import { LetterSpacing } from "./extensions/LetterSpacing";
+
 import { Scene } from "../tiptap/nodes/Scene";
 import { UfImage } from "../tiptap/nodes/UfImage";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
 import { StickyStory } from "../tiptap/nodes/StickyStory";
 import { Gallery } from "../tiptap/nodes/Gallery";
 import { UfPoll } from "../tiptap/nodes/UfPoll";
-
-// ✅ NEW embeds
 import { UfPlaylist } from "../tiptap/nodes/UfPlaylist";
 import { UfPodcast } from "../tiptap/nodes/UfPodcast";
+import { UfDivider } from "../tiptap/nodes/UfDivider";
+import { UfCallout } from "../tiptap/nodes/UfCallout";
 
 export function createEditorConfig({ onUploadImage, onToast }) {
   return {
@@ -36,8 +42,20 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       }),
 
       Link.configure({ openOnClick: false }),
-
       Strike,
+
+      TextStyle,
+      Color,
+      FontFamily.configure({
+        types: ["textStyle"],
+      }),
+      FontSize,
+      LetterSpacing,
+      LineHeight,
+      Highlight.configure({
+        multicolor: true,
+      }),
+
       TextAlign.configure({ types: ["heading", "paragraph"] }),
 
       TaskList,
@@ -60,16 +78,15 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       StickyStory,
       Gallery,
       UfPoll,
-
-      // ✅ embeds
       UfPlaylist,
       UfPodcast,
+      UfDivider,
+      UfCallout,
     ],
 
     editorProps: {
       attributes: {
-        class:
-          "ProseMirror uf-editor uf-prose max-w-none focus:outline-none min-h-[500px]",
+        class: "ProseMirror uf-editor uf-prose max-w-none focus:outline-none min-h-[500px]",
       },
 
       handlePaste: (_view, event) => {

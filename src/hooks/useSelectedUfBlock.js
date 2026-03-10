@@ -12,7 +12,13 @@ export function useSelectedUfBlock(editor) {
   useEffect(() => {
     if (!editor) return;
 
-    const SUPPORTED = new Set(["parallaxImage", "stickyStory", "ufImage"]);
+    const SUPPORTED = new Set([
+      "parallaxImage",
+      "stickyStory",
+      "ufImage",
+      "ufDivider",
+      "ufCallout",
+    ]);
 
     const findBlock = () => {
       const { state } = editor;
@@ -41,10 +47,8 @@ export function useSelectedUfBlock(editor) {
 
     const update = () => setSelected(findBlock());
 
-    // 초기 1회
     update();
 
-    // selection/transaction 변화에 반응
     editor.on("selectionUpdate", update);
     editor.on("transaction", update);
 
@@ -54,5 +58,5 @@ export function useSelectedUfBlock(editor) {
     };
   }, [editor]);
 
-  return selected; // { type, attrs } | null
+  return selected;
 }

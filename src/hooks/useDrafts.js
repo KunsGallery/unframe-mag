@@ -177,8 +177,8 @@ export function useDrafts({
           cover: meta.cover,
           coverMedium: meta.coverMedium,
           status: prev?.status || "draft",
-          author: safeAuthorName,
-          authorEmail: safeAuthorEmail,
+          author: prev?.author || safeAuthorName,
+          authorEmail: prev?.authorEmail || safeAuthorEmail,
           updatedAt: serverTimestamp(),
         });
 
@@ -258,15 +258,19 @@ export function useDrafts({
           targetId = docRef.id;
           setDraftId(targetId);
         } else {
-          await updateDoc(doc(db, "articles", targetId), {
+          const ref = doc(db, "articles", targetId);
+          const snap = await getDoc(ref);
+          const prev = snap.exists() ? snap.data() : {};
+
+          await updateDoc(ref, {
             title: meta.title,
             subtitle: meta.subtitle,
             contentHTML,
             category: meta.category,
             cover: meta.cover,
             coverMedium: meta.coverMedium,
-            author: safeAuthorName,
-            authorEmail: safeAuthorEmail,
+            author: prev?.author || safeAuthorName,
+            authorEmail: prev?.authorEmail || safeAuthorEmail,
             updatedAt: serverTimestamp(),
           });
         }
@@ -276,14 +280,11 @@ export function useDrafts({
         const prev = snap.data() || {};
 
         if (prev.status === "published") {
-
           await updateDoc(ref, {
             status: "published",
             updatedAt: serverTimestamp(),
           });
-
         } else {
-
           const { nextIndex, nextEditionNo } = await getNextEditionInfo();
 
           await updateDoc(ref, {
@@ -292,7 +293,6 @@ export function useDrafts({
             editionNo: nextEditionNo,
             updatedAt: serverTimestamp(),
           });
-
         }
 
         toast("아티클이 발행되었습니다!");

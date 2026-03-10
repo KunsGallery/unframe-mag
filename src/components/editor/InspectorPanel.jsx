@@ -217,6 +217,61 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
             </Row>
           </div>
         )}
+
+        {selected?.type === "ufDivider" && (
+          <div className="space-y-5">
+            <Row label="Style">
+              <select
+                value={selected.attrs.styleType ?? "line"}
+                onChange={(e) => setAttrs("ufDivider", { styleType: e.target.value })}
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode ? "border-zinc-900 text-white" : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                <option value="line">line</option>
+                <option value="dashed">dashed</option>
+                <option value="double">double</option>
+                <option value="dots">dots</option>
+                <option value="fade">fade</option>
+                <option value="glow">glow</option>
+                <option value="space">space</option>
+              </select>
+            </Row>
+          </div>
+        )}
+
+        {selected?.type === "ufCallout" && (
+          <div className="space-y-5">
+            <Row label="Tone">
+              <select
+                value={selected.attrs.tone ?? "note"}
+                onChange={(e) => setAttrs("ufCallout", { tone: e.target.value })}
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode ? "border-zinc-900 text-white" : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                <option value="note">note</option>
+                <option value="point">point</option>
+                <option value="info">info</option>
+                <option value="quote">quote</option>
+              </select>
+            </Row>
+
+            <Row label="Label">
+              <input
+                value={selected.attrs.label ?? "NOTE"}
+                onChange={(e) => setAttrs("ufCallout", { label: e.target.value })}
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode ? "border-zinc-900 text-white" : "border-zinc-200 text-black",
+                ].join(" ")}
+                placeholder="NOTE"
+              />
+            </Row>
+          </div>
+        )}
       </div>
     </aside>
   );

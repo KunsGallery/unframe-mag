@@ -54,3 +54,70 @@ article.uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__content{ or
 .dark .ProseMirror.uf-view .uf-embed iframe {
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
 }
+
+.uf-prose .uf-divider{
+  width: 100%;
+  margin: 3em 0;
+}
+
+.uf-prose .uf-divider.is-line{
+  height: 1px;
+  background: rgba(113,113,122,.25);
+}
+
+.uf-prose .uf-divider.is-space{
+  height: 48px;
+}
+
+.uf-prose .uf-divider.is-glow{
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #004aad, transparent);
+  box-shadow: 0 0 18px rgba(0,74,173,.35);
+}
+
+.uf-prose .uf-callout{
+  margin: 2.2em 0;
+  padding: 1.2em 1.2em 1.15em;
+  border: 1px solid rgba(113,113,122,.18);
+  border-radius: 22px;
+  background: rgba(255,255,255,.45);
+  backdrop-filter: blur(12px);
+}
+
+.dark .uf-prose .uf-callout{
+  background: rgba(24,24,27,.55);
+  border-color: rgba(255,255,255,.08);
+}
+
+.uf-prose .uf-callout__label{
+  margin-bottom: .8em;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: #004aad;
+}
+
+.uf-prose .uf-callout__body > :last-child{
+  margin-bottom: 0;
+}
+
+.uf-prose .uf-divider{
+  width: 100%;
+  margin: 3em 0;
+}
+
+.uf-prose .uf-divider.is-line{
+  height: 1px;
+  background: rgba(113,113,122,.25);
+}
+
+.uf-prose .uf-divider.is-space{
+  height: 48px;
+}
+
+.uf-prose .uf-divider.is-glow{
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #004aad, transparent);
+  box-shadow: 0 0 18px rgba(0,74,173,.35);
+}

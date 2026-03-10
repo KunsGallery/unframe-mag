@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Image,
   Layout,
@@ -12,6 +12,8 @@ import {
   Sticker,
   Music,
   Mic,
+  Minus,
+  SquareStack,
 } from "lucide-react";
 
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
@@ -25,8 +27,9 @@ const SLASH_ITEMS = [
   { key: "gallery", label: "Gallery", desc: "그리드 갤러리", icon: Box },
   { key: "poll", label: "Poll", desc: "참여형 투표", icon: PieChart },
   { key: "table", label: "Table", desc: "표 삽입", icon: Table },
+  { key: "divider", label: "Divider", desc: "구분선 삽입", icon: Minus },
+  { key: "callout", label: "Callout", desc: "강조 박스 삽입", icon: SquareStack },
 
-  // ✅ NEW: embeds
   { key: "playlist", label: "Playlist", desc: "Unframe Playlist 플레이어", icon: Music },
   { key: "podcast", label: "Podcast", desc: "Unframe Podcast 플레이어", icon: Mic },
 
@@ -37,6 +40,7 @@ const SLASH_ITEMS = [
 
 const SlashMenu = ({ pos, onClose, editor }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const itemRefs = useRef([]);
 
   const safeClose = useCallback(() => {
     if (typeof onClose === "function") onClose();
@@ -49,59 +53,12 @@ const SlashMenu = ({ pos, onClose, editor }) => {
     editor.chain().focus().deleteRange({ from: start, to: from }).run();
   }, [editor]);
 
-  const insertEmbed = useCallback(
-    (kind) => {
-      if (!editor) return;
-
-      const label = kind === "podcast" ? "Podcast URL (Spotify show/episode)" : "Playlist URL (Spotify playlist)";
-      const url = window.prompt(label, "https://open.spotify.com/");
-
-      const theme = "0";
-      const r = url ? toEmbedURL(kind, url, { theme }) : { ok: false };
-
-      if (kind === "podcast") {
-        editor
-          .chain()
-          .focus()
-          .insertUfPodcast({
-            url: url || "",
-            height: defaultEmbedHeight("podcast"),
-            theme,
-          })
-          .run();
-
-        // embedUrl은 Node 내부에서 재생성도 하지만, 입력 즉시 반영감 주기 위해 attrs 업데이트
-        if (url && r.ok) {
-          editor.commands.updateAttributes("ufPodcast", { embedUrl: r.embedUrl });
-        }
-        return;
-      }
-
-      editor
-        .chain()
-        .focus()
-        .insertUfPlaylist({
-          url: url || "",
-          height: defaultEmbedHeight("playlist"),
-          theme,
-        })
-        .run();
-
-      if (url && r.ok) {
-        editor.commands.updateAttributes("ufPlaylist", { embedUrl: r.embedUrl });
-      }
-    },
-    [editor]
-  );
-
   const handleSelect = useCallback(
     (item) => {
       if (!editor) return;
 
-      // 1) 슬래시 문자 삭제
       deleteSlashTrigger();
 
-      // 2) 명령 실행
       switch (item.key) {
         case "h2":
           editor.chain().focus().toggleHeading({ level: 2 }).run();
@@ -109,11 +66,11 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
         case "h3":
           editor.chain().focus().toggleHeading({ level: 3 }).run();
-         break;
+          break;
 
         case "quote":
-         editor.chain().focus().toggleBlockquote().run();
-         break;
+          editor.chain().focus().toggleBlockquote().run();
+          break;
 
         case "scene":
           editor
@@ -156,8 +113,8 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
         case "sticky": {
           const url = window.prompt("Sticky Story Image URL");
-         editor
-           .chain()
+          editor
+            .chain()
             .focus()
             .insertContent({
               type: "stickyStory",
@@ -177,7 +134,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
             url1 ? { src: url1, alt: "" } : null,
             url2 ? { src: url2, alt: "" } : null,
           ].filter(Boolean);
- 
+
           editor
             .chain()
             .focus()
@@ -197,7 +154,34 @@ const SlashMenu = ({ pos, onClose, editor }) => {
           editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
           break;
 
-        // ✅ NEW: Playlist
+        case "divider":
+          editor
+            .chain()
+            .focus()
+            .insertContent({
+              type: "ufDivider",
+              attrs: { styleType: "line" },
+            })
+            .run();
+          break;
+
+        case "callout":
+          editor
+            .chain()
+            .focus()
+            .insertContent({
+              type: "ufCallout",
+              attrs: { tone: "note", label: "NOTE" },
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "강조하고 싶은 내용을 입력하세요." }],
+                },
+              ],
+            })
+            .run();
+          break;
+
         case "playlist": {
           const url = window.prompt(
             "Playlist URL (Spotify playlist)",
@@ -224,14 +208,13 @@ const SlashMenu = ({ pos, onClose, editor }) => {
           break;
         }
 
-        // ✅ NEW: Podcast
         case "podcast": {
           const url = window.prompt(
             "Podcast URL (Spotify show/episode)",
             "https://open.spotify.com/show/"
-         );
+          );
 
-         const theme = "0";
+          const theme = "0";
           const r = url ? toEmbedURL("podcast", url, { theme }) : null;
 
           editor
@@ -259,6 +242,22 @@ const SlashMenu = ({ pos, onClose, editor }) => {
     },
     [editor, deleteSlashTrigger, safeClose]
   );
+
+  useEffect(() => {
+    if (!pos) return;
+    setSelectedIndex(0);
+  }, [pos]);
+
+  useEffect(() => {
+    if (!pos) return;
+    const el = itemRefs.current[selectedIndex];
+    if (!el) return;
+
+    el.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [selectedIndex, pos]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -302,17 +301,28 @@ const SlashMenu = ({ pos, onClose, editor }) => {
           return (
             <button
               key={item.key}
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
               onClick={() => handleSelect(item)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                 active ? "bg-[#004aad] text-white" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
               type="button"
             >
-              <div className={`p-1.5 rounded-lg ${active ? "bg-white/20" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>
+              <div
+                className={`p-1.5 rounded-lg ${
+                  active ? "bg-white/20" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+                }`}
+              >
                 <Icon size={16} />
               </div>
               <div>
-                <div className={`text-xs font-black ${active ? "text-white" : "text-zinc-900 dark:text-zinc-200"}`}>
+                <div
+                  className={`text-xs font-black ${
+                    active ? "text-white" : "text-zinc-900 dark:text-zinc-200"
+                  }`}
+                >
                   {item.label}
                 </div>
                 <div className={`text-[10px] ${active ? "text-white/70" : "text-zinc-400"}`}>

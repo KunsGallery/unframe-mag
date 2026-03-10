@@ -1,5 +1,5 @@
 // src/Pages/EditorPage.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Save, Send, Plus } from "lucide-react";
 
@@ -55,17 +55,24 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
 
+  const titleRef = useRef(null);
+  const subtitleRef = useRef(null);
+
   const { upload: uploadCover, uploading: coverUploading, progress: coverProgress } =
     useUploadImage();
 
   const { slashPos, closeSlashMenu, onEditorKeyDown } = useSlashMenu();
 
-  const editor = useEditor(
-    createEditorConfig({
-      onUploadImage: async (file) => uploadImageWithProgress(file),
-      onToast,
-    })
+  const editorConfig = useMemo(
+    () =>
+      createEditorConfig({
+        onUploadImage: async (file) => uploadImageWithProgress(file),
+        onToast,
+      }),
+    [onToast]
   );
+
+const editor = useEditor(editorConfig);
 
   useEffect(() => {
     if (!editor) return;
@@ -88,15 +95,33 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     navigate,
   });
 
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
+
+  useLayoutEffect(() => {
+    const el = subtitleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [subtitle]);
+
   useEffect(() => {
     if (!editor) return;
+
     const onUpdate = () => {
       if (isHydratingRef.current) return;
-      draftsApi.setIsDirty(true);
+      if (editor.view.composing) return;
+
+      draftsApi.setIsDirty((prev) => (prev ? prev : true));
     };
+
     editor.on("update", onUpdate);
     return () => editor.off("update", onUpdate);
-  }, [editor, draftsApi]);
+  }, [editor, draftsApi.setIsDirty]);
 
   useEffect(() => {
     const cleanup = draftsApi.runAutosave({
@@ -386,15 +411,22 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           <div className="grow p-12 md:p-32 overflow-y-auto">
             <div className="max-w-4xl mx-auto space-y-16">
               <div className="space-y-4">
-                <input
-                  type="text"
+                <textarea
+                  ref={titleRef}
+                  rows={1}
                   placeholder="ENTER TITLE..."
                   value={title}
                   onChange={(e) => {
                     setTitle(e.target.value);
                     draftsApi.setIsDirty(true);
                   }}
-                  className={`w-full text-7xl font-black italic tracking-tighter focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      subtitleRef.current?.focus();
+                    }
+                  }}
+                  className={`uf-title-textarea w-full resize-none overflow-hidden text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
                     isDarkMode ? "text-white" : "text-black"
                   }`}
                 />
@@ -402,15 +434,30 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                 <div className="h-2 w-24 bg-[#004aad] shadow-[0_0_15px_#004aad]" />
               </div>
 
-              <input
-                type="text"
+              <textarea
+                ref={subtitleRef}
+                rows={1}
                 placeholder="Subtitle here..."
                 value={subtitle}
                 onChange={(e) => {
                   setSubtitle(e.target.value);
                   draftsApi.setIsDirty(true);
                 }}
-                className={`w-full text-2xl font-light italic focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    editor?.chain().focus().run();
+                    return;
+                  }
+
+                  if (e.key === "Backspace" && !subtitle) {
+                    e.preventDefault();
+                    titleRef.current?.focus();
+                    const len = titleRef.current?.value?.length ?? 0;
+                    titleRef.current?.setSelectionRange?.(len, len);
+                  }
+                }}
+                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${
                   isDarkMode ? "text-zinc-500" : "text-zinc-400"
                 }`}
               />
@@ -420,7 +467,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
                 <EditorContent
                   editor={editor}
-                  onKeyDown={(e) => onEditorKeyDown(editor, e)}
+                  onKeyDown={(e) => {
+                    const native = e.nativeEvent;
+                    if (native?.isComposing || native?.keyCode === 229) return;
+                    onEditorKeyDown(editor, e);
+                  }}
                   onClick={() => closeSlashMenu()}
                 />
               </div>
@@ -437,6 +488,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       </main>
 
       <style>{`
+        .uf-title-textarea,
+        .uf-subtitle-textarea {
+          overflow: hidden;
+        }
+
         .ProseMirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           float: left;
@@ -445,10 +501,10 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           height: 0;
         }
 
-        .ProseMirror.uf-editor {
+       .ProseMirror.uf-editor {
           min-height: 500px;
           outline: none;
-        }
+       }
 
         .uf-editor,
         .uf-prose{
@@ -550,6 +606,89 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           letter-spacing: 2px;
           opacity: .35;
           color: #004aad;
+        }
+
+        .uf-editor .uf-divider,
+        .uf-prose .uf-divider{
+          width: 100%;
+          margin: 3em 0;
+          position: relative;
+        }
+
+        .uf-editor .uf-divider.is-line,
+        .uf-prose .uf-divider.is-line{
+          height: 1px;
+          background: rgba(113,113,122,.25);
+        }
+
+        .uf-editor .uf-divider.is-dashed,
+        .uf-prose .uf-divider.is-dashed{
+          height: 0;
+          border-top: 1px dashed rgba(113,113,122,.35);
+        }
+
+        .uf-editor .uf-divider.is-double,
+        .uf-prose .uf-divider.is-double{
+          height: 8px;
+          border-top: 1px solid rgba(113,113,122,.28);
+          border-bottom: 1px solid rgba(113,113,122,.28);
+        }
+
+        .uf-editor .uf-divider.is-dots,
+        .uf-prose .uf-divider.is-dots{
+          height: 10px;
+          background:
+            radial-gradient(circle, rgba(113,113,122,.45) 1.5px, transparent 1.7px)
+            center / 14px 10px repeat-x;
+        }
+
+        .uf-editor .uf-divider.is-fade,
+        .uf-prose .uf-divider.is-fade{
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(113,113,122,.38), transparent);
+        }
+
+        .uf-editor .uf-divider.is-glow,
+        .uf-prose .uf-divider.is-glow{
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #004aad, transparent);
+          box-shadow: 0 0 18px rgba(0,74,173,.35);
+        }
+
+        .uf-editor .uf-divider.is-space,
+        .uf-prose .uf-divider.is-space{
+          height: 48px;
+        }
+
+        .uf-editor .uf-callout,
+        .uf-prose .uf-callout{
+          margin: 2.2em 0;
+          padding: 1.2em 1.2em 1.15em;
+          border: 1px solid rgba(113,113,122,.18);
+          border-radius: 22px;
+          background: rgba(255,255,255,.45);
+          backdrop-filter: blur(12px);
+        }
+
+        .dark .uf-editor .uf-callout,
+        .dark .uf-prose .uf-callout{
+          background: rgba(24,24,27,.55);
+          border-color: rgba(255,255,255,.08);
+        }
+
+        .uf-editor .uf-callout__label,
+        .uf-prose .uf-callout__label{
+          margin-bottom: .8em;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: .28em;
+          text-transform: uppercase;
+          color: #004aad;
+        }
+
+        .uf-editor .uf-callout__body > :last-child,
+        .uf-prose .uf-callout__body > :last-child{
+          margin-bottom: 0;
         }
       `}</style>
     </div>
