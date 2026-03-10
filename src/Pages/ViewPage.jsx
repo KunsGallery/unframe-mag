@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
@@ -77,7 +78,75 @@ export default function ViewPage({ isDarkMode, onToast }) {
   const viewRuntimeCSS = useMemo(
     () => `
 /* ---- View Runtime (scoped) ---- */
-.uf-prose { overflow: visible !important; }
+.uf-prose { 
+  overflow: visible !important;
+  color: inherit;
+  font-style: normal;
+  font-weight: 300;
+  font-size: 18px;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.uf-prose p{
+  margin: 0 0 1.6em;
+}
+
+.uf-prose h1,
+.uf-prose h2,
+.uf-prose h3{
+  font-style: italic;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin: 1.2em 0 0.5em;
+}
+
+.uf-prose h1{ font-size: 3.4rem; }
+.uf-prose h2{ font-size: 2.4rem; }
+.uf-prose h3{ font-size: 1.7rem; }
+
+.uf-prose blockquote{
+  margin: 2em 0;
+  padding-left: 1.25em;
+  border-left: 4px solid #004aad;
+  font-style: italic;
+}
+
+.uf-prose ul,
+.uf-prose ol{
+  margin: 0 0 1.6em 1.25em;
+  padding-left: 1.1em;
+}
+
+.uf-prose li{
+  margin: 0.35em 0;
+}
+
+.uf-prose hr{
+  margin: 3em 0;
+  border: 0;
+  border-top: 1px solid rgba(113,113,122,.25);
+}
+
+.uf-prose img{
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.uf-prose pre{
+  margin: 1.8em 0;
+  padding: 1.1em 1.2em;
+  border-radius: 16px;
+  overflow-x: auto;
+}
+
+.uf-prose :last-child{
+  margin-bottom: 0;
+}
 
 /* StickyStory */
 .uf-prose [data-uf="sticky-story"]{
@@ -141,7 +210,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
     ],
     editorProps: {
       attributes: {
-        class: "ProseMirror uf-prose uf-view focus:outline-none min-h-[500px]",
+        class: "ProseMirror uf-prose uf-view max-w-none focus:outline-none min-h-[500px]",
       },
     },
   });
@@ -161,6 +230,10 @@ export default function ViewPage({ isDarkMode, onToast }) {
   // ✅ 저장 기능
   const { user, isSaved, toggleSave } = useSavedArticles();
   const saved = article?.editionNo ? isSaved(article.editionNo) : false;
+  const isAdmin =
+    user?.email === "gallerykuns@gmail.com" ||
+    user?.email === "cybog2004@gmail.com" ||
+    user?.email === "sylove887@gmail.com";
 
   const readMinutes = useMemo(() => estimateReadMinutes(article), [article]);
   const readEmoji = useMemo(() => timeEmoji(readMinutes), [readMinutes]);
@@ -444,6 +517,17 @@ export default function ViewPage({ isDarkMode, onToast }) {
         readMinutes={readMinutes}
         readEmoji={readEmoji}
       />
+
+      {isAdmin && (
+        <div className="max-w-[1200px] mx-auto px-6 mt-10">
+          <Link
+            to={`/edit/${article.id}`}
+            className="inline-block text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70"
+          >
+            EDIT ARTICLE
+          </Link>
+        </div>
+      )}
 
       <main className="max-w-[1200px] mx-auto px-6 pb-20">
 

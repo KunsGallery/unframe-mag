@@ -27,8 +27,13 @@ export function useArticleByEditionNo({ db, editionNo, editor }) {
           return;
         }
 
-        const data = snap.docs[0].data();
-        setArticle(data);
+        const docSnap = snap.docs[0];
+        const data = docSnap.data();
+
+        setArticle({
+          id: docSnap.id,
+          ...data
+        });
 
         editor.commands.setContent(data?.contentHTML || "");
       } catch (e) {

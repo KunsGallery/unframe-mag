@@ -69,7 +69,7 @@ export function createEditorConfig({ onUploadImage, onToast }) {
     editorProps: {
       attributes: {
         class:
-          "ProseMirror uf-editor prose prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[500px] italic font-light leading-relaxed",
+          "ProseMirror uf-editor uf-prose max-w-none focus:outline-none min-h-[500px]",
       },
 
       handlePaste: (_view, event) => {

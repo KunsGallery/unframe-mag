@@ -224,7 +224,8 @@ function ScrollToTop() {
   return null;
 }
 
-const RequireRole = ({ user, role, allow = [], children }) => {
+const RequireRole = ({ user, role, allow = [], loading = false, children }) => {
+  if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
   if (!allow.includes(role)) return <Navigate to="/" replace />;
   return children;
@@ -427,7 +428,7 @@ export default function App() {
             <Route
               path="/write"
               element={
-                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]}>
+                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]} loading={authLoading || roleLoading}>
                   <EditorPage
                     isDarkMode={isDarkMode}
                     user={user}
@@ -438,9 +439,9 @@ export default function App() {
             />
 
             <Route
-              path="/edit/:editionNo"
+              path="/edit/:articleId"
               element={
-                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]}>
+                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]} loading={authLoading || roleLoading}>
                   <EditorPage
                     isDarkMode={isDarkMode}
                     user={user}

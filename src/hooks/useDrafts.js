@@ -165,14 +165,18 @@ export function useDrafts({
           return;
         }
 
-        await updateDoc(doc(db, "articles", draftId), {
+        const ref = doc(db, "articles", draftId);
+        const snap = await getDoc(ref);
+        const prev = snap.exists() ? snap.data() : {};
+
+        await updateDoc(ref, {
           title: meta.title,
           subtitle: meta.subtitle,
           contentHTML,
           category: meta.category,
           cover: meta.cover,
           coverMedium: meta.coverMedium,
-          status: "draft",
+          status: prev?.status || "draft",
           author: safeAuthorName,
           authorEmail: safeAuthorEmail,
           updatedAt: serverTimestamp(),
@@ -267,14 +271,29 @@ export function useDrafts({
           });
         }
 
-        const { nextIndex, nextEditionNo } = await getNextEditionInfo();
+        const ref = doc(db, "articles", targetId);
+        const snap = await getDoc(ref);
+        const prev = snap.data() || {};
 
-        await updateDoc(doc(db, "articles", targetId), {
-          status: "published",
-          sortIndex: nextIndex,
-          editionNo: nextEditionNo,
-          updatedAt: serverTimestamp(),
-        });
+        if (prev.status === "published") {
+
+          await updateDoc(ref, {
+            status: "published",
+            updatedAt: serverTimestamp(),
+          });
+
+        } else {
+
+          const { nextIndex, nextEditionNo } = await getNextEditionInfo();
+
+          await updateDoc(ref, {
+            status: "published",
+            sortIndex: nextIndex,
+            editionNo: nextEditionNo,
+            updatedAt: serverTimestamp(),
+          });
+
+        }
 
         toast("아티클이 발행되었습니다!");
         await refreshDrafts();
