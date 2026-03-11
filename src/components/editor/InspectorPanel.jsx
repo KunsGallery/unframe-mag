@@ -15,6 +15,13 @@ function Row({ label, children }) {
   );
 }
 
+const CALLOUT_LABEL_BY_TONE = {
+  note: "NOTE",
+  point: "POINT",
+  info: "INFO",
+  quote: "QUOTE",
+};
+
 export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   const selected = useSelectedUfBlock(editor);
   const { upload, uploading, progress } = useUploadImage();
@@ -246,11 +253,17 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
             <Row label="Tone">
               <select
                 value={selected.attrs.tone ?? "note"}
-                onChange={(e) => setAttrs("ufCallout", { tone: e.target.value })}
+                onChange={(e) => {
+                  const tone = e.target.value;
+                  setAttrs("ufCallout", {
+                    tone,
+                    label: CALLOUT_LABEL_BY_TONE[tone] || "NOTE",
+                  });
+                }}
                 className={[
                   "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
                   isDarkMode ? "border-zinc-900 text-white" : "border-zinc-200 text-black",
-                ].join(" ")}
+               ].join(" ")}
               >
                 <option value="note">note</option>
                 <option value="point">point</option>

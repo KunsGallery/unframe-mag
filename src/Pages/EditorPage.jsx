@@ -1,7 +1,7 @@
 // src/Pages/EditorPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Save, Send, Plus } from "lucide-react";
+import { Save, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { db } from "../firebase/config";
@@ -54,10 +54,13 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [category, setCategory] = useState("EDITORIAL");
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
+  const [previewMode, setPreviewMode] = useState("hero");
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
 
   const titleRef = useRef(null);
   const subtitleRef = useRef(null);
 
+  const previewCover = coverMedium || cover || "";
   const { upload: uploadCover, uploading: coverUploading, progress: coverProgress } =
     useUploadImage();
 
@@ -72,7 +75,12 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     [onToast]
   );
 
-const editor = useEditor(editorConfig);
+  const editor = useEditor(editorConfig);
+
+  const previewBodyText = editor?.getText?.()?.trim?.() || "";
+  const previewExcerpt = previewBodyText
+    ? previewBodyText.slice(0, 220) + (previewBodyText.length > 220 ? "..." : "")
+    : "본문 미리보기가 여기에 표시됩니다.";
 
   useEffect(() => {
     if (!editor) return;
@@ -480,6 +488,243 @@ const editor = useEditor(editorConfig);
                 {draftsApi.lastAutoSavedAt ? "AUTOSAVED" : ""}
                 {draftsApi.isDirty ? "  •  EDITING…" : ""}
               </div>
+
+              <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
+                    Preview
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {!previewCollapsed && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("hero")}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
+                            previewMode === "hero"
+                              ? "bg-[#004aad] text-white"
+                              : isDarkMode
+                              ? "bg-zinc-900 text-zinc-400"
+                              : "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          Hero
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("pick")}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
+                            previewMode === "pick"
+                              ? "bg-[#004aad] text-white"
+                              : isDarkMode
+                              ? "bg-zinc-900 text-zinc-400"
+                              : "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          Pick
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("article")}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
+                            previewMode === "article"
+                              ? "bg-[#004aad] text-white"
+                              : isDarkMode
+                              ? "bg-zinc-900 text-zinc-400"
+                              : "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          Article
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setPreviewCollapsed((prev) => !prev)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
+                        isDarkMode
+                          ? "bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                      }`}
+                    >
+                      {previewCollapsed ? (
+                        <>
+                          <ChevronDown size={14} />
+                          Expand
+                        </>
+                      ) : (
+                        <>
+                          <ChevronUp size={14} />
+                          Collapse
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {!previewCollapsed && (
+                  <>
+                    {previewMode === "hero" && (
+                      <div
+                        className={`rounded-[28px] overflow-hidden border ${
+                          isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-[#fcfcfc]"
+                        }`}
+                      >
+                        <div className="grid md:grid-cols-[1.1fr_0.9fr] min-h-[420px]">
+                          <div className="p-10 md:p-14 flex flex-col justify-between">
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad]">
+                                {category || "EDITORIAL"}
+                              </div>
+
+                              <h2 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter leading-[0.95] break-keep">
+                                {title || "ENTER TITLE..."}
+                              </h2>
+
+                              <p className="mt-6 text-lg md:text-xl font-light italic leading-[1.5] text-zinc-400 break-keep">
+                                {subtitle || "Subtitle preview appears here."}
+                              </p>
+                            </div>
+
+                            <div className="pt-10 text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
+                              by {authorName}
+                            </div>
+                          </div>
+
+                          <div className="relative min-h-[280px]">
+                            {previewCover ? (
+                              <img
+                                src={previewCover}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
+                                No Cover
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {previewMode === "pick" && (
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div
+                          className={`rounded-[24px] overflow-hidden border ${
+                            isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"
+                          }`}
+                        >
+                          <div className="aspect-4/3 relative">
+                            {previewCover ? (
+                              <img
+                                src={previewCover}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
+                                No Cover
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-6">
+                            <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
+                              {category || "EDITORIAL"}
+                            </div>
+                            <h3 className="mt-4 text-2xl font-black italic tracking-tight leading-[1.02] break-keep line-clamp-3">
+                              {title || "ENTER TITLE..."}
+                            </h3>
+                            <p className="mt-3 text-sm leading-[1.6] text-zinc-400 break-keep line-clamp-3">
+                              {subtitle || "Subtitle preview appears here."}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`rounded-[24px] overflow-hidden border ${
+                            isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"
+                          }`}
+                        >
+                          <div className="p-6">
+                            <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
+                              Compact Card
+                            </div>
+                            <h3 className="mt-4 text-xl font-black italic tracking-tight leading-[1.06] break-keep line-clamp-3">
+                              {title || "ENTER TITLE..."}
+                            </h3>
+                            <p className="mt-3 text-sm leading-[1.6] text-zinc-400 break-keep line-clamp-2">
+                              {subtitle || "Subtitle preview appears here."}
+                            </p>
+                          </div>
+
+                          <div className="aspect-16/9 relative border-t border-zinc-200 dark:border-zinc-800">
+                            {previewCover ? (
+                              <img
+                                src={previewCover}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
+                                No Cover
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {previewMode === "article" && (
+                      <div
+                        className={`rounded-[28px] overflow-hidden border ${
+                          isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-[#fcfcfc]"
+                        }`}
+                      >
+                        <div className="relative aspect-16/7">
+                          {previewCover ? (
+                            <img
+                              src={previewCover}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900" />
+                          )}
+                          <div className="absolute inset-0 bg-linear-to-t from-black/65 via-black/25 to-transparent" />
+                          <div className="absolute left-0 right-0 bottom-0 p-8 md:p-12">
+                            <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#7db5ff]">
+                              {category || "EDITORIAL"}
+                            </div>
+                            <h2 className="mt-4 text-4xl md:text-5xl font-black italic tracking-tighter leading-[0.97] text-white break-keep">
+                              {title || "ENTER TITLE..."}
+                            </h2>
+                            <p className="mt-4 text-base md:text-lg italic leading-[1.5] text-white/75 break-keep">
+                              {subtitle || "Subtitle preview appears here."}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-8 md:p-12">
+                          <div className="max-w-3xl">
+                            <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-zinc-400">
+                              Article Body Preview
+                            </div>
+                            <p className="mt-6 text-[18px] leading-[1.95] font-light break-keep">
+                              {previewExcerpt}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -488,6 +733,20 @@ const editor = useEditor(editorConfig);
       </main>
 
       <style>{`
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .line-clamp-3 {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
         .uf-title-textarea,
         .uf-subtitle-textarea {
           overflow: hidden;
@@ -501,10 +760,10 @@ const editor = useEditor(editorConfig);
           height: 0;
         }
 
-       .ProseMirror.uf-editor {
+        .ProseMirror.uf-editor {
           min-height: 500px;
           outline: none;
-       }
+        }
 
         .uf-editor,
         .uf-prose{
@@ -666,14 +925,25 @@ const editor = useEditor(editorConfig);
           padding: 1.2em 1.2em 1.15em;
           border: 1px solid rgba(113,113,122,.18);
           border-radius: 22px;
-          background: rgba(255,255,255,.45);
+          background: rgba(255,255,255,.55);
           backdrop-filter: blur(12px);
+          position: relative;
+          overflow: hidden;
         }
 
         .dark .uf-editor .uf-callout,
         .dark .uf-prose .uf-callout{
-          background: rgba(24,24,27,.55);
+          background: rgba(24,24,27,.62);
           border-color: rgba(255,255,255,.08);
+        }
+
+        .uf-editor .uf-callout::before,
+        .uf-prose .uf-callout::before{
+          content: "";
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 4px;
+          background: rgba(0,74,173,.7);
         }
 
         .uf-editor .uf-callout__label,
@@ -689,6 +959,85 @@ const editor = useEditor(editorConfig);
         .uf-editor .uf-callout__body > :last-child,
         .uf-prose .uf-callout__body > :last-child{
           margin-bottom: 0;
+        }
+
+        .uf-editor .uf-callout.is-note,
+        .uf-prose .uf-callout.is-note{
+          background: rgba(255,255,255,.58);
+          border-color: rgba(113,113,122,.16);
+        }
+        .dark .uf-editor .uf-callout.is-note,
+        .dark .uf-prose .uf-callout.is-note{
+          background: rgba(24,24,27,.62);
+        }
+        .uf-editor .uf-callout.is-note::before,
+        .uf-prose .uf-callout.is-note::before{
+          background: rgba(0,74,173,.72);
+        }
+        .uf-editor .uf-callout.is-note .uf-callout__label,
+        .uf-prose .uf-callout.is-note .uf-callout__label{
+          color: #004aad;
+        }
+
+        .uf-editor .uf-callout.is-point,
+        .uf-prose .uf-callout.is-point{
+          background: linear-gradient(180deg, rgba(0,74,173,.08), rgba(255,255,255,.7));
+          border-color: rgba(0,74,173,.24);
+          box-shadow: 0 10px 30px rgba(0,74,173,.08);
+        }
+        .dark .uf-editor .uf-callout.is-point,
+        .dark .uf-prose .uf-callout.is-point{
+          background: linear-gradient(180deg, rgba(0,74,173,.18), rgba(24,24,27,.72));
+          border-color: rgba(0,74,173,.24);
+        }
+        .uf-editor .uf-callout.is-point::before,
+        .uf-prose .uf-callout.is-point::before{
+          background: #004aad;
+        }
+        .uf-editor .uf-callout.is-point .uf-callout__label,
+        .uf-prose .uf-callout.is-point .uf-callout__label{
+          color: #004aad;
+        }
+
+        .uf-editor .uf-callout.is-info,
+        .uf-prose .uf-callout.is-info{
+          background: linear-gradient(180deg, rgba(16,185,129,.06), rgba(255,255,255,.68));
+          border-color: rgba(16,185,129,.24);
+        }
+        .dark .uf-editor .uf-callout.is-info,
+        .dark .uf-prose .uf-callout.is-info{
+          background: linear-gradient(180deg, rgba(16,185,129,.12), rgba(24,24,27,.72));
+          border-color: rgba(16,185,129,.22);
+        }
+        .uf-editor .uf-callout.is-info::before,
+        .uf-prose .uf-callout.is-info::before{
+          background: rgba(16,185,129,.85);
+        }
+        .uf-editor .uf-callout.is-info .uf-callout__label,
+        .uf-prose .uf-callout.is-info .uf-callout__label{
+          color: rgba(5,150,105,1);
+        }
+
+        .uf-editor .uf-callout.is-quote,
+        .uf-prose .uf-callout.is-quote{
+          background: rgba(244,244,245,.72);
+          border-color: rgba(113,113,122,.18);
+        }
+        .dark .uf-editor .uf-callout.is-quote,
+        .dark .uf-prose .uf-callout.is-quote{
+          background: rgba(39,39,42,.82);
+        }
+        .uf-editor .uf-callout.is-quote::before,
+        .uf-prose .uf-callout.is-quote::before{
+          background: rgba(161,161,170,.9);
+        }
+        .uf-editor .uf-callout.is-quote .uf-callout__label,
+        .uf-prose .uf-callout.is-quote .uf-callout__label{
+          color: rgba(113,113,122,1);
+        }
+        .uf-editor .uf-callout.is-quote .uf-callout__body,
+        .uf-prose .uf-callout.is-quote .uf-callout__body{
+          font-style: italic;
         }
       `}</style>
     </div>

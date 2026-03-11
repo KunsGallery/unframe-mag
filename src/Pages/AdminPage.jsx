@@ -8,6 +8,7 @@ import {
   query,
   setDoc,
   where,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import UserRewardsPanel from "../components/admin/UserRewardsPanel";
@@ -26,10 +27,10 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
   const [articles, setArticles] = useState([]);
 
   const [heroEditionNo, setHeroEditionNo] = useState(null);
-  const [editorPicks, setEditorPicks] = useState([]); // editionNo[]
+  const [editorPicks, setEditorPicks] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  // ✅ 홈 큐레이션 config 불러오기(초기값)
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -44,12 +45,10 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
         }
       } catch (e) {
         console.error(e);
-        // config 읽기 실패는 치명적이지 않음
       }
     })();
   }, [isAdmin]);
 
-  // ✅ published 글 목록 불러오기
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -95,7 +94,7 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
         ref,
         {
           heroEditionNo: heroEditionNo || null,
-          editorPicks: editorPicks,
+          editorPicks,
           updatedAt: new Date(),
           updatedBy: user?.email || null,
         },
@@ -107,6 +106,35 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
       toast("저장 실패(권한/규칙 확인)");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteArticle = async (article) => {
+    if (!article?.docId) return;
+
+    const ok = window.confirm(
+      `정말 이 아티클을 삭제할까요?\n\n#${String(article.editionNo || "").padStart(3, "0")} ${article.title || "Untitled"}`
+    );
+    if (!ok) return;
+
+    setDeletingId(article.docId);
+    try {
+      await deleteDoc(doc(db, "articles", article.docId));
+
+      setArticles((prev) => prev.filter((a) => a.docId !== article.docId));
+
+      if (heroEditionNo === article.editionNo) {
+        setHeroEditionNo(null);
+      }
+
+      setEditorPicks((prev) => prev.filter((no) => no !== article.editionNo));
+
+      toast("아티클 삭제 완료");
+    } catch (e) {
+      console.error(e);
+      toast("아티클 삭제 실패");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -129,7 +157,6 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
   return (
     <div className={`${isDarkMode ? "bg-zinc-950 text-white" : "bg-white text-black"} min-h-screen`}>
       <div className="max-w-[1100px] mx-auto px-6 py-16">
-        {/* Header */}
         <div className="flex items-end justify-between gap-6">
           <div>
             <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
@@ -153,7 +180,6 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
           </button>
         </div>
 
-        {/* ✅ Rewards Panel (유저 지급/회수/등급) */}
         <UserRewardsPanel
           isAdmin={isAdmin}
           adminEmail={user?.email}
@@ -161,32 +187,45 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
           onToast={onToast}
         />
 
-        {/* Home Curation */}
         <div className="mt-10 grid md:grid-cols-2 gap-6">
-          {/* Hero chooser */}
           <div className={`rounded-2xl border p-6 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
             <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
               Hero (1)
             </div>
             <div className="mt-4 space-y-2">
               {articles.slice(0, 20).map((a) => (
-                <label key={a.docId} className="flex items-center gap-3 py-2">
-                  <input
-                    type="radio"
-                    name="hero"
-                    checked={heroEditionNo === a.editionNo}
-                    onChange={() => setHeroEditionNo(a.editionNo)}
-                  />
-                  <span className="text-xs font-black opacity-70">
-                    #{String(a.editionNo).padStart(3, "0")}
-                  </span>
-                  <span className="text-sm font-black line-clamp-1">{a.title || "Untitled"}</span>
-                </label>
+                <div
+                  key={a.docId}
+                  className="flex items-center justify-between gap-3 py-2"
+                >
+                  <label className="flex items-center gap-3 min-w-0 flex-1">
+                    <input
+                      type="radio"
+                      name="hero"
+                      checked={heroEditionNo === a.editionNo}
+                      onChange={() => setHeroEditionNo(a.editionNo)}
+                    />
+                    <span className="text-xs font-black opacity-70">
+                      #{String(a.editionNo).padStart(3, "0")}
+                    </span>
+                    <span className="text-sm font-black line-clamp-1">
+                      {a.title || "Untitled"}
+                    </span>
+                  </label>
+
+                  <button
+                    onClick={() => handleDeleteArticle(a)}
+                    disabled={deletingId === a.docId}
+                    className="shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] italic border border-red-300 text-red-500 hover:bg-red-500 hover:text-white transition disabled:opacity-50"
+                    type="button"
+                  >
+                    {deletingId === a.docId ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Editor picks */}
           <div className={`rounded-2xl border p-6 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
             <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
               Editor Picks (max 6)
@@ -195,17 +234,33 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
               {articles.slice(0, 30).map((a) => {
                 const checked = editorPicks.includes(a.editionNo);
                 return (
-                  <label key={a.docId} className="flex items-center gap-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => togglePick(a.editionNo)}
-                    />
-                    <span className="text-xs font-black opacity-70">
-                      #{String(a.editionNo).padStart(3, "0")}
-                    </span>
-                    <span className="text-sm font-black line-clamp-1">{a.title || "Untitled"}</span>
-                  </label>
+                  <div
+                    key={a.docId}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <label className="flex items-center gap-3 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePick(a.editionNo)}
+                      />
+                      <span className="text-xs font-black opacity-70">
+                        #{String(a.editionNo).padStart(3, "0")}
+                      </span>
+                      <span className="text-sm font-black line-clamp-1">
+                        {a.title || "Untitled"}
+                      </span>
+                    </label>
+
+                    <button
+                      onClick={() => handleDeleteArticle(a)}
+                      disabled={deletingId === a.docId}
+                      className="shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] italic border border-red-300 text-red-500 hover:bg-red-500 hover:text-white transition disabled:opacity-50"
+                      type="button"
+                    >
+                      {deletingId === a.docId ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
                 );
               })}
             </div>

@@ -220,13 +220,23 @@ export default function ViewPage({ isDarkMode, onToast }) {
   padding: 1.2em 1.2em 1.15em;
   border: 1px solid rgba(113,113,122,.18);
   border-radius: 22px;
-  background: rgba(255,255,255,.45);
+  background: rgba(255,255,255,.55);
   backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
 }
 
 .dark .uf-prose .uf-callout{
-  background: rgba(24,24,27,.55);
+  background: rgba(24,24,27,.62);
   border-color: rgba(255,255,255,.08);
+}
+
+.uf-prose .uf-callout::before{
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: rgba(0,74,173,.7);
 }
 
 .uf-prose .uf-callout__label{
@@ -240,6 +250,72 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
 .uf-prose .uf-callout__body > :last-child{
   margin-bottom: 0;
+}
+
+/* NOTE */
+.uf-prose .uf-callout.is-note{
+  background: rgba(255,255,255,.58);
+  border-color: rgba(113,113,122,.16);
+}
+.dark .uf-prose .uf-callout.is-note{
+  background: rgba(24,24,27,.62);
+}
+.uf-prose .uf-callout.is-note::before{
+  background: rgba(0,74,173,.72);
+}
+.uf-prose .uf-callout.is-note .uf-callout__label{
+  color: #004aad;
+}
+
+/* POINT */
+.uf-prose .uf-callout.is-point{
+  background: linear-gradient(180deg, rgba(0,74,173,.08), rgba(255,255,255,.7));
+  border-color: rgba(0,74,173,.24);
+  box-shadow: 0 10px 30px rgba(0,74,173,.08);
+}
+.dark .uf-prose .uf-callout.is-point{
+  background: linear-gradient(180deg, rgba(0,74,173,.18), rgba(24,24,27,.72));
+  border-color: rgba(0,74,173,.24);
+}
+.uf-prose .uf-callout.is-point::before{
+  background: #004aad;
+}
+.uf-prose .uf-callout.is-point .uf-callout__label{
+  color: #004aad;
+}
+
+/* INFO */
+.uf-prose .uf-callout.is-info{
+  background: linear-gradient(180deg, rgba(16,185,129,.06), rgba(255,255,255,.68));
+  border-color: rgba(16,185,129,.24);
+}
+.dark .uf-prose .uf-callout.is-info{
+  background: linear-gradient(180deg, rgba(16,185,129,.12), rgba(24,24,27,.72));
+  border-color: rgba(16,185,129,.22);
+}
+.uf-prose .uf-callout.is-info::before{
+  background: rgba(16,185,129,.85);
+}
+.uf-prose .uf-callout.is-info .uf-callout__label{
+  color: rgba(5,150,105,1);
+}
+
+/* QUOTE */
+.uf-prose .uf-callout.is-quote{
+  background: rgba(244,244,245,.72);
+  border-color: rgba(113,113,122,.18);
+}
+.dark .uf-prose .uf-callout.is-quote{
+  background: rgba(39,39,42,.82);
+}
+.uf-prose .uf-callout.is-quote::before{
+  background: rgba(161,161,170,.9);
+}
+.uf-prose .uf-callout.is-quote .uf-callout__label{
+  color: rgba(113,113,122,1);
+}
+.uf-prose .uf-callout.is-quote .uf-callout__body{
+  font-style: italic;
 }
 
 /* StickyStory */
