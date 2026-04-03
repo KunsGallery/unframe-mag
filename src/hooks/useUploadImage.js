@@ -1,21 +1,26 @@
 // src/hooks/useUploadImage.js
 import { useCallback, useRef, useState } from "react";
-import { uploadImageVariantsWithProgress } from "../lib/uploadWithProgress";
+import { uploadImageWithProgress } from "../lib/uploadWithProgress";
 
 /**
  * variant:
  * - "inline": 본문 이미지
  * - "parallax"
  * - "sticky"
- * - "cover": cover + coverMedium 생성
+ * - "cover": cover + coverMedium까지 생성(옵션)
  *
- * 정책:
- * - cover는 original + medium 함께 저장
- * - 본문/패럴랙스/스티키는 medium 우선 사용
+ * coverMedium은 Cloudinary transform URL을 쓸 수 있을 때 자동 생성(가능하면)
+ * (imgbb는 transform이 없어서 coverMedium = cover로 fallback)
  */
-function tryMakeCloudinaryTransformed(url, { width = 1600, quality = "auto", format = "auto" } = {}) {
-  if (!url || !url.includes("/image/upload/")) return null;
-  return url.replace("/image/upload/", `/image/upload/f_${format},q_${quality},w_${width},c_fill/`);
+function tryMakeCloudinaryTransformed(
+  url,
+  { width = 1600, quality = "auto", format = "auto" } = {}
+) {
+  if (!url.includes("/image/upload/")) return null;
+  return url.replace(
+    "/image/upload/",
+    `/image/upload/f_${format},q_${quality},w_${width},c_fill/`
+  );
 }
 
 export function useUploadImage() {
@@ -32,35 +37,20 @@ export function useUploadImage() {
     const runId = ++runIdRef.current;
 
     try {
-      const result = await uploadImageVariantsWithProgress(file, {
+      const url = await uploadImageWithProgress(file, {
         onProgress: (pct) => {
           if (runIdRef.current !== runId) return;
           setProgress(pct);
         },
       });
 
-      const originalUrl = result?.originalUrl || "";
-      const mediumUrl =
-        tryMakeCloudinaryTransformed(originalUrl, { width: 1600 }) ||
-        result?.mediumUrl ||
-        originalUrl;
-
-      const thumbUrl = result?.thumbUrl || mediumUrl || originalUrl;
-
       if (variant === "cover") {
-        return {
-          url: originalUrl,
-          coverMedium: mediumUrl || originalUrl,
-          thumbUrl,
-        };
+        const cover = url;
+        const coverMedium = tryMakeCloudinaryTransformed(url, { width: 1600 }) || url;
+        return { url: cover, coverMedium };
       }
 
-      return {
-        url: mediumUrl || originalUrl,
-        originalUrl,
-        mediumUrl: mediumUrl || originalUrl,
-        thumbUrl,
-      };
+      return { url };
     } catch (e) {
       console.error(e);
       setError(e?.message || "Upload failed");

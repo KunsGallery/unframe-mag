@@ -4,13 +4,6 @@
  * XHR 기반 업로드 (진행률 콜백 제공)
  * - Cloudinary unsigned upload (권장)
  * - imgbb fallback
- *
- * 반환 기본 형식:
- * {
- *   originalUrl,
- *   mediumUrl,
- *   thumbUrl
- * }
  */
 
 function xhrPostForm(url, formData, { onProgress } = {}) {
@@ -50,7 +43,9 @@ export async function uploadToCloudinaryWithProgress(file, { onProgress } = {}) 
   const preset = import.meta.env.VITE_CLOUDINARY_UNSIGNED_PRESET;
 
   if (!cloudName || !preset) {
-    throw new Error("Cloudinary env missing: VITE_CLOUDINARY_CLOUD_NAME / VITE_CLOUDINARY_UNSIGNED_PRESET");
+    throw new Error(
+      "Cloudinary env missing: VITE_CLOUDINARY_CLOUD_NAME / VITE_CLOUDINARY_UNSIGNED_PRESET"
+    );
   }
 
   const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
@@ -59,14 +54,10 @@ export async function uploadToCloudinaryWithProgress(file, { onProgress } = {}) 
   form.append("upload_preset", preset);
 
   const json = await xhrPostForm(url, form, { onProgress });
+
   const secureUrl = json?.secure_url || json?.url;
   if (!secureUrl) throw new Error("Cloudinary: secure_url missing");
-
-  return {
-    originalUrl: secureUrl,
-    mediumUrl: secureUrl,
-    thumbUrl: secureUrl,
-  };
+  return secureUrl;
 }
 
 /**
@@ -83,46 +74,18 @@ export async function uploadToImgbbWithProgress(file, { onProgress } = {}) {
   form.append("image", file);
 
   const json = await xhrPostForm(url, form, { onProgress });
-
-  const data = json?.data || {};
-  const originalUrl = data?.url || data?.display_url || "";
-  const mediumUrl = data?.medium?.url || originalUrl;
-  const thumbUrl = data?.thumb?.url || mediumUrl || originalUrl;
-
-  if (!originalUrl) throw new Error("imgbb: url missing");
-
-  return {
-    originalUrl,
-    mediumUrl,
-    thumbUrl,
-  };
+  const imageUrl = json?.data?.url;
+  if (!imageUrl) throw new Error("imgbb: url missing");
+  return imageUrl;
 }
 
 /**
  * 통합 업로드: Cloudinary → 실패 시 imgbb
- * 객체 전체가 필요할 때 사용
  */
-export async function uploadImageVariantsWithProgress(file, { onProgress } = {}) {
+export async function uploadImageWithProgress(file, { onProgress } = {}) {
   try {
     return await uploadToCloudinaryWithProgress(file, { onProgress });
   } catch (e) {
     return await uploadToImgbbWithProgress(file, { onProgress });
   }
-}
-
-/**
- * 기존 코드 호환용
- * 문자열 URL 하나만 필요할 때 사용
- */
-export async function uploadImageWithProgress(
-  file,
-  { onProgress, preferMedium = false } = {}
-) {
-  const result = await uploadImageVariantsWithProgress(file, { onProgress });
-
-  if (preferMedium) {
-    return result.mediumUrl || result.originalUrl;
-  }
-
-  return result.originalUrl;
 }

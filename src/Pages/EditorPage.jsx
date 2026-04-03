@@ -69,8 +69,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const editorConfig = useMemo(
     () =>
       createEditorConfig({
-        onUploadImage: async (file) =>
-          uploadImageWithProgress(file, { preferMedium: true }),
+        onUploadImage: async (file) => uploadImageWithProgress(file),
         onToast,
       }),
     [onToast]
@@ -201,12 +200,12 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   return (
     <div
-      className={`min-h-[calc(100vh-80px)] grid grid-cols-1 lg:grid-cols-12 gap-px animate-in fade-in duration-500 ${
+      className={`min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 ${
         isDarkMode ? "bg-zinc-950" : "bg-zinc-100"
       }`}
     >
       <aside
-        className={`lg:col-span-3 p-10 flex flex-col gap-10 sticky top-[80px] h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
+        className={`min-w-0 xl:col-span-3 p-6 xl:p-10 flex flex-col gap-10 xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
           isDarkMode
             ? "bg-zinc-900 border-zinc-800 shadow-2xl"
             : "bg-white border-zinc-50 shadow-xl"
@@ -416,7 +415,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       </aside>
 
       <main
-        className={`lg:col-span-9 flex transition-colors duration-500 ${
+        className={`min-w-0 xl:col-span-9 flex transition-colors duration-500 ${
           isDarkMode ? "bg-black" : "bg-white"
         }`}
       >
