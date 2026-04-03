@@ -23,7 +23,6 @@ import TierBadge from "../components/my/TierBadge";
 import StickerGrid from "../components/my/StickerGrid";
 import AchievementGrid from "../components/my/AchievementGrid";
 import EditorContentDashboard from "../components/my/EditorContentDashboard";
-import "../styles/achievements.css";
 
 const NICK_MIN = 2;
 const NICK_MAX = 20;

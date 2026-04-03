@@ -87,17 +87,25 @@ function getCategoryLabel(category) {
   }
 }
 
-function rarityClassName(rarity) {
+function rarityTone(rarity, unlocked) {
+  if (!unlocked) {
+    return "border-black/10 bg-black/[0.03] text-zinc-500 dark:border-zinc-800 dark:bg-white/[0.03] dark:text-zinc-500";
+  }
+
   switch (rarity) {
     case "legendary":
-      return "is-legendary";
+      return "border-[#004aad]/30 bg-[#004aad]/10 text-black dark:text-white";
     case "epic":
-      return "is-epic";
+      return "border-fuchsia-400/30 bg-fuchsia-400/10 text-black dark:text-white";
     case "rare":
-      return "is-rare";
+      return "border-emerald-400/30 bg-emerald-400/10 text-black dark:text-white";
     default:
-      return "is-common";
+      return "border-black/10 bg-black/[0.03] text-black dark:border-zinc-800 dark:bg-white/[0.04] dark:text-white";
   }
+}
+
+function xpOf(achievement) {
+  return achievement.xpReward || achievement.xpBonus || 0;
 }
 
 export default function AchievementGrid({
@@ -106,6 +114,7 @@ export default function AchievementGrid({
   title = "Achievements",
 }) {
   const [filter, setFilter] = useState("all");
+  const [showAll, setShowAll] = useState(false);
 
   const ownedList = useMemo(
     () => normalizeOwnedAchievements(ownedAchievements),
@@ -148,8 +157,17 @@ export default function AchievementGrid({
   }, [ownedMap, showHidden]);
 
   const visibleAchievements = useMemo(() => {
-    if (filter === "all") return allAchievements;
-    return allAchievements.filter((a) => a.category === filter);
+    const filtered =
+      filter === "all"
+        ? allAchievements
+        : allAchievements.filter((a) => a.category === filter);
+
+    return showAll ? filtered : filtered.slice(0, 8);
+  }, [allAchievements, filter, showAll]);
+
+  const filteredCount = useMemo(() => {
+    if (filter === "all") return allAchievements.length;
+    return allAchievements.filter((a) => a.category === filter).length;
   }, [allAchievements, filter]);
 
   const stats = useMemo(() => {
@@ -172,54 +190,55 @@ export default function AchievementGrid({
   ];
 
   return (
-    <section className="achievement-section">
-      <div className="achievement-section__head">
+    <section>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="achievement-section__title">{title}</h2>
-          <p className="achievement-section__sub">
-            획득한 업적과 아직 잠겨 있는 업적을 한눈에 볼 수 있어요.
-          </p>
+          <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-55">
+            / {title}
+          </div>
+          <div className="mt-2 text-sm leading-6 opacity-70">
+            획득한 업적을 우선 배치하고, 나머지는 잠긴 상태로 정리해 보여줍니다.
+          </div>
         </div>
 
-        <div className="achievement-summary">
-          <div className="achievement-summary__stat">
-            <span className="achievement-summary__label">획득</span>
-            <strong>{stats.owned}</strong>
-          </div>
-          <div className="achievement-summary__stat">
-            <span className="achievement-summary__label">전체</span>
-            <strong>{stats.total}</strong>
-          </div>
-          <div className="achievement-summary__stat">
-            <span className="achievement-summary__label">달성률</span>
-            <strong>{stats.percent}%</strong>
-          </div>
+        <div className="grid grid-cols-3 gap-2 min-w-[220px]">
+          <StatCard label="획득" value={stats.owned} />
+          <StatCard label="전체" value={stats.total} />
+          <StatCard label="달성률" value={`${stats.percent}%`} />
         </div>
       </div>
 
-      <div className="achievement-progress">
+      <div className="mt-5 h-2 rounded-full bg-black/8 dark:bg-white/10 overflow-hidden">
         <div
-          className="achievement-progress__bar"
+          className="h-full rounded-full bg-[#004aad] transition-all duration-500"
           style={{ width: `${stats.percent}%` }}
         />
       </div>
 
-      <div className="achievement-filters">
-        {filters.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`achievement-filter ${
-              filter === item.key ? "is-active" : ""
-            }`}
-            onClick={() => setFilter(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+        {filters.map((item) => {
+          const active = filter === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                setFilter(item.key);
+                setShowAll(false);
+              }}
+              className={`shrink-0 px-4 py-2.5 rounded-full text-[11px] font-black tracking-[0.22em] uppercase italic border transition ${
+                active
+                  ? "bg-[#004aad] text-white border-[#004aad]"
+                  : "border-black/10 text-zinc-700 hover:bg-black/5 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-white/[0.05]"
+              }`}
+            >
+              {item.label}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="achievement-grid">
+      <div className="mt-5 grid sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-3">
         {visibleAchievements.map((achievement) => {
           const owned = ownedMap.get(achievement.id);
           const unlocked = Boolean(owned);
@@ -227,59 +246,93 @@ export default function AchievementGrid({
           return (
             <article
               key={achievement.id}
-              className={`achievement-card ${rarityClassName(
-                achievement.rarity
-              )} ${unlocked ? "is-unlocked" : "is-locked"}`}
+              className={`rounded-[24px] border p-4 sm:p-5 transition ${rarityTone(
+                achievement.rarity,
+                unlocked
+              )}`}
             >
-              <div className="achievement-card__top">
-                <div className="achievement-card__icon">
-                  {unlocked ? achievement.icon : "🔒"}
-                </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-[16px] flex items-center justify-center text-2xl bg-white/70 dark:bg-black/20 shrink-0">
+                    {unlocked ? achievement.icon : "🔒"}
+                  </div>
 
-                <div className="achievement-card__meta">
-                  <span className="achievement-card__category">
-                    {getCategoryLabel(achievement.category)}
-                  </span>
-                  <span className="achievement-card__rarity">
-                    {getRarityLabel(achievement.rarity)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="achievement-card__body">
-                <h3 className="achievement-card__title">{achievement.title}</h3>
-                <p className="achievement-card__desc">{achievement.desc}</p>
-              </div>
-
-              <div className="achievement-card__bottom">
-                <div className="achievement-card__reward">
-                  <span>XP</span>
-                  <strong>+{achievement.xpReward || achievement.xpBonus || 0}</strong>
-                </div>
-
-                <div className="achievement-card__status">
-                  {unlocked ? (
-                    <>
-                      <span className="achievement-card__badge is-earned">
-                        획득 완료
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-black tracking-[0.22em] uppercase opacity-60">
+                        {getCategoryLabel(achievement.category)}
                       </span>
-                      {toDateText(owned?.earnedAt) ? (
-                        <span className="achievement-card__date">
-                          {toDateText(owned?.earnedAt)}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="achievement-card__badge is-locked">
-                      Locked
-                    </span>
-                  )}
+                      <span className="text-[10px] font-black tracking-[0.22em] uppercase opacity-45">
+                        {getRarityLabel(achievement.rarity)}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 text-[18px] leading-[1.05] font-black italic tracking-[-0.03em]">
+                      {achievement.title}
+                    </div>
+                  </div>
                 </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-[10px] font-black tracking-[0.18em] uppercase opacity-55">
+                    XP
+                  </div>
+                  <div className="mt-1 text-sm font-black">
+                    +{xpOf(achievement)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 text-sm leading-6 opacity-75">
+                {achievement.desc}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                <span
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-black tracking-[0.18em] uppercase ${
+                    unlocked
+                      ? "bg-[#004aad] text-white"
+                      : "bg-black/6 text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-400"
+                  }`}
+                >
+                  {unlocked ? "Unlocked" : "Locked"}
+                </span>
+
+                <span className="text-[11px] opacity-55">
+                  {unlocked && toDateText(owned?.earnedAt)
+                    ? toDateText(owned?.earnedAt)
+                    : unlocked
+                    ? "획득 완료"
+                    : "아직 미획득"}
+                </span>
               </div>
             </article>
           );
         })}
       </div>
+
+      {filteredCount > 8 && (
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="px-5 py-3 rounded-full text-[11px] font-black tracking-[0.24em] uppercase italic border border-black/10 text-zinc-700 hover:bg-black/5 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-white/[0.05]"
+          >
+            {showAll ? "Show Less" : `Show More · ${filteredCount - 8}`}
+          </button>
+        </div>
+      )}
     </section>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="rounded-[18px] border border-black/10 dark:border-zinc-800 bg-black/[0.02] dark:bg-white/[0.03] px-3 py-3 text-center">
+      <div className="text-[10px] tracking-[0.2em] uppercase font-black opacity-45">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-black">{value}</div>
+    </div>
   );
 }
