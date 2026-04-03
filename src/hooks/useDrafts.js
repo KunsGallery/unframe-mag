@@ -91,7 +91,7 @@ export function useDrafts({
 
         setters.setTitle(data.title || "");
         setters.setSubtitle(data.subtitle || "");
-        setters.setCategory(data.category || "EDITORIAL");
+        setters.setCategory(data.category || "EXHIBITION");
         setters.setCover(data.cover || "");
         setters.setCoverMedium(data.coverMedium || "");
 
@@ -113,7 +113,7 @@ export function useDrafts({
       setDraftId(null);
       setters.setTitle("");
       setters.setSubtitle("");
-      setters.setCategory("EDITORIAL");
+      setters.setCategory("EXHIBITION");
       setters.setCover("");
       setters.setCoverMedium("");
       editor?.commands?.setContent("");

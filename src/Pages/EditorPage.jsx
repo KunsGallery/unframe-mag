@@ -51,7 +51,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
-  const [category, setCategory] = useState("EDITORIAL");
+  const [category, setCategory] = useState("EXHIBITION");
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
   const [previewMode, setPreviewMode] = useState("hero");
@@ -69,7 +69,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const editorConfig = useMemo(
     () =>
       createEditorConfig({
-        onUploadImage: async (file) => uploadImageWithProgress(file),
+        onUploadImage: async (file) =>
+          uploadImageWithProgress(file, { preferMedium: true }),
         onToast,
       }),
     [onToast]
@@ -273,7 +274,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   </div>
 
                   <div className="mt-1 text-[9px] tracking-widest uppercase opacity-50">
-                    {d.category || "EDITORIAL"}
+                    {d.category || "EXHIBITION"}
                   </div>
                 </button>
               ))
@@ -299,10 +300,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   : "bg-zinc-50 border-zinc-100 text-black"
               }`}
             >
-              <option value="EDITORIAL">EDITORIAL</option>
-              <option value="INTERVIEW">INTERVIEW</option>
+              <option value="ART FAIR">ART FAIR</option>
               <option value="EXHIBITION">EXHIBITION</option>
+              <option value="REVIEW">REVIEW</option>
+              <option value="INTERVIEW">INTERVIEW</option>
+              <option value="NEWS">NEWS</option>
+              <option value="ARTIST">ARTIST</option>
+              <option value="SPACE">SPACE</option>
               <option value="PROJECT">PROJECT</option>
+              <option value="ESSAY">ESSAY</option>
+              <option value="ARCHIVE">ARCHIVE</option>
             </select>
           </div>
 
@@ -578,7 +585,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                           <div className="p-10 md:p-14 flex flex-col justify-between">
                             <div>
                               <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad]">
-                                {category || "EDITORIAL"}
+                                {category || "EXHIBITION"}
                               </div>
 
                               <h2 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter leading-[0.95] break-keep">
@@ -635,7 +642,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
                           <div className="p-6">
                             <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
-                              {category || "EDITORIAL"}
+                              {category || "EXHIBITION"}
                             </div>
                             <h3 className="mt-4 text-2xl font-black italic tracking-tight leading-[1.02] break-keep line-clamp-3">
                               {title || "ENTER TITLE..."}
@@ -699,7 +706,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                           <div className="absolute inset-0 bg-linear-to-t from-black/65 via-black/25 to-transparent" />
                           <div className="absolute left-0 right-0 bottom-0 p-8 md:p-12">
                             <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#7db5ff]">
-                              {category || "EDITORIAL"}
+                              {category || "EXHIBITION"}
                             </div>
                             <h2 className="mt-4 text-4xl md:text-5xl font-black italic tracking-tighter leading-[0.97] text-white break-keep">
                               {title || "ENTER TITLE..."}

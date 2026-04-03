@@ -4,6 +4,13 @@
  * XHR 기반 업로드 (진행률 콜백 제공)
  * - Cloudinary unsigned upload (권장)
  * - imgbb fallback
+ *
+ * 반환 기본 형식:
+ * {
+ *   originalUrl,
+ *   mediumUrl,
+ *   thumbUrl
+ * }
  */
 
 function xhrPostForm(url, formData, { onProgress } = {}) {
@@ -52,10 +59,14 @@ export async function uploadToCloudinaryWithProgress(file, { onProgress } = {}) 
   form.append("upload_preset", preset);
 
   const json = await xhrPostForm(url, form, { onProgress });
-
   const secureUrl = json?.secure_url || json?.url;
   if (!secureUrl) throw new Error("Cloudinary: secure_url missing");
-  return secureUrl;
+
+  return {
+    originalUrl: secureUrl,
+    mediumUrl: secureUrl,
+    thumbUrl: secureUrl,
+  };
 }
 
 /**
@@ -72,19 +83,46 @@ export async function uploadToImgbbWithProgress(file, { onProgress } = {}) {
   form.append("image", file);
 
   const json = await xhrPostForm(url, form, { onProgress });
-  const imageUrl = json?.data?.url;
-  if (!imageUrl) throw new Error("imgbb: url missing");
-  return imageUrl;
+
+  const data = json?.data || {};
+  const originalUrl = data?.url || data?.display_url || "";
+  const mediumUrl = data?.medium?.url || originalUrl;
+  const thumbUrl = data?.thumb?.url || mediumUrl || originalUrl;
+
+  if (!originalUrl) throw new Error("imgbb: url missing");
+
+  return {
+    originalUrl,
+    mediumUrl,
+    thumbUrl,
+  };
 }
 
 /**
  * 통합 업로드: Cloudinary → 실패 시 imgbb
+ * 객체 전체가 필요할 때 사용
  */
-export async function uploadImageWithProgress(file, { onProgress } = {}) {
+export async function uploadImageVariantsWithProgress(file, { onProgress } = {}) {
   try {
     return await uploadToCloudinaryWithProgress(file, { onProgress });
   } catch (e) {
-    // fallback
     return await uploadToImgbbWithProgress(file, { onProgress });
   }
+}
+
+/**
+ * 기존 코드 호환용
+ * 문자열 URL 하나만 필요할 때 사용
+ */
+export async function uploadImageWithProgress(
+  file,
+  { onProgress, preferMedium = false } = {}
+) {
+  const result = await uploadImageVariantsWithProgress(file, { onProgress });
+
+  if (preferMedium) {
+    return result.mediumUrl || result.originalUrl;
+  }
+
+  return result.originalUrl;
 }

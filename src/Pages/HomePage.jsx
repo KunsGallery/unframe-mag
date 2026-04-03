@@ -10,10 +10,16 @@ import { useNetworkConfig } from "../hooks/useNetworkConfig";
 // ✅ 에디터 category 값과 맞춤
 const CATEGORIES = [
   { key: "All", label: "View All Archive", sub: "ALL ITEMS" },
-  { key: "EXHIBITION", label: "Exhibition", sub: "CATEGORY 01" },
-  { key: "PROJECT", label: "Project", sub: "CATEGORY 02" },
-  { key: "INTERVIEW", label: "Interview", sub: "CATEGORY 03" },
-  { key: "EDITORIAL", label: "Editorial", sub: "CATEGORY 04" },
+  { key: "ART FAIR", label: "Art Fair", sub: "CATEGORY 01" },
+  { key: "EXHIBITION", label: "Exhibition", sub: "CATEGORY 02" },
+  { key: "REVIEW", label: "Review", sub: "CATEGORY 03" },
+  { key: "INTERVIEW", label: "Interview", sub: "CATEGORY 04" },
+  { key: "NEWS", label: "News", sub: "CATEGORY 05" },
+  { key: "ARTIST", label: "Artist", sub: "CATEGORY 06" },
+  { key: "SPACE", label: "Space", sub: "CATEGORY 07" },
+  { key: "PROJECT", label: "Project", sub: "CATEGORY 08" },
+  { key: "ESSAY", label: "Essay", sub: "CATEGORY 09" },
+  { key: "ARCHIVE", label: "Archive", sub: "CATEGORY 10" },
 ];
 
 function padEdition(editionNo) {
