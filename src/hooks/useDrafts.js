@@ -11,6 +11,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   where,
 } from "firebase/firestore";
 
@@ -169,6 +170,36 @@ export function useDrafts({
         const snap = await getDoc(ref);
         const prev = snap.exists() ? snap.data() : {};
 
+        // ✅ 발행본을 직접 임시저장으로 덮어쓰지 않음
+        if (prev?.status === "published") {
+          const clonedDraftRef = await addDoc(collection(db, "articles"), {
+            title: meta.title,
+            subtitle: meta.subtitle,
+            contentHTML,
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
+            status: "draft",
+            likes: 0,
+            views: 0,
+            tags: prev?.tags || [],
+            author: prev?.author || safeAuthorName,
+            authorEmail: prev?.authorEmail || safeAuthorEmail,
+            sourceArticleId: draftId,
+            sourceEditionNo: prev?.editionNo || null,
+            sourceSortIndex: prev?.sortIndex || null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+
+          setDraftId(clonedDraftRef.id);
+
+          if (!silent) toast("수정용 초안이 생성되었습니다.");
+          await refreshDrafts();
+          if (markClean) setIsDirty(false);
+          return;
+        }
+
         await updateDoc(ref, {
           title: meta.title,
           subtitle: meta.subtitle,
@@ -279,8 +310,31 @@ export function useDrafts({
         const snap = await getDoc(ref);
         const prev = snap.data() || {};
 
-        if (prev.status === "published") {
+        // ✅ 발행본 수정용 draft라면 원본 문서에 반영
+        if (prev?.sourceArticleId) {
+          const sourceRef = doc(db, "articles", prev.sourceArticleId);
+
+          await updateDoc(sourceRef, {
+            title: meta.title,
+            subtitle: meta.subtitle,
+            contentHTML,
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
+            status: "published",
+            updatedAt: serverTimestamp(),
+          });
+
+          await deleteDoc(ref);
+          setDraftId(null);
+        } else if (prev.status === "published") {
           await updateDoc(ref, {
+            title: meta.title,
+            subtitle: meta.subtitle,
+            contentHTML,
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
             status: "published",
             updatedAt: serverTimestamp(),
           });
@@ -288,6 +342,12 @@ export function useDrafts({
           const { nextIndex, nextEditionNo } = await getNextEditionInfo();
 
           await updateDoc(ref, {
+            title: meta.title,
+            subtitle: meta.subtitle,
+            contentHTML,
+            category: meta.category,
+            cover: meta.cover,
+            coverMedium: meta.coverMedium,
             status: "published",
             sortIndex: nextIndex,
             editionNo: nextEditionNo,

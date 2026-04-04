@@ -218,15 +218,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             </p>
 
             <button
-              onClick={() =>
+              onClick={() => {
+                loadedDraftRef.current = null;
                 draftsApi.startNewDraft({
                   setTitle,
                   setSubtitle,
                   setCategory,
                   setCover,
                   setCoverMedium,
-                })
-              }
+                });
+              }}
               className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70 transition"
               title="New Draft"
               type="button"
@@ -250,15 +251,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
               draftsApi.drafts.map((d) => (
                 <button
                   key={d.id}
-                  onClick={() =>
+                  onClick={() => {
+                    loadedDraftRef.current = null;
                     draftsApi.loadDraft(d.id, {
                       setTitle,
                       setSubtitle,
                       setCategory,
                       setCover,
                       setCoverMedium,
-                    })
-                  }
+                    });
+                  }}
                   className={`w-full text-left p-4 rounded-2xl border transition ${
                     draftsApi.draftId === d.id
                       ? "border-[#004aad] bg-[#004aad]/5"

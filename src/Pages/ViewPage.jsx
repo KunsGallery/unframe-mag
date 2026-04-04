@@ -8,6 +8,10 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import Highlight from "@tiptap/extension-highlight";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
 import { FontSize } from "../tiptap/extensions/FontSize";
 import { LineHeight } from "../tiptap/extensions/LineHeight";
 import { LetterSpacing } from "../tiptap/extensions/LetterSpacing";
@@ -386,6 +390,10 @@ export default function ViewPage({ isDarkMode, onToast }) {
         multicolor: true,
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Scene,
       UfImage,
       ParallaxImage,

@@ -3,8 +3,55 @@
 /* ===== UF blocks ===== */
 
 /* UfImage */
-.uf-img { margin: 2.5rem auto; }
-.uf-img img { width: 100%; display: block; border-radius: 18px; }
+.uf-img {
+  margin: 2.5rem auto;
+  width: 100%;
+}
+
+.uf-img img {
+  width: 100%;
+  display: block;
+  border-radius: 18px;
+}
+
+.uf-img.is-xsmall {
+  max-width: 380px;
+}
+
+.uf-img.is-small {
+  max-width: 520px;
+}
+
+.uf-img.is-normal {
+  max-width: 760px;
+}
+
+.uf-img.is-wide {
+  max-width: 980px;
+}
+
+.uf-img.is-full {
+  max-width: none;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+.uf-img.align-left {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.uf-img.align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.uf-img.align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
 .uf-img__caption {
   margin-top: .8rem;
   font-size: 12px;

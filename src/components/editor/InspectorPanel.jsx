@@ -190,6 +190,8 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                   isDarkMode ? "border-zinc-900 text-white" : "border-zinc-200 text-black",
                 ].join(" ")}
               >
+                <option value="xsmall">xsmall</option>
+                <option value="small">small</option>
                 <option value="normal">normal</option>
                 <option value="wide">wide</option>
                 <option value="full">full</option>
