@@ -16,6 +16,8 @@ export function useSelectedUfBlock(editor) {
       "parallaxImage",
       "stickyStory",
       "ufImage",
+      "gallery",
+      "columns",
       "ufDivider",
       "ufCallout",
     ]);
@@ -28,7 +30,11 @@ export function useSelectedUfBlock(editor) {
       if (sel?.node?.type?.name) {
         const name = sel.node.type.name;
         if (SUPPORTED.has(name)) {
-          return { type: name, attrs: sel.node.attrs };
+          return {
+            type: name,
+            attrs: sel.node.attrs,
+            content: sel.node.content?.toJSON?.() || [],
+          };
         }
       }
 
@@ -38,7 +44,11 @@ export function useSelectedUfBlock(editor) {
         const node = $from.node(depth);
         const name = node?.type?.name;
         if (name && SUPPORTED.has(name)) {
-          return { type: name, attrs: node.attrs };
+          return {
+            type: name,
+            attrs: node.attrs,
+            content: node.content?.toJSON?.() || [],
+          };
         }
       }
 

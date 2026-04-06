@@ -324,7 +324,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
             type: "gallery",
             attrs: {
               images: uploaded,
-              columns: uploaded.length >= 1 ? 1 : 2,
+              columns: 2,
               gap: 12,
             },
           })
