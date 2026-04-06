@@ -314,7 +314,12 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
         for (const file of files) {
           const { url } = await upload(file, { variant: "inline" });
-          uploaded.push({ src: url, alt: "" });
+          uploaded.push({
+            src: url,
+            alt: "",
+            positionX: 50,
+            positionY: 50,
+          });
         }
 
         editor

@@ -459,52 +459,149 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
               />
             </Row>
 
-            <Row label="Reorder">
-              <div className="space-y-2">
-                {(selected.attrs.images ?? []).map((img, idx, arr) => (
-                  <div
-                    key={`${img?.src || "img"}-${idx}`}
-                    className={`flex items-center gap-2 rounded-xl border p-2 ${
-                      isDarkMode ? "border-zinc-900" : "border-zinc-200"
-                    }`}
-                  >
-                    <img
-                      src={img?.src || ""}
-                      alt=""
-                      className="w-12 h-12 rounded-lg object-cover shrink-0"
-                    />
+            <Row label="Images">
+              <div className="space-y-3">
+                {(selected.attrs.images ?? []).map((img, idx, arr) => {
+                  const posX =
+                    Number.isFinite(Number(img?.positionX)) ? Number(img.positionX) : 50;
+                  const posY =
+                    Number.isFinite(Number(img?.positionY)) ? Number(img.positionY) : 50;
 
-                    <div className="flex-1 text-[11px] truncate opacity-70">
-                      Image {idx + 1}
+                  return (
+                    <div
+                      key={`${img?.src || "img"}-${idx}`}
+                      className={`rounded-xl border p-3 space-y-3 ${
+                        isDarkMode ? "border-zinc-900" : "border-zinc-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={img?.src || ""}
+                          alt=""
+                          className="w-14 h-14 rounded-lg object-cover shrink-0"
+                          style={{
+                            objectPosition: `${posX}% ${posY}%`,
+                          }}
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-black opacity-80">
+                            Image {idx + 1}
+                          </div>
+                          <div className="text-[10px] opacity-50 truncate">
+                            X {posX}% · Y {posY}%
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            const next = [...arr];
+                            [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="px-2 py-1 text-[10px] rounded-lg border"
+                        >
+                          ↑
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={idx === arr.length - 1}
+                          onClick={() => {
+                            const next = [...arr];
+                            [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="px-2 py-1 text-[10px] rounded-lg border"
+                        >
+                          ↓
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                          Horizontal Focus
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={posX}
+                          onChange={(e) => {
+                            const next = [...arr];
+                            next[idx] = {
+                              ...next[idx],
+                              positionX: Number(e.target.value),
+                            };
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                          Vertical Focus
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={posY}
+                          onChange={(e) => {
+                            const next = [...arr];
+                            next[idx] = {
+                              ...next[idx],
+                              positionY: Number(e.target.value),
+                            };
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = [...arr];
+                            next[idx] = { ...next[idx], positionX: 50, positionY: 50 };
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="px-2 py-2 text-[10px] rounded-lg border"
+                        >
+                          Center
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = [...arr];
+                            next[idx] = { ...next[idx], positionX: 50, positionY: 20 };
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="px-2 py-2 text-[10px] rounded-lg border"
+                        >
+                          Top
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = [...arr];
+                            next[idx] = { ...next[idx], positionX: 50, positionY: 80 };
+                            setAttrs("gallery", { images: next });
+                          }}
+                          className="px-2 py-2 text-[10px] rounded-lg border"
+                        >
+                          Bottom
+                        </button>
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={idx === 0}
-                      onClick={() => {
-                        const next = [...arr];
-                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-                        setAttrs("gallery", { images: next });
-                      }}
-                      className="px-2 py-1 text-[10px] rounded-lg border"
-                    >
-                      ↑
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={idx === arr.length - 1}
-                      onClick={() => {
-                        const next = [...arr];
-                        [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
-                        setAttrs("gallery", { images: next });
-                      }}
-                      className="px-2 py-1 text-[10px] rounded-lg border"
-                    >
-                      ↓
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Row>
           </div>
