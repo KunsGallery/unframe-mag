@@ -311,8 +311,14 @@ export function useDrafts({
         const prev = snap.data() || {};
 
         // ✅ 발행본 수정용 draft라면 원본 문서에 반영
+        console.log("[publish] targetId:", targetId);
+        console.log("[publish] has gallery markup:", contentHTML.includes("data-uf-gallery"));
+
         if (prev?.sourceArticleId) {
           const sourceRef = doc(db, "articles", prev.sourceArticleId);
+
+          console.log("[publish] sourceArticleId update:", prev.sourceArticleId);
+          console.log("[publish] contentHTML length:", contentHTML.length);
 
           await updateDoc(sourceRef, {
             title: meta.title,

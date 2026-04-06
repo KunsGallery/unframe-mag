@@ -13,7 +13,6 @@ export const Gallery = Node.create({
   name: "gallery",
 
   group: "block",
-  atom: true,
   draggable: true,
   selectable: true,
 
@@ -64,6 +63,9 @@ export const Gallery = Node.create({
       "div",
       mergeAttributes(HTMLAttributes, {
         "data-uf-gallery": "true",
+        "data-columns": String(columns),
+        "data-gap": String(gap),
+        "data-images": JSON.stringify(images),
         class: `uf-gallery cols-${columns}`,
         style: `--uf-gap:${gap}px;`,
       }),
