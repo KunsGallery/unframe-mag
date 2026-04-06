@@ -30,6 +30,123 @@
 .ProseMirror tr:last-child td { border-bottom: none; }
 .ProseMirror td:last-child, .ProseMirror th:last-child { border-right: none; }
 
+/* ===== TABLE / EDITOR ===== */
+
+.ProseMirror .tableWrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 2rem 0;
+  border-radius: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ProseMirror table {
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: transparent;
+  margin: 0;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  position: relative;
+  min-width: 140px;
+  padding: 12px 14px;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.dark .ProseMirror th,
+.dark .ProseMirror td {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.ProseMirror th {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.dark .ProseMirror th {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ProseMirror td {
+  font-size: 14px;
+}
+
+.ProseMirror td p,
+.ProseMirror th p {
+  margin: 0;
+}
+
+.ProseMirror td img,
+.ProseMirror th img {
+  display: block;
+  max-width: 100%;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+/* 선택된 셀 시각화 */
+.ProseMirror .selectedCell:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(0, 74, 173, 0.08);
+}
+
+/* 리사이즈 핸들 */
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  background: transparent;
+  border-right: 2px solid rgba(0, 74, 173, 0.9);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* hover 때문에 레이아웃 흔들리지 않게 */
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+/* 모바일 */
+@media (max-width: 768px) {
+  .ProseMirror .tableWrapper {
+    margin: 1.5rem 0;
+  }
+
+  .ProseMirror th,
+  .ProseMirror td {
+    min-width: 120px;
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+
+  .ProseMirror td img,
+  .ProseMirror th img {
+    min-width: 96px;
+  }
+}
+
 /* 선택 셀(편집 UX) */
 .ProseMirror .selectedCell {
   outline: 2px solid rgba(0,74,173,.55);
@@ -49,4 +166,44 @@
 
 .ProseMirror .uf-poll.ProseMirror-selectednode {
   outline: 2px solid rgba(0,74,173,0.55);
+}
+
+/* Columns */
+.ProseMirror .uf-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--uf-columns-count, 2), minmax(0, 1fr));
+  gap: var(--uf-columns-gap, 24px);
+  margin: 2.2rem 0;
+  align-items: start;
+}
+
+.ProseMirror .uf-columns[data-columns="2"] {
+  --uf-columns-count: 2;
+}
+
+.ProseMirror .uf-columns[data-columns="3"] {
+  --uf-columns-count: 3;
+}
+
+.ProseMirror .uf-columns[data-valign="center"] {
+  align-items: center;
+}
+
+.ProseMirror .uf-column {
+  min-width: 0;
+}
+
+.ProseMirror .uf-column > :first-child {
+  margin-top: 0;
+}
+
+.ProseMirror .uf-column > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .ProseMirror .uf-columns[data-stack-mobile="true"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
 }

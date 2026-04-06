@@ -123,3 +123,43 @@
   border: 0;
   display: block;
 }
+
+/* Columns */
+.uf-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--uf-columns-count, 2), minmax(0, 1fr));
+  gap: var(--uf-columns-gap, 24px);
+  margin: 2.2rem 0;
+  align-items: start;
+}
+
+.uf-columns[data-columns="2"] {
+  --uf-columns-count: 2;
+}
+
+.uf-columns[data-columns="3"] {
+  --uf-columns-count: 3;
+}
+
+.uf-columns[data-valign="center"] {
+  align-items: center;
+}
+
+.uf-column {
+  min-width: 0;
+}
+
+.uf-column > :first-child {
+  margin-top: 0;
+}
+
+.uf-column > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .uf-columns[data-stack-mobile="true"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+}

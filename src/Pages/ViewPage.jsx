@@ -38,6 +38,7 @@ import { Gallery } from "../tiptap/nodes/Gallery";
 import { UfPoll } from "../tiptap/nodes/UfPoll";
 import { UfPlaylist } from "../tiptap/nodes/UfPlaylist";
 import { UfPodcast } from "../tiptap/nodes/UfPodcast";
+import { Columns, Column } from "../tiptap/nodes/Columns";
 
 import { useArticleByEditionNo } from "../hooks/useArticleByEditionNo";
 import { useScrollProgress } from "../hooks/useScrollProgress";
@@ -161,6 +162,111 @@ export default function ViewPage({ isDarkMode, onToast }) {
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+/* Columns */
+.uf-prose .uf-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--uf-columns-count, 2), minmax(0, 1fr));
+  gap: var(--uf-columns-gap, 24px);
+  margin: 2.2rem 0;
+  align-items: start;
+}
+
+.uf-prose .uf-columns[data-columns="2"] {
+  --uf-columns-count: 2;
+}
+
+.uf-prose .uf-columns[data-columns="3"] {
+  --uf-columns-count: 3;
+}
+
+.uf-prose .uf-columns[data-valign="center"] {
+  align-items: center;
+}
+
+.uf-prose .uf-column {
+  min-width: 0;
+}
+
+.uf-prose .uf-column > :first-child {
+  margin-top: 0;
+}
+
+.uf-prose .uf-column > :last-child {
+  margin-bottom: 0;
+}
+
+/* Table */
+.uf-prose .tableWrapper{
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 2rem 0;
+  border-radius: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.uf-prose table{
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0;
+  background: white;
+}
+
+.dark .uf-prose table{
+  background: rgba(24,24,27,.82);
+}
+
+.uf-prose th,
+.uf-prose td{
+  min-width: 140px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,.06);
+  vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.dark .uf-prose th,
+.dark .uf-prose td{
+  border-color: rgba(255,255,255,.08);
+}
+
+.uf-prose th{
+  background: rgba(0,0,0,.04);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 11px;
+}
+
+.dark .uf-prose th{
+  background: rgba(255,255,255,.05);
+}
+
+.uf-prose td{
+  font-size: 14px;
+}
+
+.uf-prose td p,
+.uf-prose th p{
+  margin: 0;
+}
+
+.uf-prose td img,
+.uf-prose th img{
+  display: block;
+  max-width: 100%;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  border-radius: 10px;
 }
 
 .uf-prose pre{
@@ -363,6 +469,62 @@ export default function ViewPage({ isDarkMode, onToast }) {
     top: auto;
     height: 56vh;
   }
+
+@media (max-width: 768px){
+  .uf-prose{
+    font-size: 16px;
+    line-height: 1.82;
+    letter-spacing: 0;
+  }
+
+  .uf-prose p{
+    margin: 0 0 1.35em;
+  }
+
+  .uf-prose h1{ font-size: 2.1rem; }
+  .uf-prose h2{ font-size: 1.6rem; }
+  .uf-prose h3{ font-size: 1.28rem; }
+
+  .uf-prose blockquote{
+    margin: 1.4em 0;
+    padding-left: 1em;
+  }
+
+  .uf-prose .uf-img{
+    margin: 1.8rem auto;
+  }
+
+  .uf-prose .uf-gallery{
+    margin: 2rem 0;
+  }
+
+  .uf-prose .uf-gallery.cols-3 .uf-gallery__grid,
+  .uf-prose .uf-gallery.cols-4 .uf-gallery__grid{
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .uf-prose .tableWrapper{
+    margin: 1.5rem 0;
+  }
+
+  .uf-prose th,
+  .uf-prose td{
+    min-width: 120px;
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+
+  .uf-prose td img,
+  .uf-prose th img{
+    min-width: 96px;
+  }
+
+    .uf-prose .uf-columns[data-stack-mobile="true"]{
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+}
+
 }
 `,
     []
@@ -390,11 +552,13 @@ export default function ViewPage({ isDarkMode, onToast }) {
         multicolor: true,
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Table.configure({ resizable: true }),
+      Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,
       Scene,
+      Columns,
+      Column,
       UfImage,
       ParallaxImage,
       StickyStory,
@@ -729,7 +893,7 @@ const canEditArticle = isAdmin || isOwnerEditor;
         </div>
       )}
 
-      <main className="max-w-[1200px] mx-auto px-6 pb-20">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-20">
 
         <ArticleBody ref={bodyRef} article={article} editor={editor} />
 

@@ -32,6 +32,7 @@ import { UfPlaylist } from "../tiptap/nodes/UfPlaylist";
 import { UfPodcast } from "../tiptap/nodes/UfPodcast";
 import { UfDivider } from "../tiptap/nodes/UfDivider";
 import { UfCallout } from "../tiptap/nodes/UfCallout";
+import { Columns, Column } from "./nodes/Columns";
 
 export function createEditorConfig({ onUploadImage, onToast }) {
   return {
@@ -61,7 +62,12 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       TaskList,
       TaskItem.configure({ nested: true }),
 
-      Table.configure({ resizable: true }),
+      Table.configure({
+        resizable: true,
+        handleWidth: 6,
+        cellMinWidth: 120,
+        lastColumnResizable: false,
+      }),
       TableRow,
       TableHeader,
       TableCell,
@@ -73,6 +79,8 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       }),
 
       Scene,
+      Columns,
+      Column,
       UfImage,
       ParallaxImage,
       StickyStory,
