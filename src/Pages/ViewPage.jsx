@@ -231,6 +231,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
   overflow-wrap: break-word;
   word-break: break-word;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .dark .uf-prose th,
@@ -262,10 +263,10 @@ export default function ViewPage({ isDarkMode, onToast }) {
 .uf-prose td img,
 .uf-prose th img{
   display: block;
-  max-width: 100%;
-  width: auto !important;
+  width: 100% !important;
+  max-width: none;
   height: auto !important;
-  object-fit: contain;
+  object-fit: cover;
   border-radius: 10px;
 }
 

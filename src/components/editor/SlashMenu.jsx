@@ -15,6 +15,7 @@ import {
   Minus,
   SquareStack,
   Columns2,
+  Loader2,
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
@@ -24,7 +25,7 @@ const SLASH_ITEMS = [
   { key: "ufImage", label: "UF Image", desc: "캡션 이미지 블록", icon: Image },
   { key: "parallax", label: "Parallax", desc: "패럴랙스 이미지", icon: Layers },
   { key: "sticky", label: "Sticky Story", desc: "스티키 스토리 레이아웃", icon: Sticker },
- 
+
   { key: "columns2", label: "2 Columns", desc: "2단 컬럼 레이아웃", icon: Columns2 },
   { key: "columns3", label: "3 Columns", desc: "3단 컬럼 레이아웃", icon: Columns2 },
   { key: "gallery", label: "Gallery", desc: "그리드 갤러리", icon: Box },
@@ -42,13 +43,22 @@ const SLASH_ITEMS = [
 ];
 
 const MENU_WIDTH = 256;
-const MENU_MAX_HEIGHT = 320;
+const MENU_MAX_HEIGHT = 360;
 
-const SlashMenu = ({ pos, onClose, editor }) => {
+const SlashMenu = ({ pos, onClose, editor, onToast }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const itemRefs = useRef([]);
   const fileInputRef = useRef(null);
-  const { upload } = useUploadImage();
+
+  const { upload, uploading, progress, error, setError } = useUploadImage();
+
+  const toast = useCallback(
+    (message) => {
+      if (typeof onToast === "function") onToast(message);
+      else console.log(message);
+    },
+    [onToast]
+  );
 
   const safeClose = useCallback(() => {
     if (typeof onClose === "function") onClose();
@@ -63,7 +73,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
   const handleSelect = useCallback(
     (item) => {
-      if (!editor) return;
+      if (!editor || uploading) return;
 
       deleteSlashTrigger();
 
@@ -148,7 +158,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
           break;
         }
 
-                case "columns2":
+        case "columns2":
           editor
             .chain()
             .focus()
@@ -161,14 +171,8 @@ const SlashMenu = ({ pos, onClose, editor }) => {
                 valign: "start",
               },
               content: [
-                {
-                  type: "column",
-                  content: [{ type: "paragraph" }],
-                },
-                {
-                  type: "column",
-                  content: [{ type: "paragraph" }],
-                },
+                { type: "column", content: [{ type: "paragraph" }] },
+                { type: "column", content: [{ type: "paragraph" }] },
               ],
             })
             .run();
@@ -187,27 +191,18 @@ const SlashMenu = ({ pos, onClose, editor }) => {
                 valign: "start",
               },
               content: [
-                {
-                  type: "column",
-                  content: [{ type: "paragraph" }],
-                },
-                {
-                  type: "column",
-                  content: [{ type: "paragraph" }],
-                },
-                {
-                  type: "column",
-                  content: [{ type: "paragraph" }],
-                },
+                { type: "column", content: [{ type: "paragraph" }] },
+                { type: "column", content: [{ type: "paragraph" }] },
+                { type: "column", content: [{ type: "paragraph" }] },
               ],
             })
             .run();
           break;
 
-        case "gallery": {
+        case "gallery":
+          setError?.("");
           fileInputRef.current?.click();
           return;
-        }
 
         case "poll":
           editor.chain().focus().insertUfPoll().run();
@@ -303,7 +298,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
       safeClose();
     },
-    [editor, deleteSlashTrigger, safeClose]
+    [editor, deleteSlashTrigger, safeClose, uploading, setError]
   );
 
   const handleGalleryFiles = useCallback(
@@ -312,6 +307,9 @@ const SlashMenu = ({ pos, onClose, editor }) => {
       if (!files.length || !editor) return;
 
       try {
+        setError?.("");
+        toast(`갤러리 업로드 시작 · ${files.length}개 파일`);
+
         const uploaded = [];
 
         for (const file of files) {
@@ -326,20 +324,22 @@ const SlashMenu = ({ pos, onClose, editor }) => {
             type: "gallery",
             attrs: {
               images: uploaded,
-              columns: Math.min(2, uploaded.length) || 2,
+              columns: uploaded.length >= 1 ? 1 : 2,
               gap: 12,
             },
           })
           .run();
 
+        toast("갤러리 삽입 완료");
         safeClose();
       } catch (err) {
         console.error(err);
+        toast("갤러리 업로드 실패");
       } finally {
         if (e.target) e.target.value = "";
       }
     },
-    [editor, upload, safeClose]
+    [editor, upload, safeClose, toast, setError]
   );
 
   useEffect(() => {
@@ -360,7 +360,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!pos) return;
+      if (!pos || uploading) return;
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -380,7 +380,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pos, selectedIndex, handleSelect, deleteSlashTrigger, safeClose]);
+  }, [pos, selectedIndex, handleSelect, deleteSlashTrigger, safeClose, uploading]);
 
   const menuStyle = useMemo(() => {
     if (!pos) return {};
@@ -416,6 +416,27 @@ const SlashMenu = ({ pos, onClose, editor }) => {
           Commands
         </div>
 
+        {uploading && (
+          <div className="px-4 pt-2 pb-1">
+            <div className="flex items-center gap-2 text-[11px] font-black text-[#004aad]">
+              <Loader2 size={14} className="animate-spin" />
+              <span>Uploading gallery... {progress}%</span>
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+              <div
+                className="h-full bg-[#004aad] transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {!!error && !uploading && (
+          <div className="px-4 pt-2 pb-1 text-[11px] font-black text-red-500">
+            {error}
+          </div>
+        )}
+
         <div className="max-h-80 overflow-y-auto">
           {SLASH_ITEMS.map((item, index) => {
             const Icon = item.icon;
@@ -428,8 +449,11 @@ const SlashMenu = ({ pos, onClose, editor }) => {
                   itemRefs.current[index] = el;
                 }}
                 onClick={() => handleSelect(item)}
+                disabled={uploading}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                  active
+                  uploading
+                    ? "opacity-50 cursor-not-allowed"
+                    : active
                     ? "bg-[#004aad] text-white"
                     : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
@@ -437,7 +461,7 @@ const SlashMenu = ({ pos, onClose, editor }) => {
               >
                 <div
                   className={`p-1.5 rounded-lg ${
-                    active
+                    active && !uploading
                       ? "bg-white/20"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
                   }`}
@@ -448,14 +472,14 @@ const SlashMenu = ({ pos, onClose, editor }) => {
                 <div>
                   <div
                     className={`text-xs font-black ${
-                      active ? "text-white" : "text-zinc-900 dark:text-zinc-200"
+                      active && !uploading ? "text-white" : "text-zinc-900 dark:text-zinc-200"
                     }`}
                   >
                     {item.label}
                   </div>
                   <div
                     className={`text-[10px] ${
-                      active ? "text-white/70" : "text-zinc-400"
+                      active && !uploading ? "text-white/70" : "text-zinc-400"
                     }`}
                   >
                     {item.desc}

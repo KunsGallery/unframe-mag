@@ -32,7 +32,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   if (!editor) return null;
 
   const setAttrs = (type, patch) => {
-    editor.chain().focus().updateAttributes(type, patch).run();
+    editor.commands.updateAttributes(type, patch);
   };
 
   useEffect(() => {
@@ -434,6 +434,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     : "border-zinc-200 text-black",
                 ].join(" ")}
               >
+                <option value="1">1</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
                 <option value="4">4</option>

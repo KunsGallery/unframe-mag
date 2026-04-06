@@ -63,6 +63,7 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: transparent;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .dark .ProseMirror th,
@@ -94,10 +95,10 @@
 .ProseMirror td img,
 .ProseMirror th img {
   display: block;
-  max-width: 100%;
-  width: auto !important;
+  width: 100% !important;
+  max-width: none;
   height: auto !important;
-  object-fit: contain;
+  object-fit: cover;
   border-radius: 10px;
 }
 
