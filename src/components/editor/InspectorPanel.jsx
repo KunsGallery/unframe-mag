@@ -285,7 +285,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
           </div>
         )}
 
-                {/* -------- Columns -------- */}
+        {/* -------- Columns -------- */}
         {selected?.type === "columns" && (
           <div className="space-y-5">
             <Row label="Columns">
@@ -598,6 +598,156 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                         >
                           Bottom
                         </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Row>
+          </div>
+        )}
+
+                {selected?.type === "slideGallery" && (
+          <div className="space-y-5">
+            <Row label="Aspect Ratio">
+              <select
+                value={selected.attrs.heightRatio ?? "16/9"}
+                onChange={(e) =>
+                  setAttrs("slideGallery", { heightRatio: e.target.value })
+                }
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                <option value="16/9">16 / 9</option>
+                <option value="4/3">4 / 3</option>
+                <option value="1/1">1 / 1</option>
+                <option value="3/4">3 / 4</option>
+              </select>
+            </Row>
+
+            <Row label="Rounded">
+              <input
+                type="number"
+                min="0"
+                max="40"
+                value={Number(selected.attrs.rounded ?? 20)}
+                onChange={(e) =>
+                  setAttrs("slideGallery", { rounded: Number(e.target.value) })
+                }
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              />
+            </Row>
+
+            <Row label="Images">
+              <div className="space-y-3">
+                {(selected.attrs.images ?? []).map((img, idx, arr) => {
+                  const posX =
+                    Number.isFinite(Number(img?.positionX)) ? Number(img.positionX) : 50;
+                  const posY =
+                    Number.isFinite(Number(img?.positionY)) ? Number(img.positionY) : 50;
+
+                  return (
+                    <div
+                      key={`${img?.src || "img"}-${idx}`}
+                      className={`rounded-xl border p-3 space-y-3 ${
+                        isDarkMode ? "border-zinc-900" : "border-zinc-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={img?.src || ""}
+                          alt=""
+                          className="w-14 h-14 rounded-lg object-cover shrink-0"
+                          style={{
+                            objectPosition: `${posX}% ${posY}%`,
+                          }}
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-black opacity-80">
+                            Slide {idx + 1}
+                          </div>
+                          <div className="text-[10px] opacity-50 truncate">
+                            X {posX}% · Y {posY}%
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            const next = [...arr];
+                            [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                            setAttrs("slideGallery", { images: next });
+                          }}
+                          className="px-2 py-1 text-[10px] rounded-lg border"
+                        >
+                          ↑
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={idx === arr.length - 1}
+                          onClick={() => {
+                            const next = [...arr];
+                            [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                            setAttrs("slideGallery", { images: next });
+                          }}
+                          className="px-2 py-1 text-[10px] rounded-lg border"
+                        >
+                          ↓
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                          Horizontal Focus
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={posX}
+                          onChange={(e) => {
+                            const next = [...arr];
+                            next[idx] = {
+                              ...next[idx],
+                              positionX: Number(e.target.value),
+                            };
+                            setAttrs("slideGallery", { images: next });
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                          Vertical Focus
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={posY}
+                          onChange={(e) => {
+                            const next = [...arr];
+                            next[idx] = {
+                              ...next[idx],
+                              positionY: Number(e.target.value),
+                            };
+                            setAttrs("slideGallery", { images: next });
+                          }}
+                          className="w-full"
+                        />
                       </div>
                     </div>
                   );

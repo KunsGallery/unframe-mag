@@ -27,6 +27,7 @@ import { UfImage } from "../tiptap/nodes/UfImage";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
 import { StickyStory } from "../tiptap/nodes/StickyStory";
 import { Gallery } from "../tiptap/nodes/Gallery";
+import { SlideGallery } from "./nodes/SlideGallery";
 import { UfPoll } from "../tiptap/nodes/UfPoll";
 import { UfPlaylist } from "../tiptap/nodes/UfPlaylist";
 import { UfPodcast } from "../tiptap/nodes/UfPodcast";
@@ -85,6 +86,7 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       ParallaxImage,
       StickyStory,
       Gallery,
+      SlideGallery,
       UfPoll,
       UfPlaylist,
       UfPodcast,

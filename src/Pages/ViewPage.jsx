@@ -35,6 +35,7 @@ import { UfImage } from "../tiptap/nodes/UfImage";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
 import { StickyStory } from "../tiptap/nodes/StickyStory";
 import { Gallery } from "../tiptap/nodes/Gallery";
+import { SlideGallery } from "../tiptap/nodes/SlideGallery";
 import { UfPoll } from "../tiptap/nodes/UfPoll";
 import { UfPlaylist } from "../tiptap/nodes/UfPlaylist";
 import { UfPodcast } from "../tiptap/nodes/UfPodcast";
@@ -75,7 +76,6 @@ async function copyToClipboard(text) {
       return true;
     }
   } catch {}
-  // fallback
   try {
     const t = document.createElement("textarea");
     t.value = text;
@@ -91,17 +91,14 @@ async function copyToClipboard(text) {
 }
 
 export default function ViewPage({ isDarkMode, onToast }) {
-  const { id } = useParams(); // editionNo
+  const { id } = useParams();
   const nav = useNavigate();
 
   const bodyRef = useRef(null);
 
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
-
-  // Like UI state(“중복 증가 방지”는 localStorage로 처리)
   const [liked, setLiked] = useState(false);
 
-  // ✅ ViewPage에서만 StickyStory가 확실히 동작하도록 CSS를 강제 주입
   const viewRuntimeCSS = useMemo(
     () => `
 /* ---- View Runtime (scoped) ---- */
@@ -281,7 +278,6 @@ export default function ViewPage({ isDarkMode, onToast }) {
   margin-bottom: 0;
 }
 
-
 .uf-prose .uf-divider{
   width: 100%;
   margin: 3em 0;
@@ -363,7 +359,6 @@ export default function ViewPage({ isDarkMode, onToast }) {
   margin-bottom: 0;
 }
 
-/* NOTE */
 .uf-prose .uf-callout.is-note{
   background: rgba(255,255,255,.58);
   border-color: rgba(113,113,122,.16);
@@ -378,7 +373,6 @@ export default function ViewPage({ isDarkMode, onToast }) {
   color: #004aad;
 }
 
-/* POINT */
 .uf-prose .uf-callout.is-point{
   background: linear-gradient(180deg, rgba(0,74,173,.08), rgba(255,255,255,.7));
   border-color: rgba(0,74,173,.24);
@@ -395,7 +389,6 @@ export default function ViewPage({ isDarkMode, onToast }) {
   color: #004aad;
 }
 
-/* INFO */
 .uf-prose .uf-callout.is-info{
   background: linear-gradient(180deg, rgba(16,185,129,.06), rgba(255,255,255,.68));
   border-color: rgba(16,185,129,.24);
@@ -411,7 +404,6 @@ export default function ViewPage({ isDarkMode, onToast }) {
   color: rgba(5,150,105,1);
 }
 
-/* QUOTE */
 .uf-prose .uf-callout.is-quote{
   background: rgba(244,244,245,.72);
   border-color: rgba(113,113,122,.18);
@@ -460,16 +452,135 @@ export default function ViewPage({ isDarkMode, onToast }) {
 .uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__visual{ order: 2; }
 .uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__content{ order: 1; }
 
+/* Slide Gallery */
+.uf-prose .uf-slide-gallery {
+  margin: 3rem 0;
+}
+
+.uf-prose .uf-slide-gallery__viewport {
+  position: relative;
+}
+
+.uf-prose .uf-slide-gallery__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+.uf-prose .uf-slide-gallery__track::-webkit-scrollbar {
+  display: none;
+}
+
+.uf-prose .uf-slide-gallery__slide {
+  scroll-snap-align: start;
+  margin: 0;
+}
+
+.uf-prose .uf-slide-gallery__track[data-ratio="16/9"] .uf-slide-gallery__img {
+  aspect-ratio: 16 / 9;
+}
+
+.uf-prose .uf-slide-gallery__track[data-ratio="4/3"] .uf-slide-gallery__img {
+  aspect-ratio: 4 / 3;
+}
+
+.uf-prose .uf-slide-gallery__track[data-ratio="1/1"] .uf-slide-gallery__img {
+  aspect-ratio: 1 / 1;
+}
+
+.uf-prose .uf-slide-gallery__track[data-ratio="3/4"] .uf-slide-gallery__img {
+  aspect-ratio: 3 / 4;
+}
+
+.uf-prose .uf-slide-gallery__img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: var(--uf-slide-radius, 20px);
+}
+
+.uf-prose .uf-slide-gallery__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  color: white;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .18s ease, opacity .18s ease, transform .18s ease;
+  opacity: .8;
+}
+
+.uf-prose .uf-slide-gallery__arrow:hover {
+  background: rgba(0, 0, 0, 0.34);
+  opacity: 1;
+}
+
+.uf-prose .uf-slide-gallery__arrow--prev {
+  left: 10px;
+}
+
+.uf-prose .uf-slide-gallery__arrow--next {
+  right: 10px;
+}
+
+.uf-prose .uf-slide-gallery__dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.uf-prose .uf-slide-gallery__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: all .18s ease;
+  padding: 0;
+}
+
+.dark .uf-prose .uf-slide-gallery__dot {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.uf-prose .uf-slide-gallery__dot[data-active="true"] {
+  width: 18px;
+  background: rgba(0, 74, 173, 0.95);
+}
+
 @media (max-width: 860px){
   .uf-prose [data-uf="sticky-story"]{
     grid-template-columns: 1fr;
     gap: 16px;
   }
+
   .uf-prose .uf-sticky-story__visual{
     position: relative;
     top: auto;
     height: 56vh;
   }
+}
 
 @media (max-width: 768px){
   .uf-prose{
@@ -520,12 +631,38 @@ export default function ViewPage({ isDarkMode, onToast }) {
     min-width: 96px;
   }
 
-    .uf-prose .uf-columns[data-stack-mobile="true"]{
+  .uf-prose .uf-columns[data-stack-mobile="true"]{
     grid-template-columns: 1fr !important;
     gap: 16px;
   }
-}
 
+  .uf-prose .uf-slide-gallery__arrow {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+  }
+
+  .uf-prose .uf-slide-gallery__arrow--prev {
+    left: 8px;
+  }
+
+  .uf-prose .uf-slide-gallery__arrow--next {
+    right: 8px;
+  }
+
+  .uf-prose .uf-slide-gallery__dots {
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .uf-prose .uf-slide-gallery__dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .uf-prose .uf-slide-gallery__dot[data-active="true"] {
+    width: 16px;
+  }
 }
 `,
     []
@@ -564,6 +701,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
       ParallaxImage,
       StickyStory,
       Gallery,
+      SlideGallery,
       UfPoll,
       UfPlaylist,
       UfPodcast,
@@ -572,7 +710,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
     ],
     editorProps: {
       attributes: {
-       class: "ProseMirror uf-prose uf-view max-w-none focus:outline-none min-h-[500px]",
+        class: "ProseMirror uf-prose uf-view max-w-none focus:outline-none min-h-[500px]",
       },
     },
   });
@@ -589,8 +727,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
   useRevealOnce(bodyRef, [article]);
   useParallaxRuntime([article]);
 
-  // ✅ 저장 기능
-  const { user, isSaved, toggleSave } = useSavedArticles();
+  const { user, isSaved } = useSavedArticles();
   const saved = article?.editionNo ? isSaved(article.editionNo) : false;
   const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
   const isOwnerEditor =
@@ -598,44 +735,125 @@ export default function ViewPage({ isDarkMode, onToast }) {
     !!article?.authorEmail &&
     user.email === article.authorEmail;
 
-const canEditArticle = isAdmin || isOwnerEditor;
+  const canEditArticle = isAdmin || isOwnerEditor;
 
   const readMinutes = useMemo(() => estimateReadMinutes(article), [article]);
   const readEmoji = useMemo(() => timeEmoji(readMinutes), [readMinutes]);
 
-  // ---------------------------------------
-  // 1) 조회수 + trackEvent("view") (세션 1회)
-  // ---------------------------------------
   useEffect(() => {
-    if (!article?.docId && !article?.id) {
-      // docId가 어디에 있는지 모를 수 있어서 가드만
-    }
+    const root = document;
+
+    const updateDots = (track) => {
+      if (!track) return;
+      const viewport = track.closest(".uf-slide-gallery__viewport");
+      if (!viewport) return;
+
+      const dots = viewport.querySelectorAll(".uf-slide-gallery__dot");
+      if (!dots.length) return;
+
+      const slide = track.querySelector(".uf-slide-gallery__slide");
+      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 1;
+      const gap = 12;
+      const index = Math.round(track.scrollLeft / (slideWidth + gap));
+
+      dots.forEach((dot, i) => {
+        dot.setAttribute("data-active", i === index ? "true" : "false");
+      });
+    };
+
+    const handleSlideArrowClick = (e) => {
+      const btn = e.target.closest(".uf-slide-gallery__arrow");
+      if (!btn) return;
+
+      const viewport = btn.closest(".uf-slide-gallery__viewport");
+      const track = viewport?.querySelector(".uf-slide-gallery__track");
+      if (!track) return;
+
+      const slide = track.querySelector(".uf-slide-gallery__slide");
+      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 0;
+      if (!slideWidth) return;
+
+      const gap = 12;
+      const amount = slideWidth + gap;
+      const dir = btn.getAttribute("data-dir");
+
+      track.scrollBy({
+        left: dir === "next" ? amount : -amount,
+        behavior: "smooth",
+      });
+
+      requestAnimationFrame(() => updateDots(track));
+      setTimeout(() => updateDots(track), 220);
+      setTimeout(() => updateDots(track), 420);
+    };
+
+    const handleSlideDotClick = (e) => {
+      const dot = e.target.closest(".uf-slide-gallery__dot");
+      if (!dot) return;
+
+      const viewport = dot.closest(".uf-slide-gallery__viewport");
+      const track = viewport?.querySelector(".uf-slide-gallery__track");
+      if (!track) return;
+
+      const slide = track.querySelector(".uf-slide-gallery__slide");
+      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 0;
+      if (!slideWidth) return;
+
+      const gap = 12;
+      const index = Number(dot.getAttribute("data-index") || 0);
+
+      track.scrollTo({
+        left: index * (slideWidth + gap),
+        behavior: "smooth",
+      });
+
+      requestAnimationFrame(() => updateDots(track));
+      setTimeout(() => updateDots(track), 220);
+      setTimeout(() => updateDots(track), 420);
+    };
+
+    const handleTrackScroll = (e) => {
+      const track = e.target.closest?.(".uf-slide-gallery__track");
+      if (!track) return;
+      updateDots(track);
+    };
+
+    root.addEventListener("click", handleSlideArrowClick);
+    root.addEventListener("click", handleSlideDotClick, true);
+    root.addEventListener("scroll", handleTrackScroll, true);
+
+    requestAnimationFrame(() => {
+      document
+        .querySelectorAll(".uf-slide-gallery__track")
+        .forEach((track) => updateDots(track));
+    });
+
+    return () => {
+      root.removeEventListener("click", handleSlideArrowClick);
+      root.removeEventListener("click", handleSlideDotClick, true);
+      root.removeEventListener("scroll", handleTrackScroll, true);
+    };
+  }, [article?.id]);
+
+  useEffect(() => {
     if (!article?.editionNo) return;
 
     const editionNo = String(article.editionNo);
     const viewKey = `uf_viewed_${editionNo}`;
 
-    // 세션(탭 살아있는 동안) 1회만
     if (sessionStorage.getItem(viewKey)) return;
     sessionStorage.setItem(viewKey, "1");
 
-    // (A) 트래킹
     trackEventOnce("view", `view_${editionNo}`, { editionNo });
 
-    // (B) Firestore views +1 (rules: published 글 likes/views 증가 허용)
-    // docId가 실제 firestore 문서ID여야 함.
     const docId = article?.docId || article?.firestoreId || article?.id;
     if (!docId) return;
 
     updateDoc(doc(db, "articles", String(docId)), { views: increment(1) }).catch((e) => {
-      // 권한/필드 누락 등은 치명적이지 않으니 조용히
       console.warn("[ViewPage] views increment failed:", e?.message || e);
     });
   }, [article?.editionNo, article?.docId, article?.id, article?.firestoreId]);
 
-  // ---------------------------------------
-  // 2) Like 초기 상태(로컬) 세팅
-  // ---------------------------------------
   useEffect(() => {
     if (!article?.editionNo) return;
     const editionNo = String(article.editionNo);
@@ -644,9 +862,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
     setLiked(localStorage.getItem(likeKey) === "1");
   }, [article?.editionNo, user?.uid]);
 
-  // ---------------------------------------
-  // SideUtils handlers
-  // ---------------------------------------
   const handleVerticalClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
@@ -667,7 +882,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
 
     const uid = user.uid;
 
-    // ✅ 해제는 단순 delete (XP/카운트는 안 깎음)
     if (before) {
       try {
         await deleteDoc(doc(db, "users", uid, "saved", editionNo));
@@ -675,7 +889,7 @@ const canEditArticle = isAdmin || isOwnerEditor;
       } catch (e) {
         console.error(e);
         toast(`저장 해제 실패: ${e?.message || e}`);
-     }
+      }
       return;
     }
 
@@ -695,10 +909,8 @@ const canEditArticle = isAdmin || isOwnerEditor;
           tx.get(stickerRef),
         ]);
 
-        // 이미 저장되어 있으면 종료
         if (savedSnap.exists()) return;
 
-        // 1) saved 생성
         tx.set(savedRef, {
           editionNo,
           title: article?.title || null,
@@ -708,7 +920,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
           createdAt: serverTimestamp(),
         });
 
-        // 2) 유니크 플래그/카운트는 flag가 없을 때만
         if (!flagSnap.exists()) {
           const prev = userSnap.exists() ? Number(userSnap.data().saveUniqueCount || 0) : 0;
           nextUnique = prev + 1;
@@ -728,7 +939,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
             { merge: true }
           );
 
-          // 3) 업적(10/50/100) — rules에 본인 create 허용되어 있어야 함
           if (nextUnique === 10 || nextUnique === 50 || nextUnique === 100) {
             const achId =
               nextUnique === 10 ? "save_10" : nextUnique === 50 ? "save_50" : "save_100";
@@ -740,14 +950,12 @@ const canEditArticle = isAdmin || isOwnerEditor;
             );
           }
 
-          // ✅ 4) first_save 스티커는 “없을 때만” 생성 (존재하면 update 금지라 건드리지 않음)
           if (!stickerSnap.exists()) {
             tx.set(stickerRef, { id: "first_save", createdAt: serverTimestamp() });
           }
         }
       });
 
-      // ✅ XP 지급 (유니크 저장일 때만)
       if (typeof nextUnique === "number") {
         trackEvent("save", { editionNo, saveUniqueCount: nextUnique });
         toast(`저장 완료! (유니크 저장 ${nextUnique})`);
@@ -767,18 +975,14 @@ const canEditArticle = isAdmin || isOwnerEditor;
     const editionNo = String(article.editionNo);
     const who = user?.uid || "anon";
     const likeKey = `uf_liked_${editionNo}_${who}`;
-
-    // 이미 like 처리한 사람은 증가/트래킹을 다시 하지 않음
     const already = localStorage.getItem(likeKey) === "1";
 
     if (!already) {
       localStorage.setItem(likeKey, "1");
       setLiked(true);
 
-      // (A) 트래킹
       trackEvent("like", { editionNo });
 
-      // (B) Firestore likes +1
       const docId = article?.docId || article?.firestoreId || article?.id;
       if (docId) {
         updateDoc(doc(db, "articles", String(docId)), { likes: increment(1) }).catch((e) => {
@@ -788,7 +992,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
       return;
     }
 
-    // 이미 눌렀던 경우: UI만 토글(“되돌리기” 느낌) — 감소는 하지 않음(규칙/악용 방지)
     setLiked((v) => !v);
   };
 
@@ -858,7 +1061,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
     <div className="uf-page bg-[#fcfcfc] dark:bg-zinc-950 min-h-screen transition-colors duration-500">
       <style>{viewRuntimeCSS}</style>
 
-      {/* TOP PROGRESS BAR */}
       <div className="fixed top-[80px] left-0 w-full h-[3px] bg-zinc-200/70 dark:bg-zinc-800/80 z-90 backdrop-blur-sm">
         <div
           className="h-full bg-[#004aad] transition-all duration-150 shadow-[0_0_10px_#004aad]"
@@ -866,7 +1068,6 @@ const canEditArticle = isAdmin || isOwnerEditor;
         />
       </div>
 
-      {/* ✅ Side Utils (save/like/share 연결 완료) */}
       <SideUtils
         progress={progress}
         onVerticalClick={handleVerticalClick}
@@ -895,21 +1096,20 @@ const canEditArticle = isAdmin || isOwnerEditor;
       )}
 
       <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-20">
-
         <ArticleBody ref={bodyRef} article={article} editor={editor} />
 
-      <EditorInfoBox
-        article={article}
-        currentUser={user}
-        onToast={onToast}
-      />
+        <EditorInfoBox
+          article={article}
+          currentUser={user}
+          onToast={onToast}
+        />
 
-      <MoreFromEditor
-        article={article}
-        isDarkMode={isDarkMode}
-      />
+        <MoreFromEditor
+          article={article}
+          isDarkMode={isDarkMode}
+        />
 
-      <CommentSection article={article} />
+        <CommentSection article={article} />
 
         <PrevNextCards currentArticle={article} />
 

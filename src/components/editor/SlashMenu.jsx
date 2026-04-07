@@ -16,6 +16,7 @@ import {
   SquareStack,
   Columns2,
   Loader2,
+  Images,
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
@@ -29,6 +30,7 @@ const SLASH_ITEMS = [
   { key: "columns2", label: "2 Columns", desc: "2단 컬럼 레이아웃", icon: Columns2 },
   { key: "columns3", label: "3 Columns", desc: "3단 컬럼 레이아웃", icon: Columns2 },
   { key: "gallery", label: "Gallery", desc: "그리드 갤러리", icon: Box },
+  { key: "slideGallery", label: "Slide Gallery", desc: "슬라이드 갤러리", icon: Images },
   { key: "poll", label: "Poll", desc: "참여형 투표", icon: PieChart },
   { key: "table", label: "Table", desc: "표 삽입", icon: Table },
   { key: "divider", label: "Divider", desc: "구분선 삽입", icon: Minus },
@@ -201,6 +203,13 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
         case "gallery":
           setError?.("");
+          fileInputRef.current?.setAttribute("data-gallery-mode", "grid");
+          fileInputRef.current?.click();
+          return;
+
+        case "slideGallery":
+          setError?.("");
+          fileInputRef.current?.setAttribute("data-gallery-mode", "slide");
           fileInputRef.current?.click();
           return;
 
@@ -322,17 +331,30 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
           });
         }
 
+        const mode = e.target?.getAttribute("data-gallery-mode") || "grid";
+
         editor
           .chain()
           .focus()
-          .insertContent({
-            type: "gallery",
-            attrs: {
-              images: uploaded,
-              columns: 2,
-              gap: 12,
-            },
-          })
+          .insertContent(
+            mode === "slide"
+              ? {
+                  type: "slideGallery",
+                  attrs: {
+                    images: uploaded,
+                    heightRatio: "16/9",
+                    rounded: 20,
+                  },
+                }
+              : {
+                  type: "gallery",
+                  attrs: {
+                    images: uploaded,
+                    columns: 2,
+                    gap: 12,
+                  },
+                }
+          )
           .run();
 
         toast("갤러리 삽입 완료");
@@ -341,7 +363,10 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
         console.error(err);
         toast("갤러리 업로드 실패");
       } finally {
-        if (e.target) e.target.value = "";
+        if (e.target) {
+          e.target.value = "";
+          e.target.removeAttribute("data-gallery-mode");
+        }
       }
     },
     [editor, upload, safeClose, toast, setError]

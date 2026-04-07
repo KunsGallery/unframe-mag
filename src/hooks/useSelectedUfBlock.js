@@ -17,6 +17,7 @@ export function useSelectedUfBlock(editor) {
       "stickyStory",
       "ufImage",
       "gallery",
+      "SlideGallery",
       "columns",
       "ufDivider",
       "ufCallout",

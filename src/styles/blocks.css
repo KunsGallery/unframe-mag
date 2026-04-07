@@ -184,3 +184,108 @@
     gap: 16px;
   }
 }
+
+/* Slide Gallery */
+.uf-slide-gallery {
+  margin: 3rem 0;
+}
+
+.uf-slide-gallery__viewport {
+  position: relative;
+}
+
+.uf-slide-gallery__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+.uf-slide-gallery__track::-webkit-scrollbar {
+  display: none;
+}
+
+.uf-slide-gallery__slide {
+  scroll-snap-align: start;
+  margin: 0;
+}
+
+.uf-slide-gallery__track[data-ratio="16/9"] .uf-slide-gallery__img {
+  aspect-ratio: 16 / 9;
+}
+
+.uf-slide-gallery__track[data-ratio="4/3"] .uf-slide-gallery__img {
+  aspect-ratio: 4 / 3;
+}
+
+.uf-slide-gallery__track[data-ratio="1/1"] .uf-slide-gallery__img {
+  aspect-ratio: 1 / 1;
+}
+
+.uf-slide-gallery__track[data-ratio="3/4"] .uf-slide-gallery__img {
+  aspect-ratio: 3 / 4;
+}
+
+.uf-slide-gallery__img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: var(--uf-slide-radius, 20px);
+}
+
+.uf-slide-gallery__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  color: white;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .18s ease, opacity .18s ease, transform .18s ease;
+  opacity: .8;
+}
+
+.uf-slide-gallery__arrow:hover {
+  background: rgba(0, 0, 0, 0.34);
+  opacity: 1;
+}
+
+.uf-slide-gallery__arrow--prev {
+  left: 10px;
+}
+
+.uf-slide-gallery__arrow--next {
+  right: 10px;
+}
+
+@media (max-width: 768px) {
+  .uf-slide-gallery__arrow {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+  }
+
+  .uf-slide-gallery__arrow--prev {
+    left: 8px;
+  }
+
+  .uf-slide-gallery__arrow--next {
+    right: 8px;
+  }
+}
