@@ -6,6 +6,7 @@
 .uf-img {
   margin: 2.5rem auto;
   width: 100%;
+  max-width: 100%;
 }
 
 .uf-img img {
@@ -30,11 +31,10 @@
   max-width: 980px;
 }
 
+/* ✅ View에서는 꽉 차되, 에디터에서는 부모폭 넘지 않게 별도 보정 예정 */
 .uf-img.is-full {
-  max-width: none;
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  max-width: 100%;
+  width: 100%;
 }
 
 .uf-img.align-left {
@@ -50,6 +50,13 @@
 .uf-img.align-right {
   margin-left: auto;
   margin-right: 0;
+}
+
+/* 정렬 차이가 눈에 보이도록 */
+.uf-img.align-left img,
+.uf-img.align-right img,
+.uf-img.align-center img {
+  display: block;
 }
 
 .uf-img__caption {

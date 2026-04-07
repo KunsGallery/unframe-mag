@@ -185,9 +185,15 @@ export function useDrafts({
             tags: prev?.tags || [],
             author: prev?.author || safeAuthorName,
             authorEmail: prev?.authorEmail || safeAuthorEmail,
+
+            // ✅ 수정용 draft 메타
             sourceArticleId: draftId,
             sourceEditionNo: prev?.editionNo || null,
             sourceSortIndex: prev?.sortIndex || null,
+            editMode: "revision",
+            revisionOf: draftId,
+            revisionLabel: prev?.title || "Untitled",
+
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -317,9 +323,6 @@ export function useDrafts({
         if (prev?.sourceArticleId) {
           const sourceRef = doc(db, "articles", prev.sourceArticleId);
 
-          console.log("[publish] sourceArticleId update:", prev.sourceArticleId);
-          console.log("[publish] contentHTML length:", contentHTML.length);
-
           await updateDoc(sourceRef, {
             title: meta.title,
             subtitle: meta.subtitle,
@@ -329,6 +332,7 @@ export function useDrafts({
             coverMedium: meta.coverMedium,
             status: "published",
             updatedAt: serverTimestamp(),
+            lastRevisionPublishedAt: serverTimestamp(),
           });
 
           await deleteDoc(ref);

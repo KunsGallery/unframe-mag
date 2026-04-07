@@ -4,11 +4,14 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Save, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 
 import SlashMenu from "../components/editor/SlashMenu";
 import EditorToolbar from "../components/editor/EditorToolbar";
 import InspectorPanel from "../components/editor/InspectorPanel";
+import BlockQuickBar from "../components/editor/BlockQuickBar";
+import BlockSideInserter from "../components/editor/BlockSideInserter";
 
 import UploadButton from "../components/editor/UploadButton";
 import { useUploadImage } from "../hooks/useUploadImage";
@@ -76,6 +79,10 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   );
 
   const editor = useEditor(editorConfig);
+
+  const [editorDocMeta, setEditorDocMeta] = useState(null);
+  const [saveStatusText, setSaveStatusText] = useState("Not saved yet");
+  const [loadingEditorMeta, setLoadingEditorMeta] = useState(false);
 
   const previewBodyText = editor?.getText?.()?.trim?.() || "";
   const previewExcerpt = previewBodyText
@@ -190,6 +197,62 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     setCoverMedium,
   ]);
 
+  useEffect(() => {
+    const currentId = draftsApi.draftId || articleId;
+    if (!currentId) {
+      setEditorDocMeta(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setLoadingEditorMeta(true);
+        const snap = await getDoc(doc(db, "articles", currentId));
+        if (cancelled) return;
+
+        if (snap.exists()) {
+          setEditorDocMeta({ id: snap.id, ...snap.data() });
+        } else {
+          setEditorDocMeta(null);
+        }
+      } catch (e) {
+        console.error("[EditorPage] meta load failed:", e);
+        if (!cancelled) setEditorDocMeta(null);
+      } finally {
+        if (!cancelled) setLoadingEditorMeta(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftsApi.draftId, articleId]);
+
+  useEffect(() => {
+    if (!draftsApi.lastAutoSavedAt) {
+      setSaveStatusText(draftsApi.isDirty ? "Unsaved changes" : "Not saved yet");
+      return;
+    }
+
+    try {
+      const d =
+        typeof draftsApi.lastAutoSavedAt?.toDate === "function"
+          ? draftsApi.lastAutoSavedAt.toDate()
+          : new Date(draftsApi.lastAutoSavedAt);
+
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+
+      setSaveStatusText(
+        draftsApi.isDirty ? `Saved at ${hh}:${mm} · modified again` : `Saved at ${hh}:${mm}`
+      );
+    } catch {
+      setSaveStatusText(draftsApi.isDirty ? "Unsaved changes" : "Saved");
+    }
+  }, [draftsApi.lastAutoSavedAt, draftsApi.isDirty]);
+
   if (!canWrite) {
     return (
       <div className="p-40 text-center font-black italic uppercase tracking-widest text-zinc-400">
@@ -227,6 +290,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   setCover,
                   setCoverMedium,
                 });
+                setEditorDocMeta(null);
               }}
               className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70 transition"
               title="New Draft"
@@ -424,6 +488,66 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         <div className="flex-1 flex flex-col">
           <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
 
+          <div
+            className={`px-6 md:px-10 pt-5 pb-3 border-b ${
+              isDarkMode ? "border-zinc-900" : "border-zinc-100"
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {loadingEditorMeta ? (
+                  <span
+                    className={`text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full ${
+                      isDarkMode
+                        ? "bg-zinc-900 text-zinc-400"
+                        : "bg-zinc-100 text-zinc-500"
+                    }`}
+                  >
+                    loading
+                  </span>
+                ) : editorDocMeta?.editMode === "revision" ? (
+                  <span className="text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full bg-[#004aad] text-white">
+                    revision draft
+                  </span>
+                ) : editorDocMeta?.status === "published" ? (
+                  <span className="text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full bg-emerald-600 text-white">
+                    published
+                  </span>
+                ) : (
+                  <span
+                    className={`text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full ${
+                      isDarkMode
+                        ? "bg-zinc-900 text-zinc-300"
+                        : "bg-zinc-100 text-zinc-700"
+                    }`}
+                  >
+                    draft
+                  </span>
+                )}
+
+                {editorDocMeta?.sourceEditionNo && (
+                  <span
+                    className={`text-[10px] font-black tracking-[0.22em] uppercase italic px-3 py-1.5 rounded-full ${
+                      isDarkMode
+                        ? "bg-zinc-900 text-zinc-400"
+                        : "bg-black/5 text-zinc-600"
+                    }`}
+                  >
+                    from #{String(editorDocMeta.sourceEditionNo).padStart(3, "0")}
+                  </span>
+                )}
+              </div>
+
+              <div
+                className={`text-[11px] font-black italic ${
+                  draftsApi.isDirty ? "text-amber-500" : "text-zinc-400"
+                }`}
+              >
+                {saveStatusText}
+              </div>
+            </div>
+          </div>
+
           <div className="grow p-12 md:p-32 overflow-y-auto">
             <div className="max-w-4xl mx-auto space-y-16">
               <div className="space-y-4">
@@ -479,7 +603,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
               />
 
               <div className="editor-container relative">
-                <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} />
+                <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
+
+                <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+
+                <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
 
                 <EditorContent
                   editor={editor}
@@ -840,11 +968,63 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           border-top: 1px solid rgba(113,113,122,.25);
         }
 
-        .uf-editor img,
-        .uf-prose img{
+        .uf-editor img, .uf-prose img{
           display: block;
           max-width: 100%;
           height: auto;
+        }
+
+        /* ===== Editor-only UfImage overrides ===== */
+        .uf-editor .uf-img {
+          width: 100%;
+          max-width: 100%;
+        }
+
+        .uf-editor .uf-img.is-xsmall {
+          max-width: 320px;
+        }
+
+        .uf-editor .uf-img.is-small {
+          max-width: 460px;
+        }
+
+        .uf-editor .uf-img.is-normal {
+          max-width: 720px;
+        }
+
+        .uf-editor .uf-img.is-wide {
+          max-width: min(900px, 100%);
+        }
+
+        /* ✅ 에디터에서는 full도 편집 영역 안에서만 */
+        .uf-editor .uf-img.is-full {
+          width: 100%;
+          max-width: 100%;
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+        }
+
+        /* ✅ 정렬이 눈에 띄게 보이도록 wrapper 기준으로 처리 */
+        .uf-editor .uf-img.align-left {
+          margin-left: 0;
+          margin-right: auto;
+        }
+
+        .uf-editor .uf-img.align-center {
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .uf-editor .uf-img.align-right {
+          margin-left: auto;
+          margin-right: 0;
+        }
+
+        /* 에디터 안에서는 정렬 확인이 잘 되도록 살짝 가이드 */
+        .uf-editor .uf-img.align-left,
+        .uf-editor .uf-img.align-center,
+        .uf-editor .uf-img.align-right {
+          transition: margin .18s ease, max-width .18s ease;
         }
 
         .uf-editor pre,
@@ -1046,6 +1226,57 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         .uf-editor .uf-callout.is-quote .uf-callout__body,
         .uf-prose .uf-callout.is-quote .uf-callout__body{
           font-style: italic;
+        }
+
+                /* ===== Editor-only Columns visibility ===== */
+        .uf-editor .uf-columns {
+          position: relative;
+          display: grid;
+          gap: var(--uf-columns-gap, 24px);
+          margin: 2.2rem 0;
+          padding: 14px;
+          border: 1px dashed rgba(0, 74, 173, 0.28);
+          border-radius: 20px;
+          background: rgba(0, 74, 173, 0.03);
+        }
+
+        .dark .uf-editor .uf-columns {
+          border-color: rgba(125, 181, 255, 0.22);
+          background: rgba(0, 74, 173, 0.08);
+        }
+
+        .uf-editor .uf-columns[data-columns="2"] {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .uf-editor .uf-columns[data-columns="3"] {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .uf-editor .uf-columns[data-valign="center"] {
+          align-items: center;
+        }
+
+        .uf-editor .uf-column {
+          min-width: 0;
+          padding: 14px;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.68);
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          box-sizing: border-box;
+        }
+
+        .dark .uf-editor .uf-column {
+          background: rgba(24, 24, 27, 0.72);
+          border-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .uf-editor .uf-column > :first-child {
+          margin-top: 0;
+        }
+
+        .uf-editor .uf-column > :last-child {
+          margin-bottom: 0;
         }
       `}</style>
     </div>
