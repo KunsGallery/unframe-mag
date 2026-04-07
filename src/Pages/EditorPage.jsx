@@ -1,7 +1,7 @@
 // src/Pages/EditorPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Save, Send, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Save, Send, Plus, ChevronDown, ChevronUp, CircleHelp } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { doc, getDoc } from "firebase/firestore";
@@ -20,6 +20,10 @@ import { uploadImageWithProgress } from "../lib/uploadWithProgress";
 import { createEditorConfig } from "../tiptap/editorConfig";
 import { useDrafts } from "../hooks/useDrafts";
 import { useSlashMenu } from "../hooks/useSlashMenu";
+import EditorOnboardingModal, {
+  shouldOpenEditorOnboarding,
+  hideEditorOnboardingForever,
+} from "../components/editor/EditorOnboardingModal";
 
 const ADMIN_EMAILS = new Set([
   "gallerykuns@gmail.com",
@@ -83,6 +87,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [editorDocMeta, setEditorDocMeta] = useState(null);
   const [saveStatusText, setSaveStatusText] = useState("Not saved yet");
   const [loadingEditorMeta, setLoadingEditorMeta] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const previewBodyText = editor?.getText?.()?.trim?.() || "";
   const previewExcerpt = previewBodyText
@@ -229,6 +234,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       cancelled = true;
     };
   }, [draftsApi.draftId, articleId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (shouldOpenEditorOnboarding()) {
+        setShowOnboarding(true);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!draftsApi.lastAutoSavedAt) {
@@ -538,12 +553,27 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                 )}
               </div>
 
-              <div
-                className={`text-[11px] font-black italic ${
-                  draftsApi.isDirty ? "text-amber-500" : "text-zinc-400"
-                }`}
-              >
-                {saveStatusText}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOnboarding(true)}
+                  className={`h-8 px-3 rounded-lg border flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] italic transition ${
+                    isDarkMode
+                      ? "bg-zinc-950 border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                      : "bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                  }`}
+                >
+                  <CircleHelp size={14} />
+                  Guide
+                </button>
+
+                <div
+                  className={`text-[11px] font-black italic ${
+                    draftsApi.isDirty ? "text-amber-500" : "text-zinc-400"
+                  }`}
+                >
+                  {saveStatusText}
+                </div>
               </div>
             </div>
           </div>
@@ -864,6 +894,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             </div>
           </div>
         </div>
+
+        <EditorOnboardingModal
+        isOpen={showOnboarding}
+        isDarkMode={isDarkMode}
+        onClose={() => setShowOnboarding(false)}
+        onNeverShowAgain={() => {
+          hideEditorOnboardingForever();
+          setShowOnboarding(false);
+        }}
+      />
 
         <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
       </main>

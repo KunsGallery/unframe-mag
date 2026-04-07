@@ -34,6 +34,8 @@ import { UfPodcast } from "../tiptap/nodes/UfPodcast";
 import { UfDivider } from "../tiptap/nodes/UfDivider";
 import { UfCallout } from "../tiptap/nodes/UfCallout";
 import { Columns, Column } from "./nodes/Columns";
+import { EditorKeyBehavior } from "./extensions/EditorKeyBehavior";
+import { PasteSanitizer } from "./extensions/PasteSanitizer";
 
 export function createEditorConfig({ onUploadImage, onToast }) {
   return {
@@ -92,6 +94,8 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       UfPodcast,
       UfDivider,
       UfCallout,
+      EditorKeyBehavior,
+      PasteSanitizer,
     ],
 
     editorProps: {

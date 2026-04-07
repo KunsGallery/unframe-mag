@@ -52,6 +52,67 @@ function MenuButton({ icon: Icon, label, onClick, danger = false }) {
   );
 }
 
+function getBlockKindFromElement(el) {
+  if (!el) return null;
+  if (el.matches(".uf-img")) return "ufImage";
+  if (el.matches(".uf-gallery")) return "gallery";
+  if (el.matches(".uf-slide-gallery")) return "slideGallery";
+  if (el.matches(".uf-columns")) return "columns";
+  if (el.matches(".tableWrapper")) return "table";
+  if (el.matches(".uf-callout")) return "ufCallout";
+  if (el.matches(".uf-divider")) return "ufDivider";
+  if (el.matches('[data-uf="sticky-story"]')) return "stickyStory";
+  if (el.matches("p")) return "paragraph";
+  if (el.matches("blockquote")) return "blockquote";
+  if (el.matches("pre")) return "codeBlock";
+  if (el.matches("ul")) return "bulletList";
+  if (el.matches("ol")) return "orderedList";
+  if (el.matches("h1")) return "heading1";
+  if (el.matches("h2")) return "heading2";
+  if (el.matches("h3")) return "heading3";
+  return null;
+}
+
+function getSelectionBlockInfo(editor, currentBlockEl) {
+  if (!editor || !currentBlockEl) return null;
+
+  const kind = getBlockKindFromElement(currentBlockEl);
+  if (!kind) return null;
+
+  const { state } = editor;
+  const { selection } = state;
+  const $from = selection.$from;
+
+  for (let depth = $from.depth; depth >= 1; depth--) {
+    const node = $from.node(depth);
+    const pos = $from.before(depth);
+
+    if (kind === "ufImage" && node.type.name === "ufImage") return { node, pos };
+    if (kind === "gallery" && node.type.name === "gallery") return { node, pos };
+    if (kind === "slideGallery" && node.type.name === "slideGallery") return { node, pos };
+    if (kind === "columns" && node.type.name === "columns") return { node, pos };
+    if (kind === "table" && node.type.name === "table") return { node, pos };
+    if (kind === "ufCallout" && node.type.name === "ufCallout") return { node, pos };
+    if (kind === "ufDivider" && node.type.name === "ufDivider") return { node, pos };
+    if (kind === "stickyStory" && node.type.name === "stickyStory") return { node, pos };
+
+    if (kind === "paragraph" && node.type.name === "paragraph") return { node, pos };
+    if (kind === "blockquote" && node.type.name === "blockquote") return { node, pos };
+    if (kind === "codeBlock" && node.type.name === "codeBlock") return { node, pos };
+    if (kind === "bulletList" && node.type.name === "bulletList") return { node, pos };
+    if (kind === "orderedList" && node.type.name === "orderedList") return { node, pos };
+
+    if (kind === "heading1" && node.type.name === "heading" && node.attrs.level === 1)
+      return { node, pos };
+    if (kind === "heading2" && node.type.name === "heading" && node.attrs.level === 2)
+      return { node, pos };
+    if (kind === "heading3" && node.type.name === "heading" && node.attrs.level === 3)
+      return { node, pos };
+  }
+
+  return null;
+}
+
 export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   const rootRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -71,6 +132,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
 
       const editorRoot = editor.view.dom;
       const sel = window.getSelection();
+
       if (!sel || !sel.anchorNode) {
         setAnchorRect(null);
         setCurrentBlockEl(null);
@@ -79,6 +141,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
 
       let node =
         sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+
       if (!(node instanceof Element)) {
         setAnchorRect(null);
         setCurrentBlockEl(null);
@@ -95,10 +158,14 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
       const editorRect = editorRoot.getBoundingClientRect();
       const blockRect = block.getBoundingClientRect();
 
+      // ✅ 고정 left가 아니라 현재 블록 기준으로 버튼 위치 계산
+      const localTop = blockRect.top - editorRect.top + blockRect.height / 2 - 18;
+      const localLeft = Math.max(-52, blockRect.left - editorRect.left - 52);
+
       setCurrentBlockEl(block);
       setAnchorRect({
-        top: blockRect.top - editorRect.top + blockRect.height / 2 - 18,
-        left: -56,
+        top: localTop,
+        left: localLeft,
       });
     },
     [editor]
@@ -234,17 +301,16 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   };
 
   const duplicateCurrentBlock = () => {
-    if (!currentBlockEl || !editor) return;
+    if (!editor || !currentBlockEl) return;
 
     try {
-      const pos = editor.view.posAtDOM(currentBlockEl, 0);
-      const node = editor.state.doc.nodeAt(pos);
-      if (!node) return;
+      const info = getSelectionBlockInfo(editor, currentBlockEl);
+      if (!info?.node) return;
 
       editor
         .chain()
         .focus()
-        .insertContentAt(pos + node.nodeSize, node.toJSON())
+        .insertContentAt(info.pos + info.node.nodeSize, info.node.toJSON())
         .run();
 
       toast("블록 복제 완료");
@@ -257,17 +323,16 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   };
 
   const deleteCurrentBlock = () => {
-    if (!currentBlockEl || !editor) return;
+    if (!editor || !currentBlockEl) return;
 
     try {
-      const pos = editor.view.posAtDOM(currentBlockEl, 0);
-      const node = editor.state.doc.nodeAt(pos);
-      if (!node) return;
+      const info = getSelectionBlockInfo(editor, currentBlockEl);
+      if (!info?.node) return;
 
       editor
         .chain()
         .focus()
-        .deleteRange({ from: pos, to: pos + node.nodeSize })
+        .deleteRange({ from: info.pos, to: info.pos + info.node.nodeSize })
         .run();
 
       toast("블록 삭제 완료");
