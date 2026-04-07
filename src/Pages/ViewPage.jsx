@@ -106,16 +106,30 @@ export default function ViewPage({ isDarkMode, onToast }) {
   overflow: visible !important;
   color: inherit;
   font-style: normal;
-  font-weight: 300;
+  font-family: "Pretendard", system-ui, sans-serif;
+  font-weight: 400;
   font-size: 18px;
-  line-height: 1.95;
-  letter-spacing: 0.01em;
+  line-height: 1.9;
+  letter-spacing: 0;
   word-break: keep-all;
   overflow-wrap: break-word;
 }
 
 .uf-prose p{
   margin: 0 0 1.6em;
+}
+
+.uf-prose p,
+.uf-prose li,
+.uf-prose .uf-column p,
+.uf-prose .uf-sticky-story__content p,
+.uf-prose .uf-callout__body p {
+  font-family: "Pretendard", system-ui, sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.9;
+  letter-spacing: 0;
 }
 
 .uf-prose h1,
@@ -196,6 +210,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
 /* Table */
 .uf-prose .tableWrapper{
+  display: block;
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
@@ -249,7 +264,12 @@ export default function ViewPage({ isDarkMode, onToast }) {
 }
 
 .uf-prose td{
-  font-size: 14px;
+  font-family: "Pretendard", system-ui, sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.75;
+  letter-spacing: 0;
 }
 
 .uf-prose td p,
@@ -419,6 +439,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 }
 .uf-prose .uf-callout.is-quote .uf-callout__body{
   font-style: italic;
+  font-family: "Noto Serif KR", serif;
 }
 
 /* StickyStory */
@@ -573,20 +594,41 @@ export default function ViewPage({ isDarkMode, onToast }) {
   .uf-prose [data-uf="sticky-story"]{
     grid-template-columns: 1fr;
     gap: 16px;
+    min-height: auto;
   }
 
   .uf-prose .uf-sticky-story__visual{
-    position: relative;
-    top: auto;
-    height: 56vh;
+    position: sticky;
+    top: 92px;
+    height: 42vh;
+    min-height: 280px;
+    border-radius: 14px;
+  }
+
+  .uf-prose .uf-sticky-story__content{
+    padding: 0 0 32px;
   }
 }
 
 @media (max-width: 768px){
   .uf-prose{
     font-size: 16px;
-    line-height: 1.82;
+    line-height: 1.8;
     letter-spacing: 0;
+  }
+
+  .uf-prose p,
+  .uf-prose li,
+  .uf-prose .uf-column p,
+  .uf-prose .uf-sticky-story__content p,
+  .uf-prose .uf-callout__body p {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+
+  .uf-prose td{
+    font-size: 14px;
+    line-height: 1.65;
   }
 
   .uf-prose p{
@@ -616,7 +658,20 @@ export default function ViewPage({ isDarkMode, onToast }) {
   }
 
   .uf-prose .tableWrapper{
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
     margin: 1.5rem 0;
+    border-radius: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .uf-prose table{
+    width: max-content;
+    min-width: 100%;
+    max-width: none;
   }
 
   .uf-prose th,
@@ -624,6 +679,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
     min-width: 120px;
     padding: 10px 10px;
     font-size: 12px;
+    white-space: normal;
   }
 
   .uf-prose td img,
@@ -743,18 +799,37 @@ export default function ViewPage({ isDarkMode, onToast }) {
   useEffect(() => {
     const root = document;
 
-    const updateDots = (track) => {
-      if (!track) return;
-      const viewport = track.closest(".uf-slide-gallery__viewport");
-      if (!viewport) return;
-
-      const dots = viewport.querySelectorAll(".uf-slide-gallery__dot");
-      if (!dots.length) return;
+    const getTrackMetrics = (track) => {
+      if (!track) return null;
 
       const slide = track.querySelector(".uf-slide-gallery__slide");
-      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 1;
-      const gap = 12;
-      const index = Math.round(track.scrollLeft / (slideWidth + gap));
+      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 0;
+
+      const styles = window.getComputedStyle(track);
+      const gap = parseFloat(styles.columnGap || styles.gap || "12") || 12;
+
+      return {
+        slideWidth,
+        gap,
+        unit: slideWidth + gap,
+      };
+    };
+
+    const updateDots = (track) => {
+      if (!track) return;
+
+      const galleryRoot = track.closest(".uf-slide-gallery");
+      if (!galleryRoot) return;
+
+      const dots = galleryRoot.querySelectorAll(".uf-slide-gallery__dot");
+      if (!dots.length) return;
+
+      const metrics = getTrackMetrics(track);
+      if (!metrics || !metrics.unit) return;
+
+      const maxIndex = Math.max(0, dots.length - 1);
+      const rawIndex = track.scrollLeft / metrics.unit;
+      const index = Math.max(0, Math.min(maxIndex, Math.round(rawIndex)));
 
       dots.forEach((dot, i) => {
         dot.setAttribute("data-active", i === index ? "true" : "false");
@@ -765,56 +840,57 @@ export default function ViewPage({ isDarkMode, onToast }) {
       const btn = e.target.closest(".uf-slide-gallery__arrow");
       if (!btn) return;
 
-      const viewport = btn.closest(".uf-slide-gallery__viewport");
-      const track = viewport?.querySelector(".uf-slide-gallery__track");
+      const galleryRoot = btn.closest(".uf-slide-gallery");
+      const track = galleryRoot?.querySelector(".uf-slide-gallery__track");
       if (!track) return;
 
-      const slide = track.querySelector(".uf-slide-gallery__slide");
-      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 0;
-      if (!slideWidth) return;
+      const metrics = getTrackMetrics(track);
+      if (!metrics || !metrics.unit) return;
 
-      const gap = 12;
-      const amount = slideWidth + gap;
       const dir = btn.getAttribute("data-dir");
 
       track.scrollBy({
-        left: dir === "next" ? amount : -amount,
+        left: dir === "next" ? metrics.unit : -metrics.unit,
         behavior: "smooth",
       });
 
       requestAnimationFrame(() => updateDots(track));
-      setTimeout(() => updateDots(track), 220);
-      setTimeout(() => updateDots(track), 420);
+      setTimeout(() => updateDots(track), 180);
+      setTimeout(() => updateDots(track), 360);
+      setTimeout(() => updateDots(track), 540);
     };
 
     const handleSlideDotClick = (e) => {
       const dot = e.target.closest(".uf-slide-gallery__dot");
       if (!dot) return;
 
-      const viewport = dot.closest(".uf-slide-gallery__viewport");
-      const track = viewport?.querySelector(".uf-slide-gallery__track");
+      const galleryRoot = dot.closest(".uf-slide-gallery");
+      const track = galleryRoot?.querySelector(".uf-slide-gallery__track");
       if (!track) return;
 
-      const slide = track.querySelector(".uf-slide-gallery__slide");
-      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 0;
-      if (!slideWidth) return;
+      const metrics = getTrackMetrics(track);
+      if (!metrics || !metrics.unit) return;
 
-      const gap = 12;
       const index = Number(dot.getAttribute("data-index") || 0);
 
       track.scrollTo({
-        left: index * (slideWidth + gap),
+        left: index * metrics.unit,
         behavior: "smooth",
       });
 
       requestAnimationFrame(() => updateDots(track));
-      setTimeout(() => updateDots(track), 220);
-      setTimeout(() => updateDots(track), 420);
+      setTimeout(() => updateDots(track), 180);
+      setTimeout(() => updateDots(track), 360);
+      setTimeout(() => updateDots(track), 540);
     };
 
     const handleTrackScroll = (e) => {
-      const track = e.target.closest?.(".uf-slide-gallery__track");
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+
+      const track = target.closest(".uf-slide-gallery__track");
       if (!track) return;
+
       updateDots(track);
     };
 
