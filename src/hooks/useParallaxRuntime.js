@@ -40,7 +40,7 @@ export function useParallaxRuntime(deps = []) {
             fig.getAttribute("data-parallax-speed");
 
           const speed = speedAttr ? Number(speedAttr) : 0.2;
-          const clamped = Number.isFinite(speed) ? Math.min(Math.max(speed, 0.05), 0.6) : 0.2;
+          const clamped = Number.isFinite(speed) ? Math.min(Math.max(speed, 0.04), 0.24) : 0.12;
 
           // 처음 상태 초기화
           if (!state.has(img)) state.set(img, 0);
@@ -70,16 +70,15 @@ export function useParallaxRuntime(deps = []) {
         const progress = (rect.top + rect.height) / (vH + rect.height);
         const centered = (0.5 - progress) * 2; // -1~1
 
-        // ✅ 강도: speed 기반으로 자동 조정
-        // speed=0.2 => 약 55px 정도
-        const strength = 3000 * speed; // 14~168px 정도 범위
+        // speed=0.12 => 약 48px. 과한 이동보다 이미지 안정감을 우선한다.
+        const strength = 400 * speed;
         const targetY = -centered * strength;
 
         const current = state.get(img) ?? 0;
         const next = lerp(current, targetY, 0.10); // 관성(0.08~0.14 추천)
         state.set(img, next);
 
-        img.style.transform = `translate3d(0, ${next}px, 0)`;
+        img.style.transform = `translate3d(0, calc(-50% + ${next}px), 0)`;
       }
 
       rafId = requestAnimationFrame(tick);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Sparkles,
   PenSquare,
@@ -9,8 +9,6 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-
-const STORAGE_KEY = "uf_editor_onboarding_hidden_v1";
 
 function SlideCard({ icon: Icon, eyebrow, title, body, points, accent = "#004aad" }) {
   return (
@@ -96,6 +94,18 @@ export default function EditorOnboardingModal({
   isDarkMode,
   onNeverShowAgain,
 }) {
+  if (!isOpen) return null;
+
+  return (
+    <EditorOnboardingDialog
+      onClose={onClose}
+      isDarkMode={isDarkMode}
+      onNeverShowAgain={onNeverShowAgain}
+    />
+  );
+}
+
+function EditorOnboardingDialog({ onClose, isDarkMode, onNeverShowAgain }) {
   const slides = useMemo(
     () => [
       {
@@ -151,12 +161,6 @@ export default function EditorOnboardingModal({
   );
 
   const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    if (isOpen) setStep(0);
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const current = slides[step];
   const isLast = step === slides.length - 1;
@@ -268,18 +272,4 @@ export default function EditorOnboardingModal({
       </div>
     </div>
   );
-}
-
-export function shouldOpenEditorOnboarding() {
-  try {
-    return localStorage.getItem(STORAGE_KEY) !== "1";
-  } catch {
-    return true;
-  }
-}
-
-export function hideEditorOnboardingForever() {
-  try {
-    localStorage.setItem(STORAGE_KEY, "1");
-  } catch {}
 }

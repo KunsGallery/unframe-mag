@@ -20,16 +20,13 @@ import { uploadImageWithProgress } from "../lib/uploadWithProgress";
 import { createEditorConfig } from "../tiptap/editorConfig";
 import { useDrafts } from "../hooks/useDrafts";
 import { useSlashMenu } from "../hooks/useSlashMenu";
-import EditorOnboardingModal, {
+import EditorOnboardingModal from "../components/editor/EditorOnboardingModal";
+import {
   shouldOpenEditorOnboarding,
   hideEditorOnboardingForever,
-} from "../components/editor/EditorOnboardingModal";
-
-const ADMIN_EMAILS = new Set([
-  "gallerykuns@gmail.com",
-  "cybog2004@gmail.com",
-  "sylove887@gmail.com",
-]);
+} from "../lib/editorOnboarding";
+import { isAdminEmail } from "../constants/admin";
+import { ARTICLE_CATEGORIES, DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 
 export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
   const navigate = useNavigate();
@@ -42,7 +39,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   const isAdmin = useMemo(() => {
     if (!user?.email) return false;
-    return role === "admin" || ADMIN_EMAILS.has(user.email);
+    return role === "admin" || isAdminEmail(user.email);
   }, [user, role]);
 
   const isEditor = useMemo(() => !!user && role === "editor", [user, role]);
@@ -58,7 +55,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
-  const [category, setCategory] = useState("EXHIBITION");
+  const [category, setCategory] = useState(DEFAULT_ARTICLE_CATEGORY);
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
   const [previewMode, setPreviewMode] = useState("hero");
@@ -85,7 +82,6 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const editor = useEditor(editorConfig);
 
   const [editorDocMeta, setEditorDocMeta] = useState(null);
-  const [saveStatusText, setSaveStatusText] = useState("Not saved yet");
   const [loadingEditorMeta, setLoadingEditorMeta] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -114,6 +110,32 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     onToast,
     navigate,
   });
+  const {
+    draftId,
+    isDirty,
+    lastAutoSavedAt,
+    loadDraft,
+    runAutosave,
+    setIsDirty: setDraftDirty,
+  } = draftsApi;
+
+  const saveStatusText = useMemo(() => {
+    if (!lastAutoSavedAt) return isDirty ? "Unsaved changes" : "Not saved yet";
+
+    try {
+      const d =
+        typeof lastAutoSavedAt?.toDate === "function"
+          ? lastAutoSavedAt.toDate()
+          : new Date(lastAutoSavedAt);
+
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+
+      return isDirty ? `Saved at ${hh}:${mm} · modified again` : `Saved at ${hh}:${mm}`;
+    } catch {
+      return isDirty ? "Unsaved changes" : "Saved";
+    }
+  }, [lastAutoSavedAt, isDirty]);
 
   useLayoutEffect(() => {
     const el = titleRef.current;
@@ -136,15 +158,15 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       if (isHydratingRef.current) return;
       if (editor.view.composing) return;
 
-      draftsApi.setIsDirty((prev) => (prev ? prev : true));
+      setDraftDirty((prev) => (prev ? prev : true));
     };
 
     editor.on("update", onUpdate);
     return () => editor.off("update", onUpdate);
-  }, [editor, draftsApi.setIsDirty]);
+  }, [editor, setDraftDirty]);
 
   useEffect(() => {
-    const cleanup = draftsApi.runAutosave({
+    const cleanup = runAutosave({
       title,
       subtitle,
       category,
@@ -154,7 +176,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       authorEmail,
     });
     return typeof cleanup === "function" ? cleanup : undefined;
-  }, [draftsApi, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
+  }, [runAutosave, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
 
   useEffect(() => {
     if (!editor) return;
@@ -171,7 +193,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       try {
         isHydratingRef.current = true;
 
-        await draftsApi.loadDraft(targetId, {
+        await loadDraft(targetId, {
           setTitle,
           setSubtitle,
           setCategory,
@@ -179,7 +201,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           setCoverMedium,
         });
 
-        draftsApi.setIsDirty(false);
+        setDraftDirty(false);
       } finally {
         setTimeout(() => {
           if (!cancelled) isHydratingRef.current = false;
@@ -194,7 +216,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     editor,
     articleId,
     preloadedDraftId,
-    draftsApi,
+    loadDraft,
+    setDraftDirty,
     setTitle,
     setSubtitle,
     setCategory,
@@ -203,7 +226,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   ]);
 
   useEffect(() => {
-    const currentId = draftsApi.draftId || articleId;
+    const currentId = draftId || articleId;
     if (!currentId) {
       setEditorDocMeta(null);
       return;
@@ -233,7 +256,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     return () => {
       cancelled = true;
     };
-  }, [draftsApi.draftId, articleId]);
+  }, [draftId, articleId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -244,29 +267,6 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    if (!draftsApi.lastAutoSavedAt) {
-      setSaveStatusText(draftsApi.isDirty ? "Unsaved changes" : "Not saved yet");
-      return;
-    }
-
-    try {
-      const d =
-        typeof draftsApi.lastAutoSavedAt?.toDate === "function"
-          ? draftsApi.lastAutoSavedAt.toDate()
-          : new Date(draftsApi.lastAutoSavedAt);
-
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-
-      setSaveStatusText(
-        draftsApi.isDirty ? `Saved at ${hh}:${mm} · modified again` : `Saved at ${hh}:${mm}`
-      );
-    } catch {
-      setSaveStatusText(draftsApi.isDirty ? "Unsaved changes" : "Saved");
-    }
-  }, [draftsApi.lastAutoSavedAt, draftsApi.isDirty]);
 
   if (!canWrite) {
     return (
@@ -354,7 +354,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   </div>
 
                   <div className="mt-1 text-[9px] tracking-widest uppercase opacity-50">
-                    {d.category || "EXHIBITION"}
+                    {d.category || DEFAULT_ARTICLE_CATEGORY}
                   </div>
                 </button>
               ))
@@ -380,16 +380,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   : "bg-zinc-50 border-zinc-100 text-black"
               }`}
             >
-              <option value="ART FAIR">ART FAIR</option>
-              <option value="EXHIBITION">EXHIBITION</option>
-              <option value="REVIEW">REVIEW</option>
-              <option value="INTERVIEW">INTERVIEW</option>
-              <option value="NEWS">NEWS</option>
-              <option value="ARTIST">ARTIST</option>
-              <option value="SPACE">SPACE</option>
-              <option value="PROJECT">PROJECT</option>
-              <option value="ESSAY">ESSAY</option>
-              <option value="ARCHIVE">ARCHIVE</option>
+              {ARTICLE_CATEGORIES.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.key}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -744,7 +739,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                           <div className="p-10 md:p-14 flex flex-col justify-between">
                             <div>
                               <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad]">
-                                {category || "EXHIBITION"}
+                                {category || DEFAULT_ARTICLE_CATEGORY}
                               </div>
 
                               <h2 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter leading-[0.95] break-keep">
@@ -801,7 +796,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
                           <div className="p-6">
                             <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
-                              {category || "EXHIBITION"}
+                              {category || DEFAULT_ARTICLE_CATEGORY}
                             </div>
                             <h3 className="mt-4 text-2xl font-black italic tracking-tight leading-[1.02] break-keep line-clamp-3">
                               {title || "ENTER TITLE..."}
@@ -865,7 +860,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                           <div className="absolute inset-0 bg-linear-to-t from-black/65 via-black/25 to-transparent" />
                           <div className="absolute left-0 right-0 bottom-0 p-8 md:p-12">
                             <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#7db5ff]">
-                              {category || "EXHIBITION"}
+                              {category || DEFAULT_ARTICLE_CATEGORY}
                             </div>
                             <h2 className="mt-4 text-4xl md:text-5xl font-black italic tracking-tighter leading-[0.97] text-white break-keep">
                               {title || "ENTER TITLE..."}

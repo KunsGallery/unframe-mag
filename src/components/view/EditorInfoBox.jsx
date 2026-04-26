@@ -1,13 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   collection,
-  deleteDoc,
   doc,
   limit,
   onSnapshot,
   query,
   serverTimestamp,
-  setDoc,
   where,
   writeBatch,
 } from "firebase/firestore";

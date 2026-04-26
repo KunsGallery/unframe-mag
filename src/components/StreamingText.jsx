@@ -1,11 +1,6 @@
 // src/components/StreamingText.jsx
 import React, { useMemo } from "react";
 
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 // seed 기반 랜덤(새로고침마다 톤이 크게 흔들리지 않게)
 function mulberry32(seed) {
   return function () {
@@ -32,8 +27,6 @@ export default function StreamingText({
   color = "#004aad",
   hole = null,
 }) {
-  const reduce = prefersReducedMotion();
-
   const streams = useMemo(() => {
     const isMobile = typeof window !== "undefined" ? window.innerWidth < 768 : false;
     const count = isMobile ? countMobile : countDesktop;

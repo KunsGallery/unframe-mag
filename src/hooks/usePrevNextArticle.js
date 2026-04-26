@@ -27,11 +27,6 @@ export function usePrevNextArticle({ db, currentArticle, sameCategory = false })
 
       setLoadingNav(true);
       try {
-        const base = [
-          where("status", "==", "published"),
-          orderBy("sortIndex", "asc"),
-        ];
-
         const categoryFilter =
           sameCategory && currentArticle?.category
             ? [where("category", "==", currentArticle.category)]

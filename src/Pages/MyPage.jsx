@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   collection,
-  deleteDoc,
   doc,
   limit,
   onSnapshot,

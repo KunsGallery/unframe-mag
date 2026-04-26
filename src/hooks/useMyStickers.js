@@ -3,36 +3,36 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 
 export function useMyStickers(uid) {
-  const [ids, setIds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const uidKey = String(uid || "");
+  const [state, setState] = useState({
+    uid: "",
+    ids: [],
+    loading: false,
+  });
+
+  const isCurrent = state.uid === uidKey;
+  const ids = uidKey && isCurrent ? state.ids : [];
+  const loading = uidKey ? !isCurrent || state.loading : false;
 
   useEffect(() => {
-    if (!uid) {
-      setIds([]);
-      setLoading(false);
-      return;
-    }
+    if (!uidKey) return;
 
-    setLoading(true);
-
-    const ref = collection(db, "users", uid, "stickers");
+    const ref = collection(db, "users", uidKey, "stickers");
 
     const unsub = onSnapshot(
       ref,
       (snap) => {
         const next = snap.docs.map((doc) => doc.id);
-        setIds(next);
-        setLoading(false);
+        setState({ uid: uidKey, ids: next, loading: false });
       },
       (error) => {
         console.error("[useMyStickers] snapshot error:", error);
-        setIds([]);
-        setLoading(false);
+        setState({ uid: uidKey, ids: [], loading: false });
       }
     );
 
     return () => unsub();
-  }, [uid]);
+  }, [uidKey]);
 
   return { ids, loading };
 }

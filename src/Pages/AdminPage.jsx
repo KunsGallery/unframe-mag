@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   collection,
   doc,
@@ -12,16 +12,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import UserRewardsPanel from "../components/admin/UserRewardsPanel";
-
-const ADMIN_EMAILS = new Set([
-  "gallerykuns@gmail.com",
-  "cybog2004@gmail.com",
-  "sylove887@gmail.com",
-]);
+import { isAdminEmail } from "../constants/admin";
 
 export default function AdminPage({ user, isDarkMode, onToast }) {
-  const toast = (m) => (onToast ? onToast(m) : console.log(m));
-  const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
+  const toast = useCallback((m) => (onToast ? onToast(m) : console.log(m)), [onToast]);
+  const isAdmin = isAdminEmail(user?.email);
 
   const [loading, setLoading] = useState(true);
   const [articles, setArticles] = useState([]);
@@ -69,7 +64,7 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
         setLoading(false);
       }
     })();
-  }, [isAdmin]);
+  }, [isAdmin, toast]);
 
   const togglePick = (editionNo) => {
     setEditorPicks((prev) => {

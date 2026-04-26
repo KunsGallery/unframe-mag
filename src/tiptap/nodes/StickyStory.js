@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
+import { STICKY_STORY_DEFAULTS } from '../../constants/editorBlocks';
 
 export const StickyStory = Node.create({
   name: 'stickyStory',
@@ -8,8 +9,8 @@ export const StickyStory = Node.create({
   addAttributes() {
     return {
       imageSrc: { default: null },
-      imagePos: { default: 'left' },
-      stickyHeight: { default: '100vh' },
+      imagePos: { default: STICKY_STORY_DEFAULTS.imagePos },
+      stickyHeight: { default: STICKY_STORY_DEFAULTS.stickyHeight },
     };
   },
 
@@ -36,7 +37,7 @@ export const StickyStory = Node.create({
       mergeAttributes(HTMLAttributes, {
         "data-uf": "sticky-story",
         class: `uf-sticky-story is-${imagePos || "left"}`,
-        style: `--uf-sticky-height: ${stickyHeight || "100vh"};`,
+        style: `--uf-sticky-height: ${stickyHeight || STICKY_STORY_DEFAULTS.stickyHeight};`,
       }),
       ["div", { class: "uf-sticky-story__visual" }, ...visualChildren],
       ["div", { class: "uf-sticky-story__content" }, 0],

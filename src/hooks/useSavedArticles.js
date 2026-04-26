@@ -10,13 +10,23 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 
+const EMPTY_SAVED_SET = new Set();
+
 export function useSavedArticles() {
   const auth = useMemo(() => getAuth(), []);
   const [user, setUser] = useState(null);
 
-  const [savedSet, setSavedSet] = useState(new Set()); // editionNo set
-  const [savedDocs, setSavedDocs] = useState([]); // [{editionNo, createdAt}]
-  const [loading, setLoading] = useState(true);
+  const uid = user?.uid || "";
+  const [savedState, setSavedState] = useState({
+    uid: "",
+    savedSet: EMPTY_SAVED_SET,
+    savedDocs: [],
+    loading: false,
+  });
+  const isCurrent = savedState.uid === uid;
+  const savedSet = uid && isCurrent ? savedState.savedSet : EMPTY_SAVED_SET; // editionNo set
+  const savedDocs = uid && isCurrent ? savedState.savedDocs : []; // [{editionNo, createdAt}]
+  const loading = uid ? !isCurrent || savedState.loading : false;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -24,36 +34,25 @@ export function useSavedArticles() {
   }, [auth]);
 
   useEffect(() => {
-    if (!user) {
-      setSavedSet(new Set());
-      setSavedDocs([]);
-      setLoading(false);
-      return;
-    }
+    if (!uid) return;
 
-    setLoading(true);
-    const ref = collection(db, "users", user.uid, "saved");
+    const ref = collection(db, "users", uid, "saved");
 
     const unsub = onSnapshot(
       ref,
       (snap) => {
         const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setSavedDocs(docs);
-
         const next = new Set(docs.map((x) => String(x.editionNo || x.id)));
-        setSavedSet(next);
-        setLoading(false);
+        setSavedState({ uid, savedDocs: docs, savedSet: next, loading: false });
       },
       (e) => {
         console.error("[useSavedArticles] snapshot error:", e);
-        setSavedSet(new Set());
-        setSavedDocs([]);
-        setLoading(false);
+        setSavedState({ uid, savedDocs: [], savedSet: EMPTY_SAVED_SET, loading: false });
       }
     );
 
     return () => unsub();
-  }, [user]);
+  }, [uid]);
 
   const isSaved = (editionNo) => savedSet.has(String(editionNo));
 

@@ -1,8 +1,19 @@
 // src/components/editor/InspectorPanel.jsx
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { useSelectedUfBlock } from "../../hooks/useSelectedUfBlock";
+import {
+  GALLERY_DEFAULTS,
+  GALLERY_GAP_PRESETS,
+  GALLERY_LAYOUT_PRESETS,
+  GALLERY_RATIO_PRESETS,
+  PARALLAX_DEFAULTS,
+  PARALLAX_HEIGHT_PRESETS,
+  PARALLAX_SPEED_PRESETS,
+  STICKY_STORY_DEFAULTS,
+  STICKY_STORY_LENGTH_PRESETS,
+} from "../../constants/editorBlocks";
 
 function Row({ label, children }) {
   return (
@@ -26,8 +37,18 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   const selected = useSelectedUfBlock(editor);
   const { upload, uploading, progress } = useUploadImage();
 
-  const [ufImageCaptionDraft, setUfImageCaptionDraft] = useState("");
+  const selectedUfImageCaption =
+    selected?.type === "ufImage" ? selected.attrs.caption ?? "" : "";
+  const [ufImageCaptionDraft, setUfImageCaptionDraft] = useState({
+    sourceCaption: "",
+    value: "",
+  });
   const [isUfImageComposing, setIsUfImageComposing] = useState(false);
+
+  const ufImageCaptionValue =
+    ufImageCaptionDraft.sourceCaption === selectedUfImageCaption
+      ? ufImageCaptionDraft.value
+      : selectedUfImageCaption;
 
   if (!editor) return null;
 
@@ -35,12 +56,12 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
     editor.commands.updateAttributes(type, patch);
   };
 
-  useEffect(() => {
-    if (selected?.type === "ufImage") {
-      setUfImageCaptionDraft(selected.attrs.caption ?? "");
-      setIsUfImageComposing(false);
-    }
-  }, [selected?.type, selected?.attrs?.caption]);
+  const setUfImageCaptionDraftValue = (value) => {
+    setUfImageCaptionDraft({
+      sourceCaption: selectedUfImageCaption,
+      value,
+    });
+  };
 
   return (
     <aside
@@ -95,13 +116,9 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
               />
             </Row>
 
-            <Row label="Speed (0.0 ~ 2.0)">
-              <input
-                type="number"
-                step="0.05"
-                min="0"
-                max="2"
-                value={Number(selected.attrs.speed ?? 0.2)}
+            <Row label="Motion">
+              <select
+                value={Number(selected.attrs.speed ?? PARALLAX_DEFAULTS.speed)}
                 onChange={(e) =>
                   setAttrs("parallaxImage", { speed: Number(e.target.value) })
                 }
@@ -111,15 +128,21 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     ? "border-zinc-900 text-white"
                     : "border-zinc-200 text-black",
                 ].join(" ")}
-              />
+              >
+                {PARALLAX_SPEED_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
               <div className="text-[11px] text-zinc-500">
-                숫자가 클수록 더 많이 움직여요.
+                은은한 움직임을 기본으로 맞췄어요.
               </div>
             </Row>
 
-            <Row label="Height (e.g. 70vh)">
-              <input
-                value={selected.attrs.height ?? "70vh"}
+            <Row label="Frame">
+              <select
+                value={selected.attrs.height ?? PARALLAX_DEFAULTS.height}
                 onChange={(e) =>
                   setAttrs("parallaxImage", { height: e.target.value })
                 }
@@ -129,7 +152,13 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     ? "border-zinc-900 text-white"
                     : "border-zinc-200 text-black",
                 ].join(" ")}
-              />
+              >
+                {PARALLAX_HEIGHT_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
             </Row>
 
             <Row label="Bleed">
@@ -142,7 +171,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                   }
                 />
                 <span className={isDarkMode ? "text-zinc-200" : "text-zinc-700"}>
-                  Full width 느낌(bleed)
+                  Edge-to-edge
                 </span>
               </label>
             </Row>
@@ -154,7 +183,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
           <div className="space-y-5">
             <Row label="Position">
               <select
-                value={selected.attrs.imagePos ?? "left"}
+                value={selected.attrs.imagePos ?? STICKY_STORY_DEFAULTS.imagePos}
                 onChange={(e) =>
                   setAttrs("stickyStory", { imagePos: e.target.value })
                 }
@@ -165,14 +194,14 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     : "border-zinc-200 text-black",
                 ].join(" ")}
               >
-                <option value="left">left</option>
-                <option value="right">right</option>
+                <option value="left">Image left</option>
+                <option value="right">Image right</option>
               </select>
             </Row>
 
-            <Row label="Sticky Height (e.g. 100vh / 180vh)">
-              <input
-                value={selected.attrs.stickyHeight ?? "100vh"}
+            <Row label="Story Length">
+              <select
+                value={selected.attrs.stickyHeight ?? STICKY_STORY_DEFAULTS.stickyHeight}
                 onChange={(e) =>
                   setAttrs("stickyStory", { stickyHeight: e.target.value })
                 }
@@ -182,9 +211,15 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     ? "border-zinc-900 text-white"
                     : "border-zinc-200 text-black",
                 ].join(" ")}
-              />
+              >
+                {STICKY_STORY_LENGTH_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
               <div className="text-[11px] text-zinc-500">
-                값이 클수록 이미지가 오래 고정돼요.
+                길수록 이미지가 더 오래 머물러요.
               </div>
             </Row>
 
@@ -253,10 +288,10 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
 
             <Row label="Caption">
               <input
-                value={ufImageCaptionDraft}
+                value={ufImageCaptionValue}
                 onChange={(e) => {
                   const next = e.target.value;
-                  setUfImageCaptionDraft(next);
+                  setUfImageCaptionDraftValue(next);
                   if (!isUfImageComposing) {
                     setAttrs("ufImage", { caption: next });
                   }
@@ -265,12 +300,12 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                 onCompositionEnd={(e) => {
                   const next = e.currentTarget.value;
                   setIsUfImageComposing(false);
-                  setUfImageCaptionDraft(next);
+                  setUfImageCaptionDraftValue(next);
                   setAttrs("ufImage", { caption: next });
                 }}
                 onBlur={(e) => {
                   const next = e.target.value;
-                  setUfImageCaptionDraft(next);
+                  setUfImageCaptionDraftValue(next);
                   setAttrs("ufImage", { caption: next });
                 }}
                 className={[
@@ -421,12 +456,20 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
         {/* -------- Gallery -------- */}
         {selected?.type === "gallery" && (
           <div className="space-y-5">
-            <Row label="Columns">
+            <Row label="Layout">
               <select
-                value={Number(selected.attrs.columns ?? 2)}
-                onChange={(e) =>
-                  setAttrs("gallery", { columns: Number(e.target.value) })
-                }
+                value={selected.attrs.layout ?? GALLERY_DEFAULTS.layout}
+                onChange={(e) => {
+                  const preset =
+                    GALLERY_LAYOUT_PRESETS.find((item) => item.value === e.target.value) ??
+                    GALLERY_LAYOUT_PRESETS[0];
+                  setAttrs("gallery", {
+                    layout: preset.value,
+                    columns: preset.columns,
+                    gap: preset.gap,
+                    ratio: preset.ratio,
+                  });
+                }}
                 className={[
                   "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
                   isDarkMode
@@ -434,29 +477,60 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     : "border-zinc-200 text-black",
                 ].join(" ")}
               >
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
+                {GALLERY_LAYOUT_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
               </select>
             </Row>
 
-            <Row label="Gap">
-              <input
-                type="number"
-                min="0"
-                max="40"
-                value={Number(selected.attrs.gap ?? 12)}
-                onChange={(e) =>
-                  setAttrs("gallery", { gap: Number(e.target.value) })
-                }
+            <Row label="Image Ratio">
+              <select
+                value={selected.attrs.ratio ?? GALLERY_DEFAULTS.ratio}
+                onChange={(e) => setAttrs("gallery", { ratio: e.target.value })}
                 className={[
                   "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
                   isDarkMode
                     ? "border-zinc-900 text-white"
                     : "border-zinc-200 text-black",
                 ].join(" ")}
-              />
+              >
+                {GALLERY_RATIO_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+
+            <Row label="Spacing">
+              <div className="grid grid-cols-2 gap-2">
+                {GALLERY_GAP_PRESETS.map((preset) => {
+                  const active =
+                    Number(selected.attrs.gap ?? GALLERY_DEFAULTS.gap) === preset.value;
+
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => setAttrs("gallery", { gap: preset.value })}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition",
+                        active
+                          ? isDarkMode
+                            ? "border-white bg-white text-black"
+                            : "border-black bg-black text-white"
+                          : isDarkMode
+                            ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                            : "border-zinc-200 text-zinc-700 hover:border-zinc-400",
+                      ].join(" ")}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
             </Row>
 
             <Row label="Images">
@@ -520,85 +594,129 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                         </button>
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
-                          Horizontal Focus
+                      <input
+                        type="text"
+                        value={img?.caption ?? ""}
+                        onChange={(e) => {
+                          const next = [...arr];
+                          next[idx] = { ...next[idx], caption: e.target.value };
+                          setAttrs("gallery", { images: next });
+                        }}
+                        placeholder="Caption"
+                        className={[
+                          "w-full px-3 py-2 rounded-xl border text-xs bg-transparent",
+                          isDarkMode
+                            ? "border-zinc-900 text-white placeholder:text-zinc-600"
+                            : "border-zinc-200 text-black placeholder:text-zinc-400",
+                        ].join(" ")}
+                      />
+
+                      <details className="group">
+                        <summary
+                          className={[
+                            "cursor-pointer rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] transition",
+                            isDarkMode
+                              ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                              : "border-zinc-200 text-zinc-600 hover:border-zinc-400",
+                          ].join(" ")}
+                        >
+                          Focus
+                        </summary>
+
+                        <div className="mt-3 space-y-3">
+                          <div className="space-y-2">
+                            <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                              Horizontal
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={posX}
+                              onChange={(e) => {
+                                const next = [...arr];
+                                next[idx] = {
+                                  ...next[idx],
+                                  positionX: Number(e.target.value),
+                                };
+                                setAttrs("gallery", { images: next });
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                              Vertical
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={posY}
+                              onChange={(e) => {
+                                const next = [...arr];
+                                next[idx] = {
+                                  ...next[idx],
+                                  positionY: Number(e.target.value),
+                                };
+                                setAttrs("gallery", { images: next });
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...arr];
+                                next[idx] = {
+                                  ...next[idx],
+                                  positionX: 50,
+                                  positionY: 50,
+                                };
+                                setAttrs("gallery", { images: next });
+                              }}
+                              className="px-2 py-2 text-[10px] rounded-lg border"
+                            >
+                              Center
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...arr];
+                                next[idx] = {
+                                  ...next[idx],
+                                  positionX: 50,
+                                  positionY: 20,
+                                };
+                                setAttrs("gallery", { images: next });
+                              }}
+                              className="px-2 py-2 text-[10px] rounded-lg border"
+                            >
+                              Top
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...arr];
+                                next[idx] = {
+                                  ...next[idx],
+                                  positionX: 50,
+                                  positionY: 80,
+                                };
+                                setAttrs("gallery", { images: next });
+                              }}
+                              className="px-2 py-2 text-[10px] rounded-lg border"
+                            >
+                              Bottom
+                            </button>
+                          </div>
                         </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={posX}
-                          onChange={(e) => {
-                            const next = [...arr];
-                            next[idx] = {
-                              ...next[idx],
-                              positionX: Number(e.target.value),
-                            };
-                            setAttrs("gallery", { images: next });
-                          }}
-                          className="w-full"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
-                          Vertical Focus
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={posY}
-                          onChange={(e) => {
-                            const next = [...arr];
-                            next[idx] = {
-                              ...next[idx],
-                              positionY: Number(e.target.value),
-                            };
-                            setAttrs("gallery", { images: next });
-                          }}
-                          className="w-full"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = [...arr];
-                            next[idx] = { ...next[idx], positionX: 50, positionY: 50 };
-                            setAttrs("gallery", { images: next });
-                          }}
-                          className="px-2 py-2 text-[10px] rounded-lg border"
-                        >
-                          Center
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = [...arr];
-                            next[idx] = { ...next[idx], positionX: 50, positionY: 20 };
-                            setAttrs("gallery", { images: next });
-                          }}
-                          className="px-2 py-2 text-[10px] rounded-lg border"
-                        >
-                          Top
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = [...arr];
-                            next[idx] = { ...next[idx], positionX: 50, positionY: 80 };
-                            setAttrs("gallery", { images: next });
-                          }}
-                          className="px-2 py-2 text-[10px] rounded-lg border"
-                        >
-                          Bottom
-                        </button>
-                      </div>
+                      </details>
                     </div>
                   );
                 })}
@@ -607,7 +725,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
           </div>
         )}
 
-                {selected?.type === "slideGallery" && (
+        {selected?.type === "slideGallery" && (
           <div className="space-y-5">
             <Row label="Aspect Ratio">
               <select

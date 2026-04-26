@@ -14,13 +14,16 @@ function isDesktop() {
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem("uf_pwa_prompt_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 
   useEffect(() => {
-    const dismissedAt = localStorage.getItem("uf_pwa_prompt_dismissed");
-    if (dismissedAt) setDismissed(true);
-
     const onBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);

@@ -9,7 +9,7 @@ export function stripHtml(html = "") {
     .trim();
 }
 
-export function estimateReadMinutes(article) {
+export function estimateReadMinutes(article, { min = 1 } = {}) {
   const text = stripHtml(
     article?.contentHTML ||
       article?.excerpt ||
@@ -26,7 +26,7 @@ export function estimateReadMinutes(article) {
     .filter(Boolean).length;
 
   const minutes = Math.ceil(koreanChars / 500 + englishWords / 200);
-  return Math.max(1, minutes);
+  return Math.max(min, minutes);
 }
 
 export function timeEmoji(min) {

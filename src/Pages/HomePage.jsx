@@ -6,21 +6,8 @@ import { db } from "../firebase/config";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { usePopularRollup } from "../hooks/usePopularRollup";
 import { useNetworkConfig } from "../hooks/useNetworkConfig";
-
-// ✅ 에디터 category 값과 맞춤
-const CATEGORIES = [
-  { key: "All", label: "View All Archive", sub: "ALL ITEMS" },
-  { key: "ART FAIR", label: "Art Fair", sub: "CATEGORY 01" },
-  { key: "EXHIBITION", label: "Exhibition", sub: "CATEGORY 02" },
-  { key: "REVIEW", label: "Review", sub: "CATEGORY 03" },
-  { key: "INTERVIEW", label: "Interview", sub: "CATEGORY 04" },
-  { key: "NEWS", label: "News", sub: "CATEGORY 05" },
-  { key: "ARTIST", label: "Artist", sub: "CATEGORY 06" },
-  { key: "SPACE", label: "Space", sub: "CATEGORY 07" },
-  { key: "PROJECT", label: "Project", sub: "CATEGORY 08" },
-  { key: "ESSAY", label: "Essay", sub: "CATEGORY 09" },
-  { key: "ARCHIVE", label: "Archive", sub: "CATEGORY 10" },
-];
+import { ARCHIVE_CATEGORIES as CATEGORIES } from "../constants/categories";
+import { estimateReadMinutes, timeEmoji } from "../lib/readingMeta";
 
 function padEdition(editionNo) {
   if (!editionNo) return "---";
@@ -30,24 +17,6 @@ function padEdition(editionNo) {
 
 function coverUrlOf(article) {
   return article?.coverMedium || article?.coverThumb || article?.cover || "";
-}
-
-function stripHTML(html) {
-  return String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function readMinutesFromHTML(html) {
-  const text = stripHTML(html);
-  const words = text ? text.split(" ").length : 0;
-  return Math.max(2, Math.round(words / 200)); // 200 wpm
-}
-
-function timeEmoji(min) {
-  if (min <= 2) return "🚀";
-  if (min <= 5) return "☕️";
-  if (min <= 9) return "📖";
-  if (min <= 15) return "🛋️";
-  return "🧠";
 }
 
 // ✅ XP Top10 (3.3.2)
@@ -73,8 +42,7 @@ function useTopUsersXP({ top = 10 } = {}) {
         setErr(String(e?.message || e));
         setUsers([]);
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
     return () => {
@@ -94,7 +62,9 @@ function pickSessionWidgets(count = 3) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length === count) return parsed;
     }
-  } catch (_) {}
+  } catch {
+    // sessionStorage can be unavailable in restricted browser contexts.
+  }
 
   const pool = ["xpTop", "weeklyLikes", "monthlyLikes", "weeklyViews", "monthlyViews"];
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
@@ -102,7 +72,9 @@ function pickSessionWidgets(count = 3) {
 
   try {
     sessionStorage.setItem(key, JSON.stringify(picked));
-  } catch (_) {}
+  } catch {
+    // Keep widget selection non-blocking when storage writes fail.
+  }
   return picked;
 }
 
@@ -127,22 +99,26 @@ export default function HomePage({ isDarkMode }) {
   const xpTop = useTopUsersXP({ top: 10 });
 
   // ✅ 세션 랜덤 위젯 3개(3.1.2 + 3.2.2)
-  const [rankWidgets, setRankWidgets] = useState(() => pickSessionWidgets(3));
-  useEffect(() => {
-    setRankWidgets(pickSessionWidgets(3));
-  }, []);
+  const [rankWidgets] = useState(() => pickSessionWidgets(3));
 
   // ✅ home config (hero/editorPicks)
   const { config } = useHomeConfig();
   const heroEditionNo = config?.heroEditionNo ? String(config.heroEditionNo) : null;
-  const editorPicks = Array.isArray(config?.editorPicks) ? config.editorPicks.map(String) : [];
+  const editorPicks = useMemo(
+    () => (Array.isArray(config?.editorPicks) ? config.editorPicks.map(String) : []),
+    [config?.editorPicks]
+  );
 
   // ✅ network config (links + picks)
   const { config: networkConfig } = useNetworkConfig();
   const links = networkConfig?.links || {};
-  const featuredEditionNos = Array.isArray(networkConfig?.featuredEditionNos)
-    ? networkConfig.featuredEditionNos.map(String)
-    : [];
+  const featuredEditionNos = useMemo(
+    () =>
+      Array.isArray(networkConfig?.featuredEditionNos)
+        ? networkConfig.featuredEditionNos.map(String)
+        : [],
+    [networkConfig?.featuredEditionNos]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -170,8 +146,7 @@ export default function HomePage({ isDarkMode }) {
         setLoadErr("아카이브를 불러오지 못했어요.");
         setArticles([]);
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
 
@@ -251,7 +226,7 @@ export default function HomePage({ isDarkMode }) {
 
   const coverEdition = padEdition(cover.editionNo);
   const coverImg = coverUrlOf(cover);
-  const coverMin = readMinutesFromHTML(cover.contentHTML);
+  const coverMin = estimateReadMinutes(cover, { min: 2 });
   const coverEmoji = timeEmoji(coverMin);
 
   // ✅ 랭킹 위젯 데이터 매핑(3개)
@@ -721,7 +696,7 @@ function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
   const edition = padEdition(item?.editionNo);
   const img = coverUrlOf(item);
 
-  const min = readMinutesFromHTML(item?.contentHTML);
+  const min = estimateReadMinutes(item, { min: 2 });
   const emoji = timeEmoji(min);
 
   return (
@@ -764,7 +739,7 @@ function ArchiveCard({ item, isDarkMode }) {
   const edition = padEdition(item?.editionNo);
   const img = coverUrlOf(item);
 
-  const min = readMinutesFromHTML(item?.contentHTML);
+  const min = estimateReadMinutes(item, { min: 2 });
   const emoji = timeEmoji(min);
 
   return (

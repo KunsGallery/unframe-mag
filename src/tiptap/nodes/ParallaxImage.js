@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from "@tiptap/core";
+import { PARALLAX_DEFAULTS } from "../../constants/editorBlocks";
 
 export const ParallaxImage = Node.create({
   name: "parallaxImage",
@@ -9,9 +10,9 @@ export const ParallaxImage = Node.create({
     return {
       src: { default: null },
       caption: { default: "" },
-      speed: { default: 0.2 },
-      height: { default: "70vh" },
-      bleed: { default: true },
+      speed: { default: PARALLAX_DEFAULTS.speed },
+      height: { default: PARALLAX_DEFAULTS.height },
+      bleed: { default: PARALLAX_DEFAULTS.bleed },
     };
   },
 
@@ -26,9 +27,9 @@ export const ParallaxImage = Node.create({
       "figure",
       mergeAttributes(HTMLAttributes, {
         "data-uf": "parallax",
-        "data-speed": String(speed ?? 0.2), // ✅ 런타임에서 읽기 좋게
+        "data-speed": String(speed ?? PARALLAX_DEFAULTS.speed),
         class: `uf-parallax ${bleed ? "is-full" : ""}`,
-        style: `--uf-height: ${height || "70vh"};`,
+        style: `--uf-height: ${height || PARALLAX_DEFAULTS.height};`,
       }),
       [
         "div",

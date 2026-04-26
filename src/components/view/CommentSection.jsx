@@ -14,13 +14,7 @@ import { GoogleAuthProvider, signInWithPopup, signOut, getAuth } from "firebase/
 import { db } from "../../firebase/config";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import { trackEvent } from "../../lib/trackEvent"; // ✅ NEW
-
-/** ✅ 관리자 이메일 allowlist (rules와 동일하게 유지) */
-const ADMIN_EMAILS = new Set([
-  "gallerykuns@gmail.com",
-  "cybog2004@gmail.com",
-  "sylove887@gmail.com",
-]);
+import { isAdminEmail } from "../../constants/admin";
 
 /** ✅ 스팸 방지(프론트 쿨타임) */
 const COOLDOWN_MS = 30_000; // 30초
@@ -48,7 +42,7 @@ export default function CommentSection({ article }) {
   const auth = useMemo(() => getAuth(), []);
   const { user, profile, loading: loadingProfile } = useUserProfile();
 
-  const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
+  const isAdmin = isAdminEmail(user?.email);
 
   const [comments, setComments] = useState([]);
   const [loadingComments, setLoadingComments] = useState(true);
@@ -143,7 +137,9 @@ export default function CommentSection({ article }) {
         const sec = Math.ceil((COOLDOWN_MS - (Date.now() - lastAt)) / 1000);
         return { ok: false, msg: `잠깐! ${sec}초 후에 다시 작성할 수 있어요.` };
       }
-    } catch {}
+    } catch {
+      // Ignore localStorage issues; Firestore validation still applies.
+    }
 
     try {
       const raw = localStorage.getItem(lsKey(user.uid, editionNo, "lastText"));
@@ -151,7 +147,9 @@ export default function CommentSection({ article }) {
       if (lastText && lastText === text.trim()) {
         return { ok: false, msg: "같은 내용을 연속으로 등록할 수 없어요." };
       }
-    } catch {}
+    } catch {
+      // Ignore localStorage issues; Firestore validation still applies.
+    }
 
     return { ok: true, msg: "" };
   };
@@ -197,7 +195,9 @@ export default function CommentSection({ article }) {
       try {
         localStorage.setItem(lsKey(user.uid, editionNo, "lastAt"), String(Date.now()));
         localStorage.setItem(lsKey(user.uid, editionNo, "lastText"), clean);
-      } catch {}
+      } catch {
+        // Cooldown metadata is best-effort only.
+      }
 
       setText("");
 
@@ -322,7 +322,7 @@ export default function CommentSection({ article }) {
         ) : (
           <ul className="space-y-4">
             {comments.map((c) => {
-              const commentIsAdmin = !!c.authorEmail && ADMIN_EMAILS.has(c.authorEmail);
+              const commentIsAdmin = isAdminEmail(c.authorEmail);
               return (
                 <li
                   key={c.id}

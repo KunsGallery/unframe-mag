@@ -33,7 +33,6 @@ function rarityTone(rarity, owned) {
 
 export default function StickerGrid({
   ownedIds = [],
-  isDarkMode,
   showHidden = false,
 }) {
   const ownedSet = useMemo(

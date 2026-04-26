@@ -31,22 +31,32 @@ function timeAgo(ts) {
 }
 
 export default function EditorContentDashboard({ userEmail, isDarkMode }) {
-  const [published, setPublished] = useState([]);
-  const [drafts, setDrafts] = useState([]);
-  const [loadingPublished, setLoadingPublished] = useState(true);
-  const [loadingDrafts, setLoadingDrafts] = useState(true);
+  const emailKey = String(userEmail || "");
+  const [publishedState, setPublishedState] = useState({
+    email: "",
+    items: [],
+    loading: false,
+  });
+  const [draftsState, setDraftsState] = useState({
+    email: "",
+    items: [],
+    loading: false,
+  });
+
+  const publishedCurrent = publishedState.email === emailKey;
+  const draftsCurrent = draftsState.email === emailKey;
+  const published = emailKey && publishedCurrent ? publishedState.items : [];
+  const drafts = emailKey && draftsCurrent ? draftsState.items : [];
+  const loadingPublished = emailKey ? !publishedCurrent || publishedState.loading : false;
+  const loadingDrafts = emailKey ? !draftsCurrent || draftsState.loading : false;
 
   useEffect(() => {
-    if (!userEmail) {
-      setPublished([]);
-      setLoadingPublished(false);
-      return;
-    }
+    if (!emailKey) return;
 
     const qy = query(
       collection(db, "articles"),
       where("status", "==", "published"),
-      where("authorEmail", "==", String(userEmail))
+      where("authorEmail", "==", emailKey)
     );
 
     const unsub = onSnapshot(
@@ -54,30 +64,24 @@ export default function EditorContentDashboard({ userEmail, isDarkMode }) {
       (snap) => {
         const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         list.sort((a, b) => tsToMs(b.updatedAt) - tsToMs(a.updatedAt));
-        setPublished(list.slice(0, 8));
-        setLoadingPublished(false);
+        setPublishedState({ email: emailKey, items: list.slice(0, 8), loading: false });
       },
       (e) => {
         console.error("[EditorContentDashboard] published error:", e);
-        setPublished([]);
-        setLoadingPublished(false);
+        setPublishedState({ email: emailKey, items: [], loading: false });
       }
     );
 
     return () => unsub();
-  }, [userEmail]);
+  }, [emailKey]);
 
   useEffect(() => {
-    if (!userEmail) {
-      setDrafts([]);
-      setLoadingDrafts(false);
-      return;
-    }
+    if (!emailKey) return;
 
     const qy = query(
       collection(db, "articles"),
       where("status", "==", "draft"),
-      where("authorEmail", "==", String(userEmail))
+      where("authorEmail", "==", emailKey)
     );
 
     const unsub = onSnapshot(
@@ -85,18 +89,16 @@ export default function EditorContentDashboard({ userEmail, isDarkMode }) {
       (snap) => {
         const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         list.sort((a, b) => tsToMs(b.updatedAt) - tsToMs(a.updatedAt));
-        setDrafts(list.slice(0, 8));
-        setLoadingDrafts(false);
+        setDraftsState({ email: emailKey, items: list.slice(0, 8), loading: false });
       },
       (e) => {
         console.error("[EditorContentDashboard] drafts error:", e);
-        setDrafts([]);
-        setLoadingDrafts(false);
+        setDraftsState({ email: emailKey, items: [], loading: false });
       }
     );
 
     return () => unsub();
-  }, [userEmail]);
+  }, [emailKey]);
 
   return (
     <section

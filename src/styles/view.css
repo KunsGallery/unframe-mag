@@ -2,7 +2,7 @@
 
 /* ✅ StickyStory: contentHTML 본문(uf-prose) 안에서만 동작 (View 전용) */
 article.uf-prose [data-uf="sticky-story"]{
-  min-height: var(--uf-sticky-height, 220vh);
+  min-height: var(--uf-sticky-height, 180vh);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 32px;

@@ -23,7 +23,7 @@ function xhrPostForm(url, formData, { onProgress } = {}) {
         const json = JSON.parse(xhr.responseText || "{}");
         if (xhr.status >= 200 && xhr.status < 300) resolve(json);
         else reject(new Error(json?.error?.message || json?.message || "Upload failed"));
-      } catch (e) {
+      } catch {
         reject(new Error("Invalid response"));
       }
     };
@@ -85,7 +85,7 @@ export async function uploadToImgbbWithProgress(file, { onProgress } = {}) {
 export async function uploadImageWithProgress(file, { onProgress } = {}) {
   try {
     return await uploadToCloudinaryWithProgress(file, { onProgress });
-  } catch (e) {
+  } catch {
     return await uploadToImgbbWithProgress(file, { onProgress });
   }
 }

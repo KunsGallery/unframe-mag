@@ -6,15 +6,10 @@ import { db } from "../../firebase/config";
 import { usePollResults } from "../../hooks/usePollResults";
 import { usePollMeta } from "../../hooks/usePollMeta";
 import { trackEventOnce } from "../../lib/trackEvent";
+import { isAdminEmail } from "../../constants/admin";
 
 const MAX_OPTIONS = 6;
 const MIN_OPTIONS = 2;
-
-const ADMIN_EMAILS = new Set([
-  "gallerykuns@gmail.com",
-  "cybog2004@gmail.com",
-  "sylove887@gmail.com",
-]);
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10);
@@ -26,20 +21,20 @@ export default function UfPollNodeView(props) {
 
   const { pollKey, question = "투표", options } = node.attrs || {};
 
-  const safeOptionsRaw = Array.isArray(options) ? options : [];
-  const safeOptions =
-    safeOptionsRaw.length > 0
-      ? safeOptionsRaw
-      : editable
+  const safeOptions = useMemo(() => {
+    const safeOptionsRaw = Array.isArray(options) ? options : [];
+    if (safeOptionsRaw.length > 0) return safeOptionsRaw;
+    return editable
       ? [
           { id: "a", text: "옵션 1" },
           { id: "b", text: "옵션 2" },
         ]
       : [];
+  }, [editable, options]);
 
   const auth = getAuth();
   const user = auth.currentUser;
-  const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
+  const isAdmin = isAdminEmail(user?.email);
 
   const optionIds = useMemo(
     () => safeOptions.map((o) => o?.id).filter(Boolean),

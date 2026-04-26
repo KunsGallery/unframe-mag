@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 
-export function usePollResults(pollKey, optionIds = []) {
-  const [counts, setCounts] = useState({});
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+const EMPTY_OPTION_IDS = [];
+
+export function usePollResults(pollKey, optionIds = EMPTY_OPTION_IDS) {
+  const key = pollKey ? String(pollKey) : "";
+  const optionKey = optionIds.join("|");
 
   const base = useMemo(() => {
     const init = {};
@@ -13,11 +14,23 @@ export function usePollResults(pollKey, optionIds = []) {
     return init;
   }, [optionIds]);
 
-  useEffect(() => {
-    if (!pollKey) return;
+  const [state, setState] = useState({
+    key: "",
+    optionKey: "",
+    counts: {},
+    total: 0,
+    loading: false,
+  });
 
-    setLoading(true);
-    const ref = collection(db, "polls", String(pollKey), "votes");
+  const isCurrent = state.key === key && state.optionKey === optionKey;
+  const counts = key && isCurrent ? state.counts : base;
+  const total = key && isCurrent ? state.total : 0;
+  const loading = key ? !isCurrent || state.loading : false;
+
+  useEffect(() => {
+    if (!key) return;
+
+    const ref = collection(db, "polls", key, "votes");
 
     const unsub = onSnapshot(
       ref,
@@ -32,20 +45,16 @@ export function usePollResults(pollKey, optionIds = []) {
             t += 1;
           }
         });
-        setCounts(next);
-        setTotal(t);
-        setLoading(false);
+        setState({ key, optionKey, counts: next, total: t, loading: false });
       },
       (e) => {
         console.error("[usePollResults] snapshot error:", e);
-        setCounts(base);
-        setTotal(0);
-        setLoading(false);
+        setState({ key, optionKey, counts: base, total: 0, loading: false });
       }
     );
 
     return () => unsub();
-  }, [pollKey, base]);
+  }, [key, optionKey, base]);
 
   const percentOf = (optionId) => {
     if (!total) return 0;

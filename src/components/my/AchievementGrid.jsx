@@ -46,7 +46,9 @@ function toDateText(value) {
       const d = new Date(value);
       if (!Number.isNaN(d.getTime())) return d.toLocaleDateString("ko-KR");
     }
-  } catch (_) {}
+  } catch {
+    // Ignore malformed date-like values and render an empty date.
+  }
 
   return "";
 }

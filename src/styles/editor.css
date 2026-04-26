@@ -101,7 +101,7 @@
 
 /* Editor: StickyStory / Parallax (scoped) */
 .ProseMirror.uf-editor [data-uf="sticky-story"]{
-  min-height: var(--uf-sticky-height, 140vh);
+  min-height: var(--uf-sticky-height, 180vh);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 28px;
@@ -159,15 +159,19 @@
 }
 
 .ProseMirror.uf-editor .uf-parallax__wrapper{
-  height: var(--uf-height, 70vh);
+  height: var(--uf-height, 64vh);
   position: relative;
   overflow: hidden;
 }
 
 .ProseMirror.uf-editor .uf-parallax__img{
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
   width: 100%;
-  height: 100%;
+  height: calc(100% + 160px);
   object-fit: cover;
+  transform: translate3d(0, -50%, 0);
   display:block;
 }
 

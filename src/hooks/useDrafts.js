@@ -14,6 +14,7 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
+import { DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 
 const AUTOSAVE_DELAY_MS = 180000; // 3분, 5분 원하면 300000
 
@@ -27,7 +28,7 @@ export function useDrafts({
   onToast,
   navigate,
 }) {
-  const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
+  const toast = useCallback((msg) => (onToast ? onToast(msg) : console.log(msg)), [onToast]);
 
   const [drafts, setDrafts] = useState([]);
   const [draftId, setDraftId] = useState(null);
@@ -92,7 +93,7 @@ export function useDrafts({
 
         setters.setTitle(data.title || "");
         setters.setSubtitle(data.subtitle || "");
-        setters.setCategory(data.category || "EXHIBITION");
+        setters.setCategory(data.category || DEFAULT_ARTICLE_CATEGORY);
         setters.setCover(data.cover || "");
         setters.setCoverMedium(data.coverMedium || "");
 
@@ -114,7 +115,7 @@ export function useDrafts({
       setDraftId(null);
       setters.setTitle("");
       setters.setSubtitle("");
-      setters.setCategory("EXHIBITION");
+      setters.setCategory(DEFAULT_ARTICLE_CATEGORY);
       setters.setCover("");
       setters.setCoverMedium("");
       editor?.commands?.setContent("");

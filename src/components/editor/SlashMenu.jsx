@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
+import {
+  GALLERY_DEFAULTS,
+  PARALLAX_DEFAULTS,
+  STICKY_STORY_DEFAULTS,
+} from "../../constants/editorBlocks";
 
 const SLASH_ITEMS = [
   { key: "scene", label: "Scene", desc: "장면 블록 추가", icon: Layout },
@@ -128,9 +133,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
               attrs: {
                 src: url,
                 caption: "",
-                speed: 0.2,
-                height: "70vh",
-                bleed: true,
+                ...PARALLAX_DEFAULTS,
               },
             })
             .run();
@@ -146,8 +149,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
               type: "stickyStory",
               attrs: {
                 imageSrc: url || null,
-                imagePos: "left",
-                stickyHeight: "100vh",
+                ...STICKY_STORY_DEFAULTS,
               },
               content: [
                 {
@@ -349,9 +351,8 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
               : {
                   type: "gallery",
                   attrs: {
+                    ...GALLERY_DEFAULTS,
                     images: uploaded,
-                    columns: 2,
-                    gap: 12,
                   },
                 }
           )

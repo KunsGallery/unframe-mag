@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
+import { GALLERY_DEFAULTS } from "../../constants/editorBlocks";
 
 const BLOCK_SELECTORS = [
   "p",
@@ -33,6 +34,16 @@ const BLOCK_SELECTORS = [
   ".uf-divider",
   '[data-uf="sticky-story"]',
 ].join(",");
+
+const SIDE_RAIL_OFFSET = 88;
+const MENU_GAP = 12;
+const VIEWPORT_PADDING = 12;
+const INSERT_MENU_WIDTH = 224; // w-56
+const ACTIONS_MENU_WIDTH = 192; // w-48
+
+function getMenuLeft(blockLeft, menuWidth) {
+  return Math.max(VIEWPORT_PADDING, blockLeft - menuWidth - MENU_GAP);
+}
 
 function MenuButton({ icon: Icon, label, onClick, danger = false }) {
   return (
@@ -158,14 +169,16 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
       const editorRect = editorRoot.getBoundingClientRect();
       const blockRect = block.getBoundingClientRect();
 
-      // ✅ 고정 left가 아니라 현재 블록 기준으로 버튼 위치 계산
+      // 현재 블록의 왼쪽 라인 바깥에 버튼 레일과 메뉴를 둔다.
       const localTop = blockRect.top - editorRect.top + blockRect.height / 2 - 18;
-      const localLeft = Math.max(-52, blockRect.left - editorRect.left - 52);
+      const localLeft = blockRect.left - editorRect.left - SIDE_RAIL_OFFSET;
 
       setCurrentBlockEl(block);
       setAnchorRect({
         top: localTop,
         left: localLeft,
+        viewportTop: Math.max(VIEWPORT_PADDING, blockRect.top + blockRect.height / 2 - 18),
+        blockLeft: blockRect.left,
       });
     },
     [editor]
@@ -192,12 +205,14 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
     editor.on("selectionUpdate", onSelection);
     editor.on("transaction", onSelection);
     window.addEventListener("resize", updateAnchor);
+    window.addEventListener("scroll", updateAnchor, true);
     document.addEventListener("click", onDocClick);
 
     return () => {
       editor.off("selectionUpdate", onSelection);
       editor.off("transaction", onSelection);
       window.removeEventListener("resize", updateAnchor);
+      window.removeEventListener("scroll", updateAnchor, true);
       document.removeEventListener("click", onDocClick);
     };
   }, [editor, updateAnchor]);
@@ -249,9 +264,8 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
         .insertContent({
           type: "gallery",
           attrs: {
+            ...GALLERY_DEFAULTS,
             images: uploaded,
-            columns: 2,
-            gap: 12,
           },
         })
         .run();
@@ -415,11 +429,15 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
 
         {menuOpen === "insert" && (
           <div
-            className={`absolute left-12 top-0 w-56 rounded-2xl border shadow-xl p-2 ${
+            className={`fixed z-[80] w-56 rounded-2xl border shadow-xl p-2 ${
               isDarkMode
                 ? "bg-zinc-950 border-zinc-800"
                 : "bg-white border-zinc-200"
             }`}
+            style={{
+              top: anchorRect.viewportTop,
+              left: getMenuLeft(anchorRect.blockLeft, INSERT_MENU_WIDTH),
+            }}
           >
             <MenuButton icon={ImageIcon} label="Image" onClick={() => fileInputRef.current?.click()} />
             <MenuButton icon={LayoutGrid} label="Gallery" onClick={() => galleryInputRef.current?.click()} />
@@ -534,11 +552,15 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
 
         {menuOpen === "actions" && (
           <div
-            className={`absolute left-12 top-0 w-48 rounded-2xl border shadow-xl p-2 ${
+            className={`fixed z-[80] w-48 rounded-2xl border shadow-xl p-2 ${
               isDarkMode
                 ? "bg-zinc-950 border-zinc-800"
                 : "bg-white border-zinc-200"
             }`}
+            style={{
+              top: anchorRect.viewportTop,
+              left: getMenuLeft(anchorRect.blockLeft, ACTIONS_MENU_WIDTH),
+            }}
           >
             <MenuButton icon={Copy} label="Duplicate" onClick={duplicateCurrentBlock} />
             <MenuButton icon={Trash2} label="Delete" danger onClick={deleteCurrentBlock} />

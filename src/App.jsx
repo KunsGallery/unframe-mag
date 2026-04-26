@@ -16,6 +16,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 
 // PWA
 import InstallPrompt from "./components/pwa/InstallPrompt";
+import { isAdminEmail } from "./constants/admin";
 
 // Pages
 import HomePage from "./Pages/HomePage";
@@ -24,15 +25,6 @@ import EditorPage from "./Pages/EditorPage";
 import MyPage from "./Pages/MyPage";
 import ViewPage from "./Pages/ViewPage";
 import AdminPage from "./Pages/AdminPage";
-
-// ----------------------------------------------------------------------------
-// Config
-// ----------------------------------------------------------------------------
-const ADMIN_EMAILS = new Set([
-  "gallerykuns@gmail.com",
-  "cybog2004@gmail.com",
-  "sylove887@gmail.com",
-]);
 
 function safeNicknameFromDisplayName(displayName) {
   const base = String(displayName || "User")
@@ -48,7 +40,7 @@ function safeNicknameFromDisplayName(displayName) {
 const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
   const location = useLocation();
 
-  const isAdmin = !!user && (role === "admin" || ADMIN_EMAILS.has(user.email));
+  const isAdmin = !!user && (role === "admin" || isAdminEmail(user.email));
   const isEditor = !!user && role === "editor";
   const canWrite = isAdmin || isEditor;
 
@@ -262,25 +254,26 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
       setAuthLoading(false);
+      if (u) {
+        setRoleLoading(true);
+      } else {
+        setRole("user");
+        setRoleLoading(false);
+      }
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setRole("user");
-      setRoleLoading(false);
-      return;
-    }
+    if (!user) return;
 
     const ref = doc(db, "users", user.uid);
-    setRoleLoading(true);
 
     const unsub = onSnapshot(
       ref,
       async (snap) => {
         const email = user.email || "";
-        const emailIsAdmin = !!email && ADMIN_EMAILS.has(email);
+        const emailIsAdmin = isAdminEmail(email);
 
         if (!snap.exists()) {
           const nickname = safeNicknameFromDisplayName(user.displayName);
@@ -339,7 +332,7 @@ export default function App() {
 
   const isAdmin = useMemo(() => {
     if (!user?.email) return false;
-    return role === "admin" || ADMIN_EMAILS.has(user.email);
+    return role === "admin" || isAdminEmail(user.email);
   }, [user?.email, role]);
 
   const effectiveRole = isAdmin ? "admin" : role;

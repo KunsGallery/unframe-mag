@@ -57,12 +57,7 @@ import ArticleNav from "../components/view/ArticleNav";
 import Lightbox from "../components/view/Lightbox";
 import EditorInfoBox from "../components/view/EditorInfoBox";
 import MoreFromEditor from "../components/view/MoreFromEditor";
-
-const ADMIN_EMAILS = new Set([
-  "gallerykuns@gmail.com",
-  "cybog2004@gmail.com",
-  "sylove887@gmail.com",
-]);
+import { isAdminEmail } from "../constants/admin";
 
 function clamp01(v) {
   const n = Number(v || 0);
@@ -75,7 +70,9 @@ async function copyToClipboard(text) {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch {}
+  } catch {
+    // Fall through to the textarea fallback.
+  }
   try {
     const t = document.createElement("textarea");
     t.value = text;
@@ -86,8 +83,20 @@ async function copyToClipboard(text) {
     document.execCommand("copy");
     document.body.removeChild(t);
     return true;
-  } catch {}
+  } catch {
+    // Clipboard support varies by browser and permission state.
+  }
   return false;
+}
+
+function readLikedFromStorage(likeKey) {
+  if (!likeKey || typeof window === "undefined") return false;
+
+  try {
+    return localStorage.getItem(likeKey) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export default function ViewPage({ isDarkMode, onToast }) {
@@ -97,7 +106,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
   const bodyRef = useRef(null);
 
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
-  const [liked, setLiked] = useState(false);
+  const [likedState, setLikedState] = useState({ key: "", value: false });
 
   const viewRuntimeCSS = useMemo(
     () => `
@@ -444,7 +453,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
 /* StickyStory */
 .uf-prose [data-uf="sticky-story"]{
-  min-height: var(--uf-sticky-height, 220vh);
+  min-height: var(--uf-sticky-height, 180vh);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 32px;
@@ -657,6 +666,25 @@ export default function ViewPage({ isDarkMode, onToast }) {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .uf-prose .uf-gallery.layout-editorial .uf-gallery__grid,
+  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+  }
+
+  .uf-prose .uf-gallery.layout-editorial .uf-gallery__item:first-child,
+  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__item:nth-child(1),
+  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__item:nth-child(6n + 6),
+  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__item:nth-child(4n + 3){
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .uf-prose .uf-gallery.layout-editorial .uf-gallery__img,
+  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__img{
+    aspect-ratio: var(--uf-gallery-ratio, 4 / 3);
+  }
+
   .uf-prose .tableWrapper{
     display: block;
     width: 100%;
@@ -785,13 +813,20 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
   const { user, isSaved } = useSavedArticles();
   const saved = article?.editionNo ? isSaved(article.editionNo) : false;
-  const isAdmin = !!user?.email && ADMIN_EMAILS.has(user.email);
+  const isAdmin = isAdminEmail(user?.email);
   const isOwnerEditor =
     !!user?.email &&
     !!article?.authorEmail &&
     user.email === article.authorEmail;
 
   const canEditArticle = isAdmin || isOwnerEditor;
+  const likeKey = useMemo(() => {
+    if (!article?.editionNo) return "";
+    const who = user?.uid || "anon";
+    return `uf_liked_${String(article.editionNo)}_${who}`;
+  }, [article?.editionNo, user?.uid]);
+  const liked =
+    likedState.key === likeKey ? likedState.value : readLikedFromStorage(likeKey);
 
   const readMinutes = useMemo(() => estimateReadMinutes(article), [article]);
   const readEmoji = useMemo(() => timeEmoji(readMinutes), [readMinutes]);
@@ -930,14 +965,6 @@ export default function ViewPage({ isDarkMode, onToast }) {
     });
   }, [article?.editionNo, article?.docId, article?.id, article?.firestoreId]);
 
-  useEffect(() => {
-    if (!article?.editionNo) return;
-    const editionNo = String(article.editionNo);
-    const who = user?.uid || "anon";
-    const likeKey = `uf_liked_${editionNo}_${who}`;
-    setLiked(localStorage.getItem(likeKey) === "1");
-  }, [article?.editionNo, user?.uid]);
-
   const handleVerticalClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
@@ -1046,16 +1073,14 @@ export default function ViewPage({ isDarkMode, onToast }) {
   };
 
   const onToggleLike = async () => {
-    if (!article?.editionNo) return;
+    if (!article?.editionNo || !likeKey) return;
 
     const editionNo = String(article.editionNo);
-    const who = user?.uid || "anon";
-    const likeKey = `uf_liked_${editionNo}_${who}`;
-    const already = localStorage.getItem(likeKey) === "1";
+    const already = readLikedFromStorage(likeKey);
 
     if (!already) {
       localStorage.setItem(likeKey, "1");
-      setLiked(true);
+      setLikedState({ key: likeKey, value: true });
 
       trackEvent("like", { editionNo });
 
@@ -1068,7 +1093,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
       return;
     }
 
-    setLiked((v) => !v);
+    setLikedState({ key: likeKey, value: !liked });
   };
 
   const onShare = async () => {

@@ -17,17 +17,21 @@ export default function MoreFromEditor({ article, isDarkMode }) {
   const authorEmail = String(article?.authorEmail || "").trim();
   const currentEditionNo = String(article?.editionNo || "");
 
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [listState, setListState] = useState({
+    authorEmail: "",
+    currentEditionNo: "",
+    items: [],
+    loading: false,
+  });
+
+  const isCurrentList =
+    listState.authorEmail === authorEmail &&
+    listState.currentEditionNo === currentEditionNo;
+  const items = authorEmail && isCurrentList ? listState.items : [];
+  const loading = authorEmail ? !isCurrentList || listState.loading : false;
 
   useEffect(() => {
-    if (!authorEmail) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
+    if (!authorEmail) return;
 
     const qy = query(
       collection(db, "articles"),
@@ -49,13 +53,21 @@ export default function MoreFromEditor({ article, isDarkMode }) {
           })
           .slice(0, 4);
 
-        setItems(list);
-        setLoading(false);
+        setListState({
+          authorEmail,
+          currentEditionNo,
+          items: list,
+          loading: false,
+        });
       },
       (e) => {
         console.error("[MoreFromEditor] snapshot error:", e);
-        setItems([]);
-        setLoading(false);
+        setListState({
+          authorEmail,
+          currentEditionNo,
+          items: [],
+          loading: false,
+        });
       }
     );
 

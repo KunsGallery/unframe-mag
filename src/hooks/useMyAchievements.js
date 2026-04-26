@@ -1,23 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 
+const EMPTY_ITEMS = [];
+
 export function useMyAchievements(uid) {
-  const [items, setItems] = useState([]);
-  const [ids, setIds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const uidKey = String(uid || "");
+  const [state, setState] = useState({
+    uid: "",
+    items: [],
+    loading: false,
+  });
+
+  const isCurrent = state.uid === uidKey;
+  const items = uidKey && isCurrent ? state.items : EMPTY_ITEMS;
+  const ids = useMemo(() => items.map((item) => item.id), [items]);
+  const loading = uidKey ? !isCurrent || state.loading : false;
 
   useEffect(() => {
-    if (!uid) {
-      setItems([]);
-      setIds([]);
-      setLoading(false);
-      return;
-    }
+    if (!uidKey) return;
 
-    setLoading(true);
-
-    const ref = collection(db, "users", uid, "achievements");
+    const ref = collection(db, "users", uidKey, "achievements");
 
     const unsub = onSnapshot(
       ref,
@@ -26,20 +29,16 @@ export function useMyAchievements(uid) {
           id: doc.id,
           ...doc.data(),
         }));
-        setItems(nextItems);
-        setIds(nextItems.map((item) => item.id));
-        setLoading(false);
+        setState({ uid: uidKey, items: nextItems, loading: false });
       },
       (error) => {
         console.error("[useMyAchievements] snapshot error:", error);
-        setItems([]);
-        setIds([]);
-        setLoading(false);
+        setState({ uid: uidKey, items: [], loading: false });
       }
     );
 
     return () => unsub();
-  }, [uid]);
+  }, [uidKey]);
 
   return { items, ids, loading };
 }

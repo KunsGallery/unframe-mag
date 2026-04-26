@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useEditorState } from "@tiptap/react";
 import {
   Bold,
@@ -39,6 +39,7 @@ import {
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
+import { PARALLAX_DEFAULTS, STICKY_STORY_DEFAULTS } from "../../constants/editorBlocks";
 
 const FONT_OPTIONS = [
   { label: "Default", value: "" },
@@ -293,16 +294,31 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
     },
   });
 
-  const [textColor, setTextColor] = useState("#111111");
-  const [highlightColor, setHighlightColor] = useState("#fff59d");
+  const currentTextColor = editorState.textColor || "#111111";
+  const currentHighlightColor = editorState.highlightColor || "#fff59d";
+  const [textColorDraft, setTextColorDraft] = useState({
+    source: "#111111",
+    value: "#111111",
+  });
+  const [highlightColorDraft, setHighlightColorDraft] = useState({
+    source: "#fff59d",
+    value: "#fff59d",
+  });
 
-  useEffect(() => {
-    setTextColor(editorState.textColor || "#111111");
-  }, [editorState.textColor]);
+  const textColor =
+    textColorDraft.source === currentTextColor ? textColorDraft.value : currentTextColor;
+  const highlightColor =
+    highlightColorDraft.source === currentHighlightColor
+      ? highlightColorDraft.value
+      : currentHighlightColor;
 
-  useEffect(() => {
-    setHighlightColor(editorState.highlightColor || "#fff59d");
-  }, [editorState.highlightColor]);
+  const setTextColor = (value) => {
+    setTextColorDraft({ source: currentTextColor, value });
+  };
+
+  const setHighlightColor = (value) => {
+    setHighlightColorDraft({ source: currentHighlightColor, value });
+  };
 
   if (!editor) return null;
 
@@ -350,7 +366,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         .focus()
         .insertContent({
           type: "parallaxImage",
-          attrs: { src: url, caption: "", speed: 0.2, height: "70vh", bleed: true },
+          attrs: { src: url, caption: "", ...PARALLAX_DEFAULTS },
         })
         .run();
     } catch (e) {
@@ -367,7 +383,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         .focus()
         .insertContent({
           type: "stickyStory",
-          attrs: { imageSrc: url, imagePos: "left", stickyHeight: "100vh" },
+          attrs: { imageSrc: url, ...STICKY_STORY_DEFAULTS },
           content: [
             {
               type: "paragraph",
