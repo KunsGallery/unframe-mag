@@ -152,6 +152,7 @@
   border-radius: 16px;
   overflow: hidden;
   background: rgba(0,0,0,0.06);
+  position: relative;
 }
 
 .dark .ProseMirror.uf-editor figure[data-uf="parallax"]{
@@ -176,9 +177,12 @@
 }
 
 .ProseMirror.uf-editor .uf-parallax__caption{
-  padding: 10px 12px;
-  font-size: 12px;
-  opacity: .75;
+  opacity: .96;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+}
+
+.dark .ProseMirror.uf-editor .uf-parallax__caption{
+  box-shadow: 0 14px 28px rgba(0,0,0,0.3);
 }
 
 /* =========================

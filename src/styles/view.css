@@ -39,6 +39,15 @@ article.uf-prose [data-uf="sticky-story"].is-right .uf-sticky-story__content{ or
   outline: none !important;
 }
 
+article.uf-prose [data-uf="parallax"]{
+  position: relative;
+}
+
+.ProseMirror.uf-view .uf-parallax__caption{
+  opacity: 1;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
+}
+
 /* =========================
    UF Embed (Playlist/Podcast) - View only
    ========================= */

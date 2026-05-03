@@ -39,7 +39,11 @@ import {
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
-import { PARALLAX_DEFAULTS, STICKY_STORY_DEFAULTS } from "../../constants/editorBlocks";
+import {
+  getParallaxMotionSpeed,
+  PARALLAX_DEFAULTS,
+  STICKY_STORY_DEFAULTS,
+} from "../../constants/editorBlocks";
 
 const FONT_OPTIONS = [
   { label: "Default", value: "" },
@@ -366,7 +370,15 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         .focus()
         .insertContent({
           type: "parallaxImage",
-          attrs: { src: url, caption: "", ...PARALLAX_DEFAULTS },
+          attrs: {
+            src: url,
+            caption: "",
+            ...PARALLAX_DEFAULTS,
+            captionAlign: "center-bottom",
+            captionSize: "normal",
+            motionPreset: "soft",
+            speed: getParallaxMotionSpeed("soft"),
+          },
         })
         .run();
     } catch (e) {

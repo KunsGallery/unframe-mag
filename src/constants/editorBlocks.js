@@ -2,6 +2,9 @@ export const PARALLAX_DEFAULTS = {
   speed: 0.12,
   height: "64vh",
   bleed: true,
+  captionAlign: "center-bottom",
+  captionSize: "normal",
+  motionPreset: "soft",
 };
 
 export const PARALLAX_SPEED_PRESETS = [
@@ -17,6 +20,55 @@ export const PARALLAX_HEIGHT_PRESETS = [
   { label: "Classic", value: "70vh" },
   { label: "Immersive", value: "82vh" },
 ];
+
+export const PARALLAX_CAPTION_ALIGN_OPTIONS = [
+  { label: "Left", value: "left" },
+  { label: "Center Bottom", value: "center-bottom" },
+  { label: "Right", value: "right" },
+];
+
+export const PARALLAX_CAPTION_SIZE_OPTIONS = [
+  { label: "Small", value: "small" },
+  { label: "Normal", value: "normal" },
+  { label: "Large", value: "large" },
+];
+
+export const PARALLAX_MOTION_PRESET_SPEEDS = {
+  subtle: 0.08,
+  soft: 0.16,
+  cinematic: 0.24,
+  dramatic: 0.34,
+};
+
+export const PARALLAX_MOTION_PRESET_OPTIONS = [
+  {
+    label: "Subtle",
+    value: "subtle",
+    description: "가장 조용한 움직임으로 이미지 안정감을 우선합니다.",
+  },
+  {
+    label: "Soft",
+    value: "soft",
+    description: "자연스럽게 따라오는 기본 패럴랙스 움직임입니다.",
+  },
+  {
+    label: "Cinematic",
+    value: "cinematic",
+    description: "장면 전환감이 느껴지는 조금 더 분명한 이동입니다.",
+  },
+  {
+    label: "Dramatic",
+    value: "dramatic",
+    description: "가장 큰 이동폭으로 강한 몰입감을 만듭니다.",
+  },
+];
+
+export function getParallaxMotionSpeed(
+  preset,
+  fallback = PARALLAX_DEFAULTS.speed
+) {
+  return PARALLAX_MOTION_PRESET_SPEEDS[preset] ?? fallback;
+}
 
 export const STICKY_STORY_DEFAULTS = {
   imagePos: "left",

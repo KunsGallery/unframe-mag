@@ -22,6 +22,7 @@ import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
 import {
   GALLERY_DEFAULTS,
+  getParallaxMotionSpeed,
   PARALLAX_DEFAULTS,
   STICKY_STORY_DEFAULTS,
 } from "../../constants/editorBlocks";
@@ -134,6 +135,10 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
                 src: url,
                 caption: "",
                 ...PARALLAX_DEFAULTS,
+                captionAlign: "center-bottom",
+                captionSize: "normal",
+                motionPreset: "soft",
+                speed: getParallaxMotionSpeed("soft"),
               },
             })
             .run();

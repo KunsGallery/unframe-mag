@@ -1,4 +1,12 @@
 import { useEffect } from "react";
+import {
+  getParallaxMotionSpeed,
+  PARALLAX_DEFAULTS,
+} from "../constants/editorBlocks";
+
+function clampMotion(value) {
+  return Math.min(Math.max(value, 0.04), 0.34);
+}
 
 /**
  * High-end Parallax runtime
@@ -6,6 +14,7 @@ import { useEffect } from "react";
  * - inertia (lerp) for smoothness
  * - reads node attrs:
  *   - data-speed (0.05~0.6) optional
+ *   - data-motion-preset optional
  * - optional debug: set window.__UF_PARALLAX_DEBUG__ = true
  */
 export function useParallaxRuntime(deps = []) {
@@ -33,14 +42,28 @@ export function useParallaxRuntime(deps = []) {
           if (!img) return null;
 
           // speed: attrs.speed가 HTML에 직렬화되면 data-speed나 speed로 올 수 있음
-          // (현재 ParallaxImage renderHTML은 attrs를 HTMLAttributes로 merge하니 speed가 속성으로 붙을 수 있음)
+          // 기존 글 호환을 위해 speed가 있으면 우선 사용하고,
+          // 없을 때만 motionPreset 매핑값을 fallback 한다.
           const speedAttr =
             fig.getAttribute("data-speed") ||
             fig.getAttribute("speed") ||
             fig.getAttribute("data-parallax-speed");
+          const motionPresetAttr =
+            fig.getAttribute("data-motion-preset") ||
+            fig.getAttribute("motionpreset") ||
+            fig.getAttribute("motionPreset");
 
-          const speed = speedAttr ? Number(speedAttr) : 0.2;
-          const clamped = Number.isFinite(speed) ? Math.min(Math.max(speed, 0.04), 0.24) : 0.12;
+          const speed = speedAttr ? Number(speedAttr) : NaN;
+          const presetSpeed = getParallaxMotionSpeed(
+            motionPresetAttr,
+            PARALLAX_DEFAULTS.speed
+          );
+          const resolvedSpeed = Number.isFinite(speed) ? speed : presetSpeed;
+          const clamped = clampMotion(
+            Number.isFinite(resolvedSpeed)
+              ? resolvedSpeed
+              : PARALLAX_DEFAULTS.speed
+          );
 
           // 처음 상태 초기화
           if (!state.has(img)) state.set(img, 0);

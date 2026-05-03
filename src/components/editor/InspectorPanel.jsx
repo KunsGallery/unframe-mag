@@ -8,8 +8,12 @@ import {
   GALLERY_GAP_PRESETS,
   GALLERY_LAYOUT_PRESETS,
   GALLERY_RATIO_PRESETS,
+  getParallaxMotionSpeed,
+  PARALLAX_CAPTION_ALIGN_OPTIONS,
+  PARALLAX_CAPTION_SIZE_OPTIONS,
   PARALLAX_DEFAULTS,
   PARALLAX_HEIGHT_PRESETS,
+  PARALLAX_MOTION_PRESET_OPTIONS,
   PARALLAX_SPEED_PRESETS,
   STICKY_STORY_DEFAULTS,
   STICKY_STORY_LENGTH_PRESETS,
@@ -49,6 +53,13 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
     ufImageCaptionDraft.sourceCaption === selectedUfImageCaption
       ? ufImageCaptionDraft.value
       : selectedUfImageCaption;
+  const selectedParallaxMotionPreset =
+    selected?.type === "parallaxImage"
+      ? selected.attrs.motionPreset ?? PARALLAX_DEFAULTS.motionPreset
+      : PARALLAX_DEFAULTS.motionPreset;
+  const selectedParallaxMotionPresetMeta = PARALLAX_MOTION_PRESET_OPTIONS.find(
+    (preset) => preset.value === selectedParallaxMotionPreset
+  );
 
   if (!editor) return null;
 
@@ -114,6 +125,76 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                 ].join(" ")}
                 placeholder="캡션"
               />
+            </Row>
+
+            <Row label="Caption Align">
+              <select
+                value={selected.attrs.captionAlign ?? PARALLAX_DEFAULTS.captionAlign}
+                onChange={(e) =>
+                  setAttrs("parallaxImage", { captionAlign: e.target.value })
+                }
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                {PARALLAX_CAPTION_ALIGN_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+
+            <Row label="Caption Size">
+              <select
+                value={selected.attrs.captionSize ?? PARALLAX_DEFAULTS.captionSize}
+                onChange={(e) =>
+                  setAttrs("parallaxImage", { captionSize: e.target.value })
+                }
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                {PARALLAX_CAPTION_SIZE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+
+            <Row label="Motion Preset">
+              <select
+                value={selectedParallaxMotionPreset}
+                onChange={(e) =>
+                  setAttrs("parallaxImage", {
+                    motionPreset: e.target.value,
+                    speed: getParallaxMotionSpeed(e.target.value),
+                  })
+                }
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                {PARALLAX_MOTION_PRESET_OPTIONS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+              <div className="text-[11px] text-zinc-500">
+                {selectedParallaxMotionPresetMeta?.description ??
+                  "기본 움직임 강도를 고릅니다."}
+              </div>
             </Row>
 
             <Row label="Motion">

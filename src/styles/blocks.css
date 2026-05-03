@@ -69,13 +69,17 @@
 }
 
 /* Parallax */
-.uf-parallax { margin: 3rem 0; }
+.uf-parallax {
+  margin: 3rem 0;
+  position: relative;
+}
 .uf-parallax.is-full { width: 100vw; margin-left: calc(50% - 50vw); }
 .uf-parallax__wrapper {
   height: var(--uf-height, 64vh);
   overflow: hidden;
   border-radius: 24px;
   position: relative;
+  background: #111;
 }
 .uf-parallax__img {
   position: absolute;
@@ -88,12 +92,66 @@
   will-change: transform;
 }
 .uf-parallax__caption {
-  margin-top: .8rem;
-  font-size: 12px;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  opacity: .55;
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 2;
+  margin-top: 0;
+  width: max-content;
+  max-width: min(calc(100% - 36px), 560px);
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.08), rgba(0,0,0,0.62));
+  color: #fff;
   font-style: italic;
+  font-weight: 600;
+  letter-spacing: .08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+  text-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  pointer-events: none;
+}
+
+.uf-parallax[data-caption-align="left"] .uf-parallax__caption,
+.uf-parallax__caption.is-left {
+  left: 18px;
+  right: auto;
+  text-align: left;
+  transform: none;
+}
+
+.uf-parallax[data-caption-align="center-bottom"] .uf-parallax__caption,
+.uf-parallax__caption.is-center-bottom {
+  left: 50%;
+  right: auto;
+  width: min(calc(100% - 36px), 560px);
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.uf-parallax[data-caption-align="right"] .uf-parallax__caption,
+.uf-parallax__caption.is-right {
+  left: auto;
+  right: 18px;
+  text-align: right;
+  transform: none;
+}
+
+.uf-parallax[data-caption-size="small"] .uf-parallax__caption,
+.uf-parallax__caption.is-small {
+  font-size: 11px;
+}
+
+.uf-parallax[data-caption-size="normal"] .uf-parallax__caption,
+.uf-parallax__caption.is-normal {
+  font-size: 13px;
+}
+
+.uf-parallax[data-caption-size="large"] .uf-parallax__caption,
+.uf-parallax__caption.is-large {
+  font-size: 16px;
+  letter-spacing: .06em;
 }
 
 /* StickyStory (View runtime 느낌은 view.css로 스코프 권장, 여기엔 공통 최소만) */
