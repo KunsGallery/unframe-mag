@@ -1,5 +1,8 @@
 import { Node, mergeAttributes } from "@tiptap/core";
-import { PARALLAX_DEFAULTS } from "../../constants/editorBlocks";
+import {
+  getParallaxPresetBySpeed,
+  PARALLAX_DEFAULTS,
+} from "../../constants/editorBlocks";
 
 const CAPTION_ALIGN_VALUES = new Set(["left", "center-bottom", "right"]);
 const CAPTION_SIZE_VALUES = new Set(["small", "normal", "large"]);
@@ -49,6 +52,12 @@ function readHeightFromStyle(element) {
   return match?.[1]?.trim() || null;
 }
 
+function readSpeedFromElement(element) {
+  const value = getAttr(element, ["data-speed", "speed", "data-parallax-speed"]);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : PARALLAX_DEFAULTS.speed;
+}
+
 export const ParallaxImage = Node.create({
   name: "parallaxImage",
   group: "block",
@@ -72,11 +81,7 @@ export const ParallaxImage = Node.create({
       },
       speed: {
         default: PARALLAX_DEFAULTS.speed,
-        parseHTML: (element) => {
-          const value = getAttr(element, ["data-speed", "speed", "data-parallax-speed"]);
-          const parsed = Number(value);
-          return Number.isFinite(parsed) ? parsed : PARALLAX_DEFAULTS.speed;
-        },
+        parseHTML: (element) => readSpeedFromElement(element),
       },
       height: {
         default: PARALLAX_DEFAULTS.height,
@@ -109,10 +114,18 @@ export const ParallaxImage = Node.create({
       },
       motionPreset: {
         default: PARALLAX_DEFAULTS.motionPreset,
-        parseHTML: (element) =>
-          normalizeMotionPreset(
-            getAttr(element, ["data-motion-preset", "motionpreset", "motion-preset"])
-          ),
+        parseHTML: (element) => {
+          const speed = readSpeedFromElement(element);
+          const presetAttr = getAttr(element, [
+            "data-motion-preset",
+            "motionpreset",
+            "motion-preset",
+          ]);
+
+          return presetAttr
+            ? normalizeMotionPreset(presetAttr)
+            : getParallaxPresetBySpeed(speed);
+        },
       },
     };
   },
@@ -135,10 +148,13 @@ export const ParallaxImage = Node.create({
     const resolvedHeight = height || PARALLAX_DEFAULTS.height;
     const resolvedCaptionAlign = normalizeCaptionAlign(captionAlign);
     const resolvedCaptionSize = normalizeCaptionSize(captionSize);
-    const resolvedMotionPreset = normalizeMotionPreset(motionPreset);
     const resolvedSpeed = Number.isFinite(Number(speed))
       ? Number(speed)
       : PARALLAX_DEFAULTS.speed;
+    const resolvedMotionPreset = getParallaxPresetBySpeed(
+      resolvedSpeed,
+      normalizeMotionPreset(motionPreset)
+    );
 
     return [
       "figure",

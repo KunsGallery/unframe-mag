@@ -4,6 +4,7 @@ import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { useSelectedUfBlock } from "../../hooks/useSelectedUfBlock";
 import {
+  getParallaxPresetBySpeed,
   GALLERY_DEFAULTS,
   GALLERY_GAP_PRESETS,
   GALLERY_LAYOUT_PRESETS,
@@ -55,8 +56,15 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
       : selectedUfImageCaption;
   const selectedParallaxMotionPreset =
     selected?.type === "parallaxImage"
-      ? selected.attrs.motionPreset ?? PARALLAX_DEFAULTS.motionPreset
+      ? getParallaxPresetBySpeed(
+          selected.attrs.speed,
+          selected.attrs.motionPreset ?? PARALLAX_DEFAULTS.motionPreset
+        )
       : PARALLAX_DEFAULTS.motionPreset;
+  const selectedParallaxSpeed =
+    selected?.type === "parallaxImage"
+      ? getParallaxMotionSpeed(selectedParallaxMotionPreset)
+      : PARALLAX_DEFAULTS.speed;
   const selectedParallaxMotionPresetMeta = PARALLAX_MOTION_PRESET_OPTIONS.find(
     (preset) => preset.value === selectedParallaxMotionPreset
   );
@@ -199,10 +207,14 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
 
             <Row label="Motion">
               <select
-                value={Number(selected.attrs.speed ?? PARALLAX_DEFAULTS.speed)}
-                onChange={(e) =>
-                  setAttrs("parallaxImage", { speed: Number(e.target.value) })
-                }
+                value={selectedParallaxSpeed}
+                onChange={(e) => {
+                  const nextSpeed = Number(e.target.value);
+                  setAttrs("parallaxImage", {
+                    speed: nextSpeed,
+                    motionPreset: getParallaxPresetBySpeed(nextSpeed),
+                  });
+                }}
                 className={[
                   "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
                   isDarkMode

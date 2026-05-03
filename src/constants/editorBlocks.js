@@ -1,5 +1,5 @@
 export const PARALLAX_DEFAULTS = {
-  speed: 0.12,
+  speed: 0.16,
   height: "64vh",
   bleed: true,
   captionAlign: "center-bottom",
@@ -9,9 +9,9 @@ export const PARALLAX_DEFAULTS = {
 
 export const PARALLAX_SPEED_PRESETS = [
   { label: "Subtle", value: 0.08 },
-  { label: "Balanced", value: 0.12 },
-  { label: "Cinematic", value: 0.18 },
-  { label: "Strong", value: 0.2 },
+  { label: "Soft", value: 0.16 },
+  { label: "Cinematic", value: 0.24 },
+  { label: "Dramatic", value: 0.34 },
 ];
 
 export const PARALLAX_HEIGHT_PRESETS = [
@@ -68,6 +68,28 @@ export function getParallaxMotionSpeed(
   fallback = PARALLAX_DEFAULTS.speed
 ) {
   return PARALLAX_MOTION_PRESET_SPEEDS[preset] ?? fallback;
+}
+
+export function getParallaxPresetBySpeed(
+  speed,
+  fallback = PARALLAX_DEFAULTS.motionPreset
+) {
+  const entries = Object.entries(PARALLAX_MOTION_PRESET_SPEEDS);
+  const parsed = Number(speed);
+  if (!Number.isFinite(parsed)) return fallback;
+
+  let closestPreset = fallback;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const [preset, presetSpeed] of entries) {
+    const distance = Math.abs(parsed - presetSpeed);
+    if (distance < closestDistance) {
+      closestPreset = preset;
+      closestDistance = distance;
+    }
+  }
+
+  return closestPreset;
 }
 
 export const STICKY_STORY_DEFAULTS = {
