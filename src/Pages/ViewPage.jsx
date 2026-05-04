@@ -487,6 +487,35 @@ export default function ViewPage({ isDarkMode, onToast }) {
   margin: 3rem 0;
 }
 
+.uf-prose .uf-slide-gallery__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.uf-prose .uf-slide-gallery__label,
+.uf-prose .uf-slide-gallery__counter {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.uf-prose .uf-slide-gallery__label {
+  color: #004aad;
+}
+
+.uf-prose .uf-slide-gallery__counter {
+  color: rgba(24, 24, 27, 0.6);
+}
+
+.dark .uf-prose .uf-slide-gallery__counter {
+  color: rgba(244, 244, 245, 0.65);
+}
+
 .uf-prose .uf-slide-gallery__viewport {
   position: relative;
 }
@@ -512,27 +541,51 @@ export default function ViewPage({ isDarkMode, onToast }) {
   margin: 0;
 }
 
-.uf-prose .uf-slide-gallery__track[data-ratio="16/9"] .uf-slide-gallery__img {
+.uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track[data-ratio="16/9"] .uf-slide-gallery__img {
   aspect-ratio: 16 / 9;
 }
 
-.uf-prose .uf-slide-gallery__track[data-ratio="4/3"] .uf-slide-gallery__img {
+.uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track[data-ratio="4/3"] .uf-slide-gallery__img {
   aspect-ratio: 4 / 3;
 }
 
-.uf-prose .uf-slide-gallery__track[data-ratio="1/1"] .uf-slide-gallery__img {
+.uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track[data-ratio="1/1"] .uf-slide-gallery__img {
   aspect-ratio: 1 / 1;
 }
 
-.uf-prose .uf-slide-gallery__track[data-ratio="3/4"] .uf-slide-gallery__img {
+.uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track[data-ratio="3/4"] .uf-slide-gallery__img {
   aspect-ratio: 3 / 4;
 }
 
 .uf-prose .uf-slide-gallery__img {
-  width: 100%;
   display: block;
-  object-fit: cover;
   border-radius: var(--uf-slide-radius, 20px);
+}
+
+.uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track {
+  grid-auto-columns: 100%;
+}
+
+.uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__img {
+  width: 100%;
+  object-fit: cover;
+}
+
+.uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__track {
+  grid-auto-columns: max-content;
+  align-items: start;
+}
+
+.uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__slide {
+  width: max-content;
+  max-width: 100%;
+}
+
+.uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__img {
+  width: auto;
+  height: var(--uf-slide-image-height, 420px);
+  max-width: min(100%, calc(100vw - 140px));
+  object-fit: contain;
 }
 
 .uf-prose .uf-slide-gallery__arrow {
@@ -666,23 +719,8 @@ export default function ViewPage({ isDarkMode, onToast }) {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .uf-prose .uf-gallery.layout-editorial .uf-gallery__grid,
-  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__grid{
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: auto;
-  }
-
-  .uf-prose .uf-gallery.layout-editorial .uf-gallery__item:first-child,
-  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__item:nth-child(1),
-  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__item:nth-child(6n + 6),
-  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__item:nth-child(4n + 3){
-    grid-column: auto;
-    grid-row: auto;
-  }
-
-  .uf-prose .uf-gallery.layout-editorial .uf-gallery__img,
-  .uf-prose .uf-gallery.layout-mosaic .uf-gallery__img{
-    aspect-ratio: var(--uf-gallery-ratio, 4 / 3);
+  .uf-prose .uf-gallery[data-fit-mode="height"] .uf-gallery__img{
+    height: min(var(--uf-gallery-image-height, 320px), 48vw);
   }
 
   .uf-prose .tableWrapper{
@@ -718,6 +756,15 @@ export default function ViewPage({ isDarkMode, onToast }) {
   .uf-prose .uf-columns[data-stack-mobile="true"]{
     grid-template-columns: 1fr !important;
     gap: 16px;
+  }
+
+  .uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__img {
+    height: min(var(--uf-slide-image-height, 420px), 56vw);
+    max-width: calc(100vw - 72px);
+  }
+
+  .uf-prose .uf-slide-gallery__meta {
+    margin-bottom: 8px;
   }
 
   .uf-prose .uf-slide-gallery__arrow {
@@ -834,37 +881,62 @@ export default function ViewPage({ isDarkMode, onToast }) {
   useEffect(() => {
     const root = document;
 
-    const getTrackMetrics = (track) => {
-      if (!track) return null;
-
-      const slide = track.querySelector(".uf-slide-gallery__slide");
-      const slideWidth = slide?.getBoundingClientRect?.().width || track.clientWidth || 0;
-
-      const styles = window.getComputedStyle(track);
-      const gap = parseFloat(styles.columnGap || styles.gap || "12") || 12;
-
-      return {
-        slideWidth,
-        gap,
-        unit: slideWidth + gap,
-      };
+    const getSlides = (track) => {
+      if (!track) return [];
+      return Array.from(track.querySelectorAll(".uf-slide-gallery__slide"));
     };
 
-    const updateDots = (track) => {
+    const getActiveSlideIndex = (track) => {
+      const slides = getSlides(track);
+      if (!slides.length) return 0;
+
+      const currentLeft = track.scrollLeft;
+      let nearestIndex = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      slides.forEach((slide, index) => {
+        const distance = Math.abs(slide.offsetLeft - currentLeft);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      });
+
+      return nearestIndex;
+    };
+
+    const scrollToSlide = (track, index, behavior = "smooth") => {
+      const slides = getSlides(track);
+      if (!slides.length) return;
+
+      const nextIndex = Math.max(0, Math.min(slides.length - 1, index));
+      const nextSlide = slides[nextIndex];
+      if (!nextSlide) return;
+
+      track.scrollTo({
+        left: nextSlide.offsetLeft,
+        behavior,
+      });
+    };
+
+    const updateSlideIndicators = (track) => {
       if (!track) return;
 
       const galleryRoot = track.closest(".uf-slide-gallery");
       if (!galleryRoot) return;
 
       const dots = galleryRoot.querySelectorAll(".uf-slide-gallery__dot");
-      if (!dots.length) return;
+      const counter = galleryRoot.querySelector(".uf-slide-gallery__counter");
+      const slides = getSlides(track);
+      const total = slides.length;
+      const index = getActiveSlideIndex(track);
 
-      const metrics = getTrackMetrics(track);
-      if (!metrics || !metrics.unit) return;
-
-      const maxIndex = Math.max(0, dots.length - 1);
-      const rawIndex = track.scrollLeft / metrics.unit;
-      const index = Math.max(0, Math.min(maxIndex, Math.round(rawIndex)));
+      if (counter) {
+        const current = total ? index + 1 : 0;
+        counter.setAttribute("data-current", String(current));
+        counter.setAttribute("data-total", String(total));
+        counter.textContent = `${current} / ${total}`;
+      }
 
       dots.forEach((dot, i) => {
         dot.setAttribute("data-active", i === index ? "true" : "false");
@@ -879,20 +951,24 @@ export default function ViewPage({ isDarkMode, onToast }) {
       const track = galleryRoot?.querySelector(".uf-slide-gallery__track");
       if (!track) return;
 
-      const metrics = getTrackMetrics(track);
-      if (!metrics || !metrics.unit) return;
-
+      const slides = getSlides(track);
+      if (!slides.length) return;
       const dir = btn.getAttribute("data-dir");
+      const currentIndex = getActiveSlideIndex(track);
+      const nextIndex =
+        dir === "next"
+          ? currentIndex === slides.length - 1
+            ? 0
+            : currentIndex + 1
+          : currentIndex === 0
+          ? slides.length - 1
+          : currentIndex - 1;
 
-      track.scrollBy({
-        left: dir === "next" ? metrics.unit : -metrics.unit,
-        behavior: "smooth",
-      });
-
-      requestAnimationFrame(() => updateDots(track));
-      setTimeout(() => updateDots(track), 180);
-      setTimeout(() => updateDots(track), 360);
-      setTimeout(() => updateDots(track), 540);
+      scrollToSlide(track, nextIndex);
+      requestAnimationFrame(() => updateSlideIndicators(track));
+      setTimeout(() => updateSlideIndicators(track), 180);
+      setTimeout(() => updateSlideIndicators(track), 360);
+      setTimeout(() => updateSlideIndicators(track), 540);
     };
 
     const handleSlideDotClick = (e) => {
@@ -903,20 +979,13 @@ export default function ViewPage({ isDarkMode, onToast }) {
       const track = galleryRoot?.querySelector(".uf-slide-gallery__track");
       if (!track) return;
 
-      const metrics = getTrackMetrics(track);
-      if (!metrics || !metrics.unit) return;
-
       const index = Number(dot.getAttribute("data-index") || 0);
 
-      track.scrollTo({
-        left: index * metrics.unit,
-        behavior: "smooth",
-      });
-
-      requestAnimationFrame(() => updateDots(track));
-      setTimeout(() => updateDots(track), 180);
-      setTimeout(() => updateDots(track), 360);
-      setTimeout(() => updateDots(track), 540);
+      scrollToSlide(track, index);
+      requestAnimationFrame(() => updateSlideIndicators(track));
+      setTimeout(() => updateSlideIndicators(track), 180);
+      setTimeout(() => updateSlideIndicators(track), 360);
+      setTimeout(() => updateSlideIndicators(track), 540);
     };
 
     const handleTrackScroll = (e) => {
@@ -926,7 +995,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
       const track = target.closest(".uf-slide-gallery__track");
       if (!track) return;
 
-      updateDots(track);
+      updateSlideIndicators(track);
     };
 
     root.addEventListener("click", handleSlideArrowClick);
@@ -936,7 +1005,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
     requestAnimationFrame(() => {
       document
         .querySelectorAll(".uf-slide-gallery__track")
-        .forEach((track) => updateDots(track));
+        .forEach((track) => updateSlideIndicators(track));
     });
 
     return () => {

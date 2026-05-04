@@ -106,10 +106,27 @@ export const STICKY_STORY_LENGTH_PRESETS = [
 
 export const GALLERY_DEFAULTS = {
   layout: "editorial",
+  layoutMode: "grid",
   columns: 3,
   gap: 18,
   ratio: "4/3",
+  fitMode: "crop",
+  imageHeight: 320,
 };
+
+export const SLIDE_GALLERY_DEFAULTS = {
+  fitMode: "height",
+  imageHeight: 420,
+  heightRatio: "16/9",
+  rounded: 20,
+};
+
+export const IMAGE_FIT_MODE_OPTIONS = [
+  { label: "Height", value: "height" },
+  { label: "Crop", value: "crop" },
+];
+
+export const IMAGE_HEIGHT_PRESETS = [320, 420, 520];
 
 export const GALLERY_LAYOUT_PRESETS = [
   {
@@ -143,10 +160,10 @@ export const GALLERY_LAYOUT_PRESETS = [
 ];
 
 export const GALLERY_RATIO_PRESETS = [
-  { label: "Landscape", value: "4/3" },
-  { label: "Square", value: "1/1" },
-  { label: "Wide", value: "16/9" },
-  { label: "Portrait", value: "3/4" },
+  { label: "1 / 1", value: "1/1" },
+  { label: "4 / 3", value: "4/3" },
+  { label: "3 / 2", value: "3/2" },
+  { label: "Auto", value: "auto" },
 ];
 
 export const GALLERY_GAP_PRESETS = [

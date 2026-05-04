@@ -24,6 +24,7 @@ import {
   GALLERY_DEFAULTS,
   getParallaxMotionSpeed,
   PARALLAX_DEFAULTS,
+  SLIDE_GALLERY_DEFAULTS,
   STICKY_STORY_DEFAULTS,
 } from "../../constants/editorBlocks";
 
@@ -57,6 +58,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const itemRefs = useRef([]);
   const fileInputRef = useRef(null);
+  const pendingInsertPosRef = useRef(null);
 
   const { upload, uploading, progress, error, setError } = useUploadImage();
 
@@ -78,6 +80,27 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
     const start = Math.max(from - 1, 0);
     editor.chain().focus().deleteRange({ from: start, to: from }).run();
   }, [editor]);
+
+  const insertUploadedContent = useCallback(
+    (savedPos, content) => {
+      if (!editor) return false;
+
+      const maxPos = editor.state.doc.content.size;
+      const targetPos =
+        typeof savedPos === "number" ? Math.max(0, Math.min(savedPos, maxPos)) : null;
+
+      const chain = editor.chain().focus();
+
+      if (typeof targetPos === "number") {
+        chain.insertContentAt(targetPos, content);
+      } else {
+        chain.insertContent(content);
+      }
+
+      return chain.run();
+    },
+    [editor]
+  );
 
   const handleSelect = useCallback(
     (item) => {
@@ -210,12 +233,14 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
         case "gallery":
           setError?.("");
+          pendingInsertPosRef.current = editor.state.selection.from;
           fileInputRef.current?.setAttribute("data-gallery-mode", "grid");
           fileInputRef.current?.click();
           return;
 
         case "slideGallery":
           setError?.("");
+          pendingInsertPosRef.current = editor.state.selection.from;
           fileInputRef.current?.setAttribute("data-gallery-mode", "slide");
           fileInputRef.current?.click();
           return;
@@ -325,6 +350,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
       try {
         setError?.("");
         toast(`갤러리 업로드 시작 · ${files.length}개 파일`);
+        const savedPos = pendingInsertPosRef.current ?? editor.state.selection.from;
 
         const uploaded = [];
 
@@ -340,28 +366,24 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
         const mode = e.target?.getAttribute("data-gallery-mode") || "grid";
 
-        editor
-          .chain()
-          .focus()
-          .insertContent(
-            mode === "slide"
-              ? {
-                  type: "slideGallery",
-                  attrs: {
-                    images: uploaded,
-                    heightRatio: "16/9",
-                    rounded: 20,
-                  },
-                }
-              : {
-                  type: "gallery",
-                  attrs: {
-                    ...GALLERY_DEFAULTS,
-                    images: uploaded,
-                  },
-                }
-          )
-          .run();
+        insertUploadedContent(
+          savedPos,
+          mode === "slide"
+            ? {
+                type: "slideGallery",
+                attrs: {
+                  ...SLIDE_GALLERY_DEFAULTS,
+                  images: uploaded,
+                },
+              }
+            : {
+                type: "gallery",
+                attrs: {
+                  ...GALLERY_DEFAULTS,
+                  images: uploaded,
+                },
+              }
+        );
 
         toast("갤러리 삽입 완료");
         safeClose();
@@ -369,13 +391,14 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
         console.error(err);
         toast("갤러리 업로드 실패");
       } finally {
+        pendingInsertPosRef.current = null;
         if (e.target) {
           e.target.value = "";
           e.target.removeAttribute("data-gallery-mode");
         }
       }
     },
-    [editor, upload, safeClose, toast, setError]
+    [editor, upload, safeClose, toast, setError, insertUploadedContent]
   );
 
   useEffect(() => {

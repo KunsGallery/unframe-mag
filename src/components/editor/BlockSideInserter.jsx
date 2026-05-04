@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
-import { GALLERY_DEFAULTS } from "../../constants/editorBlocks";
+import { GALLERY_DEFAULTS, SLIDE_GALLERY_DEFAULTS } from "../../constants/editorBlocks";
 
 const BLOCK_SELECTORS = [
   "p",
@@ -134,8 +134,26 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   const [menuOpen, setMenuOpen] = useState(null); // "insert" | "actions" | null
   const [currentBlockEl, setCurrentBlockEl] = useState(null);
 
-  const { upload, uploading } = useUploadImage();
+  const { upload, uploading, progress } = useUploadImage();
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
+
+  const insertUploadedContent = (savedPos, content) => {
+    if (!editor) return false;
+
+    const maxPos = editor.state.doc.content.size;
+    const targetPos =
+      typeof savedPos === "number" ? Math.max(0, Math.min(savedPos, maxPos)) : null;
+
+    const chain = editor.chain().focus();
+
+    if (typeof targetPos === "number") {
+      chain.insertContentAt(targetPos, content);
+    } else {
+      chain.insertContent(content);
+    }
+
+    return chain.run();
+  };
 
   const updateAnchor = useMemo(
     () => () => {
@@ -220,12 +238,11 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   if (!editor || !anchorRect) return null;
 
   const insertImage = async (file) => {
+    const savedPos = editor?.state.selection.from;
+
     try {
       const { url } = await upload(file, { variant: "inline" });
-      editor
-        .chain()
-        .focus()
-        .insertContent({
+      insertUploadedContent(savedPos, {
           type: "ufImage",
           attrs: {
             src: url,
@@ -234,8 +251,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
             size: "normal",
             align: "center",
           },
-        })
-        .run();
+        });
       toast("이미지 삽입 완료");
     } catch (e) {
       console.error(e);
@@ -246,6 +262,8 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   };
 
   const insertGallery = async (files) => {
+    const savedPos = editor?.state.selection.from;
+
     try {
       const uploaded = [];
       for (const file of files) {
@@ -258,17 +276,13 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
         });
       }
 
-      editor
-        .chain()
-        .focus()
-        .insertContent({
+      insertUploadedContent(savedPos, {
           type: "gallery",
           attrs: {
             ...GALLERY_DEFAULTS,
             images: uploaded,
           },
-        })
-        .run();
+        });
 
       toast("갤러리 삽입 완료");
     } catch (e) {
@@ -280,6 +294,8 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   };
 
   const insertSlideGallery = async (files) => {
+    const savedPos = editor?.state.selection.from;
+
     try {
       const uploaded = [];
       for (const file of files) {
@@ -292,18 +308,13 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
         });
       }
 
-      editor
-        .chain()
-        .focus()
-        .insertContent({
+      insertUploadedContent(savedPos, {
           type: "slideGallery",
           attrs: {
+            ...SLIDE_GALLERY_DEFAULTS,
             images: uploaded,
-            heightRatio: "16/9",
-            rounded: 20,
           },
-        })
-        .run();
+        });
 
       toast("슬라이드 갤러리 삽입 완료");
     } catch (e) {
@@ -426,6 +437,26 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
             <GripVertical size={15} />
           </button>
         </div>
+
+        {uploading && (
+          <div
+            className={`mt-2 w-44 rounded-2xl border px-3 py-2 shadow-lg ${
+              isDarkMode
+                ? "bg-zinc-950 border-zinc-800"
+                : "bg-white border-zinc-200"
+            }`}
+          >
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] italic text-[#004aad]">
+              Uploading... {progress}%
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+              <div
+                className="h-full bg-[#004aad] transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {menuOpen === "insert" && (
           <div

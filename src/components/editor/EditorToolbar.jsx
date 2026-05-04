@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useEditorState } from "@tiptap/react";
 import {
   Bold,
@@ -230,6 +230,32 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
   const { upload, uploading, progress } = useUploadImage();
 
+  const getSavedInsertPos = useCallback(() => {
+    if (!editor) return null;
+    return editor.state.selection.from;
+  }, [editor]);
+
+  const insertUploadedContent = useCallback(
+    (savedPos, content) => {
+      if (!editor) return false;
+
+      const maxPos = editor.state.doc.content.size;
+      const targetPos =
+        typeof savedPos === "number" ? Math.max(0, Math.min(savedPos, maxPos)) : null;
+
+      const chain = editor.chain().focus();
+
+      if (typeof targetPos === "number") {
+        chain.insertContentAt(targetPos, content);
+      } else {
+        chain.insertContent(content);
+      }
+
+      return chain.run();
+    },
+    [editor]
+  );
+
   const editorState = useEditorState({
     editor,
     selector: ({ editor }) => {
@@ -340,12 +366,11 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
   };
 
   const uploadInlineImage = async (file) => {
+    const savedPos = getSavedInsertPos();
+
     try {
       const { url } = await upload(file, { variant: "inline" });
-      editor
-        .chain()
-        .focus()
-        .insertContent({
+      insertUploadedContent(savedPos, {
           type: "ufImage",
           attrs: {
             src: url,
@@ -354,8 +379,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
             size: "normal",
             align: "center",
           },
-        })
-        .run();
+        });
     } catch (e) {
       console.error(e);
       toast("이미지 업로드 실패");
@@ -363,12 +387,11 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
   };
 
   const uploadParallaxImage = async (file) => {
+    const savedPos = getSavedInsertPos();
+
     try {
       const { url } = await upload(file, { variant: "parallax" });
-      editor
-        .chain()
-        .focus()
-        .insertContent({
+      insertUploadedContent(savedPos, {
           type: "parallaxImage",
           attrs: {
             src: url,
@@ -379,8 +402,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
             motionPreset: "soft",
             speed: getParallaxMotionSpeed("soft"),
           },
-        })
-        .run();
+        });
     } catch (e) {
       console.error(e);
       toast("패럴랙스 업로드 실패");
@@ -388,12 +410,11 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
   };
 
   const uploadStickyImage = async (file) => {
+    const savedPos = getSavedInsertPos();
+
     try {
       const { url } = await upload(file, { variant: "sticky" });
-      editor
-        .chain()
-        .focus()
-        .insertContent({
+      insertUploadedContent(savedPos, {
           type: "stickyStory",
           attrs: { imageSrc: url, ...STICKY_STORY_DEFAULTS },
           content: [
@@ -402,8 +423,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               content: [{ type: "text", text: "Sticky story text..." }],
             },
           ],
-        })
-        .run();
+        });
     } catch (e) {
       console.error(e);
       toast("스티키 업로드 실패");

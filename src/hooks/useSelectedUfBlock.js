@@ -17,6 +17,7 @@ export function useSelectedUfBlock(editor) {
       "stickyStory",
       "ufImage",
       "gallery",
+      "slideGallery",
       "SlideGallery",
       "columns",
       "ufDivider",
@@ -29,7 +30,8 @@ export function useSelectedUfBlock(editor) {
 
       // 1) NodeSelection
       if (sel?.node?.type?.name) {
-        const name = sel.node.type.name;
+        const rawName = sel.node.type.name;
+        const name = rawName === "SlideGallery" ? "slideGallery" : rawName;
         if (SUPPORTED.has(name)) {
           return {
             type: name,
@@ -43,7 +45,8 @@ export function useSelectedUfBlock(editor) {
       const $from = sel.$from;
       for (let depth = $from.depth; depth >= 0; depth--) {
         const node = $from.node(depth);
-        const name = node?.type?.name;
+        const rawName = node?.type?.name;
+        const name = rawName === "SlideGallery" ? "slideGallery" : rawName;
         if (name && SUPPORTED.has(name)) {
           return {
             type: name,

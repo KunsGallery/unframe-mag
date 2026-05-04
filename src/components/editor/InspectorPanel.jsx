@@ -1,5 +1,6 @@
 // src/components/editor/InspectorPanel.jsx
 import React, { useState } from "react";
+import { GripVertical } from "lucide-react";
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { useSelectedUfBlock } from "../../hooks/useSelectedUfBlock";
@@ -7,15 +8,17 @@ import {
   getParallaxPresetBySpeed,
   GALLERY_DEFAULTS,
   GALLERY_GAP_PRESETS,
-  GALLERY_LAYOUT_PRESETS,
   GALLERY_RATIO_PRESETS,
   getParallaxMotionSpeed,
+  IMAGE_FIT_MODE_OPTIONS,
+  IMAGE_HEIGHT_PRESETS,
   PARALLAX_CAPTION_ALIGN_OPTIONS,
   PARALLAX_CAPTION_SIZE_OPTIONS,
   PARALLAX_DEFAULTS,
   PARALLAX_HEIGHT_PRESETS,
   PARALLAX_MOTION_PRESET_OPTIONS,
   PARALLAX_SPEED_PRESETS,
+  SLIDE_GALLERY_DEFAULTS,
   STICKY_STORY_DEFAULTS,
   STICKY_STORY_LENGTH_PRESETS,
 } from "../../constants/editorBlocks";
@@ -41,6 +44,7 @@ const CALLOUT_LABEL_BY_TONE = {
 export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   const selected = useSelectedUfBlock(editor);
   const { upload, uploading, progress } = useUploadImage();
+  const toast = (message) => (onToast ? onToast(message) : console.log(message));
 
   const selectedUfImageCaption =
     selected?.type === "ufImage" ? selected.attrs.caption ?? "" : "";
@@ -49,6 +53,11 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
     value: "",
   });
   const [isUfImageComposing, setIsUfImageComposing] = useState(false);
+  const [dragState, setDragState] = useState({
+    type: null,
+    fromIndex: -1,
+    overIndex: -1,
+  });
 
   const ufImageCaptionValue =
     ufImageCaptionDraft.sourceCaption === selectedUfImageCaption
@@ -73,6 +82,77 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
 
   const setAttrs = (type, patch) => {
     editor.commands.updateAttributes(type, patch);
+  };
+
+  const removeImageAt = (type, images, index) => {
+    if (!Array.isArray(images) || images.length <= 1) {
+      toast("마지막 이미지는 삭제할 수 없어요.");
+      return;
+    }
+
+    const next = images.filter((_, i) => i !== index);
+    setAttrs(type, { images: next });
+  };
+
+  const reorderImages = (images, fromIndex, toIndex) => {
+    if (!Array.isArray(images)) return images;
+    if (fromIndex === toIndex) return images;
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= images.length ||
+      toIndex >= images.length
+    ) {
+      return images;
+    }
+
+    const next = [...images];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  };
+
+  const startImageDrag = (type, index, e) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", `${type}:${index}`);
+    setDragState({
+      type,
+      fromIndex: index,
+      overIndex: index,
+    });
+  };
+
+  const handleImageDragOver = (type, index, e) => {
+    if (dragState.type !== type) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragState.overIndex !== index) {
+      setDragState((prev) => ({ ...prev, overIndex: index }));
+    }
+  };
+
+  const handleImageDrop = (type, images, index, e) => {
+    if (dragState.type !== type) return;
+    e.preventDefault();
+
+    const next = reorderImages(images, dragState.fromIndex, index);
+    if (next !== images) {
+      setAttrs(type, { images: next });
+    }
+
+    setDragState({
+      type: null,
+      fromIndex: -1,
+      overIndex: -1,
+    });
+  };
+
+  const clearImageDrag = () => {
+    setDragState({
+      type: null,
+      fromIndex: -1,
+      overIndex: -1,
+    });
   };
 
   const setUfImageCaptionDraftValue = (value) => {
@@ -549,52 +629,67 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
         {/* -------- Gallery -------- */}
         {selected?.type === "gallery" && (
           <div className="space-y-5">
-            <Row label="Layout">
-              <select
-                value={selected.attrs.layout ?? GALLERY_DEFAULTS.layout}
-                onChange={(e) => {
-                  const preset =
-                    GALLERY_LAYOUT_PRESETS.find((item) => item.value === e.target.value) ??
-                    GALLERY_LAYOUT_PRESETS[0];
-                  setAttrs("gallery", {
-                    layout: preset.value,
-                    columns: preset.columns,
-                    gap: preset.gap,
-                    ratio: preset.ratio,
-                  });
-                }}
-                className={[
-                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
-                  isDarkMode
-                    ? "border-zinc-900 text-white"
-                    : "border-zinc-200 text-black",
-                ].join(" ")}
-              >
-                {GALLERY_LAYOUT_PRESETS.map((preset) => (
-                  <option key={preset.value} value={preset.value}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
+            <Row label="Layout Mode">
+              <div className="grid grid-cols-2 gap-2">
+                {["grid", "design"].map((mode) => {
+                  const active =
+                    (selected.attrs.layoutMode ?? GALLERY_DEFAULTS.layoutMode) === mode;
+
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setAttrs("gallery", { layoutMode: mode })}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition",
+                        active
+                          ? isDarkMode
+                            ? "border-white bg-white text-black"
+                            : "border-black bg-black text-white"
+                          : isDarkMode
+                            ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                            : "border-zinc-200 text-zinc-700 hover:border-zinc-400",
+                      ].join(" ")}
+                    >
+                      {mode}
+                    </button>
+                  );
+                })}
+              </div>
+              {(selected.attrs.layoutMode ?? GALLERY_DEFAULTS.layoutMode) === "design" && (
+                <div className="text-[11px] text-zinc-500">
+                  Design mode automatically arranges images with an editorial frame rhythm.
+                </div>
+              )}
             </Row>
 
-            <Row label="Image Ratio">
-              <select
-                value={selected.attrs.ratio ?? GALLERY_DEFAULTS.ratio}
-                onChange={(e) => setAttrs("gallery", { ratio: e.target.value })}
-                className={[
-                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
-                  isDarkMode
-                    ? "border-zinc-900 text-white"
-                    : "border-zinc-200 text-black",
-                ].join(" ")}
-              >
-                {GALLERY_RATIO_PRESETS.map((preset) => (
-                  <option key={preset.value} value={preset.value}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
+            <Row label="Columns">
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map((column) => {
+                  const active =
+                    Number(selected.attrs.columns ?? GALLERY_DEFAULTS.columns) === column;
+
+                  return (
+                    <button
+                      key={column}
+                      type="button"
+                      onClick={() => setAttrs("gallery", { columns: column })}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition",
+                        active
+                          ? isDarkMode
+                            ? "border-white bg-white text-black"
+                            : "border-black bg-black text-white"
+                          : isDarkMode
+                            ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                            : "border-zinc-200 text-zinc-700 hover:border-zinc-400",
+                      ].join(" ")}
+                    >
+                      {column}
+                    </button>
+                  );
+                })}
+              </div>
             </Row>
 
             <Row label="Spacing">
@@ -626,6 +721,25 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
               </div>
             </Row>
 
+            <Row label="Ratio">
+              <select
+                value={selected.attrs.ratio ?? GALLERY_DEFAULTS.ratio}
+                onChange={(e) => setAttrs("gallery", { ratio: e.target.value })}
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                {GALLERY_RATIO_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+
             <Row label="Images">
               <div className="space-y-3">
                 {(selected.attrs.images ?? []).map((img, idx, arr) => {
@@ -633,15 +747,49 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     Number.isFinite(Number(img?.positionX)) ? Number(img.positionX) : 50;
                   const posY =
                     Number.isFinite(Number(img?.positionY)) ? Number(img.positionY) : 50;
+                  const span = Number(img?.span) === 2 ? 2 : 1;
+                  const isDragging =
+                    dragState.type === "gallery" && dragState.fromIndex === idx;
+                  const isDragOver =
+                    dragState.type === "gallery" && dragState.overIndex === idx;
 
                   return (
                     <div
                       key={`${img?.src || "img"}-${idx}`}
-                      className={`rounded-xl border p-3 space-y-3 ${
-                        isDarkMode ? "border-zinc-900" : "border-zinc-200"
-                      }`}
+                      onDragOver={(e) => handleImageDragOver("gallery", idx, e)}
+                      onDrop={(e) => handleImageDrop("gallery", arr, idx, e)}
+                      className={[
+                        "rounded-xl border p-3 space-y-3 transition",
+                        isDragging
+                          ? "opacity-55"
+                          : isDragOver
+                          ? isDarkMode
+                            ? "border-[#004aad] bg-[#004aad]/10"
+                            : "border-[#004aad] bg-[#004aad]/5"
+                          : isDarkMode
+                          ? "border-zinc-900"
+                          : "border-zinc-200",
+                      ].join(" ")}
                     >
                       <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(e) => startImageDrag("gallery", idx, e)}
+                          onDragEnd={clearImageDrag}
+                          className={[
+                            "self-stretch px-2 rounded-lg border flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing transition",
+                            isDragOver
+                              ? "border-[#004aad] text-[#004aad]"
+                              : isDarkMode
+                              ? "border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                              : "border-zinc-200 text-zinc-500 hover:border-zinc-300",
+                          ].join(" ")}
+                          title="Drag to reorder"
+                        >
+                          <GripVertical size={14} />
+                        </button>
+
                         <img
                           src={img?.src || ""}
                           alt=""
@@ -685,6 +833,20 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                         >
                           ↓
                         </button>
+
+                        <button
+                          type="button"
+                          disabled={arr.length <= 1}
+                          onClick={() => removeImageAt("gallery", arr, idx)}
+                          className={[
+                            "px-2 py-1 text-[10px] rounded-lg border transition",
+                            arr.length <= 1
+                              ? "opacity-40 cursor-not-allowed border-red-200 text-red-300 dark:border-red-900 dark:text-red-900"
+                              : "border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30",
+                          ].join(" ")}
+                        >
+                          Delete
+                        </button>
                       </div>
 
                       <input
@@ -703,6 +865,47 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                             : "border-zinc-200 text-black placeholder:text-zinc-400",
                         ].join(" ")}
                       />
+
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                          Size
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: "Normal", value: 1 },
+                            { label: "Wide", value: 2 },
+                          ].map((option) => {
+                            const active = span === option.value;
+
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  const next = [...arr];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    span: option.value,
+                                  };
+                                  setAttrs("gallery", { images: next });
+                                }}
+                                className={[
+                                  "rounded-lg border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition",
+                                  active
+                                    ? isDarkMode
+                                      ? "border-white bg-white text-black"
+                                      : "border-black bg-black text-white"
+                                    : isDarkMode
+                                    ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                                    : "border-zinc-200 text-zinc-700 hover:border-zinc-400",
+                                ].join(" ")}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
                       <details className="group">
                         <summary
@@ -820,9 +1023,89 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
 
         {selected?.type === "slideGallery" && (
           <div className="space-y-5">
+            <Row label="Fit">
+              <div className="grid grid-cols-2 gap-2">
+                {IMAGE_FIT_MODE_OPTIONS.map((option) => {
+                  const active =
+                    (selected.attrs.fitMode ?? SLIDE_GALLERY_DEFAULTS.fitMode) === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setAttrs("slideGallery", { fitMode: option.value })}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition",
+                        active
+                          ? isDarkMode
+                            ? "border-white bg-white text-black"
+                            : "border-black bg-black text-white"
+                          : isDarkMode
+                            ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                            : "border-zinc-200 text-zinc-700 hover:border-zinc-400",
+                      ].join(" ")}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Row>
+
+            <Row label="Height">
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  {IMAGE_HEIGHT_PRESETS.map((height) => {
+                    const active =
+                      Number(
+                        selected.attrs.imageHeight ?? SLIDE_GALLERY_DEFAULTS.imageHeight
+                      ) === height;
+
+                    return (
+                      <button
+                        key={height}
+                        type="button"
+                        onClick={() => setAttrs("slideGallery", { imageHeight: height })}
+                        className={[
+                          "rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition",
+                          active
+                            ? isDarkMode
+                              ? "border-white bg-white text-black"
+                              : "border-black bg-black text-white"
+                            : isDarkMode
+                              ? "border-zinc-900 text-zinc-300 hover:border-zinc-700"
+                              : "border-zinc-200 text-zinc-700 hover:border-zinc-400",
+                        ].join(" ")}
+                      >
+                        {height}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <input
+                  type="number"
+                  min="120"
+                  max="1200"
+                  value={Number(
+                    selected.attrs.imageHeight ?? SLIDE_GALLERY_DEFAULTS.imageHeight
+                  )}
+                  onChange={(e) =>
+                    setAttrs("slideGallery", { imageHeight: Number(e.target.value) || 0 })
+                  }
+                  className={[
+                    "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                    isDarkMode
+                      ? "border-zinc-900 text-white"
+                      : "border-zinc-200 text-black",
+                  ].join(" ")}
+                />
+              </div>
+            </Row>
+
             <Row label="Aspect Ratio">
               <select
-                value={selected.attrs.heightRatio ?? "16/9"}
+                value={selected.attrs.heightRatio ?? SLIDE_GALLERY_DEFAULTS.heightRatio}
                 onChange={(e) =>
                   setAttrs("slideGallery", { heightRatio: e.target.value })
                 }
@@ -845,7 +1128,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                 type="number"
                 min="0"
                 max="40"
-                value={Number(selected.attrs.rounded ?? 20)}
+                value={Number(selected.attrs.rounded ?? SLIDE_GALLERY_DEFAULTS.rounded)}
                 onChange={(e) =>
                   setAttrs("slideGallery", { rounded: Number(e.target.value) })
                 }
@@ -865,15 +1148,48 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     Number.isFinite(Number(img?.positionX)) ? Number(img.positionX) : 50;
                   const posY =
                     Number.isFinite(Number(img?.positionY)) ? Number(img.positionY) : 50;
+                  const isDragging =
+                    dragState.type === "slideGallery" && dragState.fromIndex === idx;
+                  const isDragOver =
+                    dragState.type === "slideGallery" && dragState.overIndex === idx;
 
                   return (
                     <div
                       key={`${img?.src || "img"}-${idx}`}
-                      className={`rounded-xl border p-3 space-y-3 ${
-                        isDarkMode ? "border-zinc-900" : "border-zinc-200"
-                      }`}
+                      onDragOver={(e) => handleImageDragOver("slideGallery", idx, e)}
+                      onDrop={(e) => handleImageDrop("slideGallery", arr, idx, e)}
+                      className={[
+                        "rounded-xl border p-3 space-y-3 transition",
+                        isDragging
+                          ? "opacity-55"
+                          : isDragOver
+                          ? isDarkMode
+                            ? "border-[#004aad] bg-[#004aad]/10"
+                            : "border-[#004aad] bg-[#004aad]/5"
+                          : isDarkMode
+                          ? "border-zinc-900"
+                          : "border-zinc-200",
+                      ].join(" ")}
                     >
                       <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(e) => startImageDrag("slideGallery", idx, e)}
+                          onDragEnd={clearImageDrag}
+                          className={[
+                            "self-stretch px-2 rounded-lg border flex items-center justify-center shrink-0 cursor-grab active:cursor-grabbing transition",
+                            isDragOver
+                              ? "border-[#004aad] text-[#004aad]"
+                              : isDarkMode
+                              ? "border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                              : "border-zinc-200 text-zinc-500 hover:border-zinc-300",
+                          ].join(" ")}
+                          title="Drag to reorder"
+                        >
+                          <GripVertical size={14} />
+                        </button>
+
                         <img
                           src={img?.src || ""}
                           alt=""
@@ -916,6 +1232,20 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                           className="px-2 py-1 text-[10px] rounded-lg border"
                         >
                           ↓
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={arr.length <= 1}
+                          onClick={() => removeImageAt("slideGallery", arr, idx)}
+                          className={[
+                            "px-2 py-1 text-[10px] rounded-lg border transition",
+                            arr.length <= 1
+                              ? "opacity-40 cursor-not-allowed border-red-200 text-red-300 dark:border-red-900 dark:text-red-900"
+                              : "border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30",
+                          ].join(" ")}
+                        >
+                          Delete
                         </button>
                       </div>
 

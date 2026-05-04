@@ -10,6 +10,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { useSelectedUfBlock } from "../../hooks/useSelectedUfBlock";
+import {
+  GALLERY_DEFAULTS,
+  SLIDE_GALLERY_DEFAULTS,
+  IMAGE_FIT_MODE_OPTIONS,
+  IMAGE_HEIGHT_PRESETS,
+} from "../../constants/editorBlocks";
 
 function QuickButton({ active = false, onClick, children, disabled = false }) {
   return (
@@ -182,6 +188,18 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
 
         {selected?.type === "gallery" && (
           <>
+            <Group icon={LayoutGrid} title="Mode" isDarkMode={isDarkMode}>
+              {["grid", "design"].map((mode) => (
+                <QuickButton
+                  key={mode}
+                  active={(selected.attrs.layoutMode ?? GALLERY_DEFAULTS.layoutMode) === mode}
+                  onClick={() => setAttrs("gallery", { layoutMode: mode })}
+                >
+                  {mode}
+                </QuickButton>
+              ))}
+            </Group>
+
             <Group icon={LayoutGrid} title="Columns" isDarkMode={isDarkMode}>
               {[1, 2, 3, 4].map((n) => (
                 <QuickButton
@@ -198,7 +216,7 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
               {[8, 12, 20, 28].map((gap) => (
                 <QuickButton
                   key={gap}
-                  active={Number(selected.attrs.gap ?? 12) === gap}
+                  active={Number(selected.attrs.gap ?? GALLERY_DEFAULTS.gap) === gap}
                   onClick={() => setAttrs("gallery", { gap })}
                 >
                   {gap}
@@ -210,14 +228,32 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
 
         {selected?.type === "slideGallery" && (
           <>
-            <Group icon={Rows3} title="Ratio" isDarkMode={isDarkMode}>
-              {["16/9", "4/3", "1/1", "3/4"].map((ratio) => (
+            <Group icon={Rows3} title="Fit" isDarkMode={isDarkMode}>
+              {IMAGE_FIT_MODE_OPTIONS.map((option) => (
                 <QuickButton
-                  key={ratio}
-                  active={(selected.attrs.heightRatio ?? "16/9") === ratio}
-                  onClick={() => setAttrs("slideGallery", { heightRatio: ratio })}
+                  key={option.value}
+                  active={
+                    (selected.attrs.fitMode ?? SLIDE_GALLERY_DEFAULTS.fitMode) === option.value
+                  }
+                  onClick={() => setAttrs("slideGallery", { fitMode: option.value })}
                 >
-                  {ratio}
+                  {option.label}
+                </QuickButton>
+              ))}
+            </Group>
+
+            <Group icon={Rows3} title="Height" isDarkMode={isDarkMode}>
+              {IMAGE_HEIGHT_PRESETS.map((height) => (
+                <QuickButton
+                  key={height}
+                  active={
+                    Number(
+                      selected.attrs.imageHeight ?? SLIDE_GALLERY_DEFAULTS.imageHeight
+                    ) === height
+                  }
+                  onClick={() => setAttrs("slideGallery", { imageHeight: height })}
+                >
+                  {height}
                 </QuickButton>
               ))}
             </Group>
@@ -226,7 +262,7 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
               {[0, 12, 20, 28].map((rounded) => (
                 <QuickButton
                   key={rounded}
-                  active={Number(selected.attrs.rounded ?? 20) === rounded}
+                  active={Number(selected.attrs.rounded ?? SLIDE_GALLERY_DEFAULTS.rounded) === rounded}
                   onClick={() => setAttrs("slideGallery", { rounded })}
                 >
                   {rounded}

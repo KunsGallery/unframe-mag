@@ -6,13 +6,28 @@ function normalizeImages(images = []) {
     src: img?.src || "",
     alt: img?.alt || "",
     caption: img?.caption || "",
+    span: Number(img?.span) === 2 ? 2 : 1,
     positionX: Number.isFinite(Number(img?.positionX)) ? Number(img.positionX) : 50,
     positionY: Number.isFinite(Number(img?.positionY)) ? Number(img.positionY) : 50,
   }));
 }
 
 function ratioToCssValue(ratio) {
-  return String(ratio || GALLERY_DEFAULTS.ratio).replace("/", " / ");
+  const value = String(ratio || GALLERY_DEFAULTS.ratio);
+  return value === "auto" ? "auto" : value.replace("/", " / ");
+}
+
+function normalizeFitMode(value) {
+  return value === "crop" ? "crop" : GALLERY_DEFAULTS.fitMode;
+}
+
+function normalizeImageHeight(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : GALLERY_DEFAULTS.imageHeight;
+}
+
+function normalizeLayoutMode(value) {
+  return value === "design" ? "design" : GALLERY_DEFAULTS.layoutMode;
 }
 
 export const Gallery = Node.create({
@@ -60,11 +75,34 @@ export const Gallery = Node.create({
           "data-layout": attributes.layout || GALLERY_DEFAULTS.layout,
         }),
       },
+      layoutMode: {
+        default: GALLERY_DEFAULTS.layoutMode,
+        parseHTML: (element) =>
+          normalizeLayoutMode(element.getAttribute("data-layout-mode")),
+        renderHTML: (attributes) => ({
+          "data-layout-mode": normalizeLayoutMode(attributes.layoutMode),
+        }),
+      },
       ratio: {
         default: GALLERY_DEFAULTS.ratio,
         parseHTML: (element) => element.getAttribute("data-ratio") || GALLERY_DEFAULTS.ratio,
         renderHTML: (attributes) => ({
           "data-ratio": attributes.ratio || GALLERY_DEFAULTS.ratio,
+        }),
+      },
+      fitMode: {
+        default: GALLERY_DEFAULTS.fitMode,
+        parseHTML: (element) => normalizeFitMode(element.getAttribute("data-fit-mode")),
+        renderHTML: (attributes) => ({
+          "data-fit-mode": normalizeFitMode(attributes.fitMode),
+        }),
+      },
+      imageHeight: {
+        default: GALLERY_DEFAULTS.imageHeight,
+        parseHTML: (element) =>
+          normalizeImageHeight(element.getAttribute("data-image-height")),
+        renderHTML: (attributes) => ({
+          "data-image-height": String(normalizeImageHeight(attributes.imageHeight)),
         }),
       },
     };
@@ -79,7 +117,10 @@ export const Gallery = Node.create({
     const columns = Number(node.attrs.columns || GALLERY_DEFAULTS.columns);
     const gap = Number(node.attrs.gap || GALLERY_DEFAULTS.gap);
     const layout = node.attrs.layout || GALLERY_DEFAULTS.layout;
+    const layoutMode = normalizeLayoutMode(node.attrs.layoutMode);
     const ratio = node.attrs.ratio || GALLERY_DEFAULTS.ratio;
+    const fitMode = normalizeFitMode(node.attrs.fitMode);
+    const imageHeight = normalizeImageHeight(node.attrs.imageHeight);
 
     return [
       "div",
@@ -88,17 +129,24 @@ export const Gallery = Node.create({
         "data-columns": String(columns),
         "data-gap": String(gap),
         "data-layout": layout,
+        "data-layout-mode": layoutMode,
+        "data-count": String(images.length),
         "data-ratio": ratio,
+        "data-fit-mode": fitMode,
+        "data-image-height": String(imageHeight),
         "data-images": JSON.stringify(images),
-        class: `uf-gallery cols-${columns} layout-${layout}`,
-        style: `--uf-gap:${gap}px; --uf-gallery-cols:${columns}; --uf-gallery-ratio:${ratioToCssValue(ratio)};`,
+        class: `uf-gallery cols-${columns} layout-${layout} mode-${layoutMode} fit-${fitMode}`,
+        style: `--uf-gap:${gap}px; --uf-gallery-cols:${columns}; --uf-gallery-ratio:${ratioToCssValue(ratio)}; --uf-gallery-image-height:${imageHeight}px;`,
       }),
       [
         "div",
         { class: "uf-gallery__grid" },
         ...images.map((img) => [
           "figure",
-          { class: "uf-gallery__item" },
+          {
+            class: "uf-gallery__item",
+            "data-span": String(img.span ?? 1),
+          },
           [
             "img",
             {
