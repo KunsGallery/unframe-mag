@@ -165,12 +165,13 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   return (
     <aside
       className={[
-        "hidden xl:block w-[320px] shrink-0",
+        "hidden xl:block w-[320px] shrink-0 self-start",
+        "xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] xl:overflow-y-auto xl:overscroll-contain",
         "border-l",
         isDarkMode ? "border-zinc-900 bg-zinc-950" : "border-zinc-100 bg-white",
       ].join(" ")}
     >
-      <div className="sticky top-[80px] p-6 space-y-6">
+      <div className="p-6 space-y-6">
         <div>
           <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
             Inspector
