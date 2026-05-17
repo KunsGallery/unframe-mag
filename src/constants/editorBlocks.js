@@ -95,6 +95,7 @@ export function getParallaxPresetBySpeed(
 export const STICKY_STORY_DEFAULTS = {
   imagePos: "left",
   stickyHeight: "180vh",
+  visualSize: "normal",
 };
 
 export const STICKY_STORY_LENGTH_PRESETS = [
@@ -103,6 +104,59 @@ export const STICKY_STORY_LENGTH_PRESETS = [
   { label: "Standard", value: "180vh" },
   { label: "Long", value: "240vh" },
 ];
+
+export const STICKY_STORY_VISUAL_SIZE_OPTIONS = [
+  { label: "Small", value: "small" },
+  { label: "Normal", value: "normal" },
+  { label: "Large", value: "large" },
+  { label: "Full", value: "full" },
+];
+
+const STICKY_STORY_VISUAL_HEIGHTS = {
+  small: "min(62vh, 560px)",
+  normal: "calc(100vh - 110px)",
+  large: "min(88vh, 900px)",
+  full: "min(100vh, 1040px)",
+};
+
+export function normalizeStickyStoryVisualSize(value) {
+  const next = String(value || "").trim();
+  return STICKY_STORY_VISUAL_SIZE_OPTIONS.some((option) => option.value === next)
+    ? next
+    : STICKY_STORY_DEFAULTS.visualSize;
+}
+
+export function getStickyStoryVisualHeight(size) {
+  const next = normalizeStickyStoryVisualSize(size);
+  return STICKY_STORY_VISUAL_HEIGHTS[next] || STICKY_STORY_VISUAL_HEIGHTS.normal;
+}
+
+export const TABLE_SIZE_OPTIONS = [
+  { label: "Small", value: "small" },
+  { label: "Normal", value: "normal" },
+  { label: "Wide", value: "wide" },
+  { label: "Full", value: "full" },
+];
+
+const TABLE_CELL_MIN_WIDTHS = {
+  small: { desktop: 112, mobile: 96 },
+  normal: { desktop: 140, mobile: 112 },
+  wide: { desktop: 168, mobile: 124 },
+  full: { desktop: 200, mobile: 136 },
+};
+
+export function normalizeTableSize(value) {
+  const next = String(value || "").trim();
+  return TABLE_SIZE_OPTIONS.some((option) => option.value === next)
+    ? next
+    : "normal";
+}
+
+export function getTableCellMinWidth(size, viewport = "desktop") {
+  const next = normalizeTableSize(size);
+  const preset = TABLE_CELL_MIN_WIDTHS[next] || TABLE_CELL_MIN_WIDTHS.normal;
+  return preset[viewport] || preset.desktop;
+}
 
 export const GALLERY_DEFAULTS = {
   layout: "editorial",

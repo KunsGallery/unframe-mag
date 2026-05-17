@@ -8,7 +8,6 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import Highlight from "@tiptap/extension-highlight";
-import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -18,22 +17,29 @@ import { LetterSpacing } from "../tiptap/extensions/LetterSpacing";
 import { UfDivider } from "../tiptap/nodes/UfDivider";
 import { UfCallout } from "../tiptap/nodes/UfCallout";
 import {
+  collection,
   doc,
+  limit,
+  onSnapshot,
+  query,
   serverTimestamp,
   runTransaction,
   deleteDoc,
   updateDoc,
   increment,
+  where,
 } from "firebase/firestore";
 
 import { db } from "../firebase/config";
 import { trackEvent, trackEventOnce } from "../lib/trackEvent";
 import { estimateReadMinutes, timeEmoji } from "../lib/readingMeta";
+import { resolveProfileDisplayName } from "../lib/profileImage";
 
 import { Scene } from "../tiptap/nodes/Scene";
 import { UfImage } from "../tiptap/nodes/UfImage";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
 import { StickyStory } from "../tiptap/nodes/StickyStory";
+import { UfTable } from "../tiptap/nodes/UfTable";
 import { Gallery } from "../tiptap/nodes/Gallery";
 import { SlideGallery } from "../tiptap/nodes/SlideGallery";
 import { UfPoll } from "../tiptap/nodes/UfPoll";
@@ -245,7 +251,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
 .uf-prose th,
 .uf-prose td{
-  min-width: 140px;
+  min-width: var(--uf-table-cell-min-width, 140px);
   padding: 12px 14px;
   border: 1px solid rgba(0,0,0,.06);
   vertical-align: top;
@@ -463,7 +469,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 .uf-prose .uf-sticky-story__visual{
   position: sticky;
   top: 84px;
-  height: calc(100vh - 110px);
+  height: var(--uf-sticky-visual-height, calc(100vh - 110px));
   border-radius: 16px;
   overflow: hidden;
   background: #111;
@@ -662,7 +668,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
   .uf-prose .uf-sticky-story__visual{
     position: sticky;
     top: 92px;
-    height: 42vh;
+    height: clamp(260px, 72vw, 420px);
     min-height: 280px;
     border-radius: 14px;
   }
@@ -742,7 +748,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
   .uf-prose th,
   .uf-prose td{
-    min-width: 120px;
+    min-width: var(--uf-table-cell-min-width-mobile, var(--uf-table-cell-min-width, 120px));
     padding: 10px 10px;
     font-size: 12px;
     white-space: normal;
@@ -821,7 +827,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
         multicolor: true,
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Table.configure({ resizable: false }),
+      UfTable.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,
@@ -851,6 +857,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
     editionNo: id,
     editor,
   });
+  const [articleAuthorProfile, setArticleAuthorProfile] = useState(null);
 
   const { progress, scrollToProgress } = useScrollProgress();
   const { lightbox, setLightbox } = useLightboxFromArticleBody(bodyRef);
@@ -867,6 +874,43 @@ export default function ViewPage({ isDarkMode, onToast }) {
     user.email === article.authorEmail;
 
   const canEditArticle = isAdmin || isOwnerEditor;
+  useEffect(() => {
+    const authorEmail = String(article?.authorEmail || "").trim();
+    if (!authorEmail) {
+      setArticleAuthorProfile(null);
+      return;
+    }
+
+    const q = query(
+      collection(db, "users"),
+      where("email", "==", authorEmail),
+      limit(1)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setArticleAuthorProfile(null);
+          return;
+        }
+        const d = snap.docs[0];
+        setArticleAuthorProfile({ uid: d.id, ...d.data() });
+      },
+      (e) => {
+        console.error("[ViewPage] author lookup error:", e);
+        setArticleAuthorProfile(null);
+      }
+    );
+
+    return () => unsub();
+  }, [article?.authorEmail]);
+
+  const articleAuthorName =
+    resolveProfileDisplayName(articleAuthorProfile, article) ||
+    article?.author ||
+    "Kim Jae Woo";
+
   const likeKey = useMemo(() => {
     if (!article?.editionNo) return "";
     const who = user?.uid || "anon";
@@ -1250,6 +1294,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
       <ArticleHero
         article={article}
+        authorName={articleAuthorName}
         readMinutes={readMinutes}
         readEmoji={readEmoji}
       />

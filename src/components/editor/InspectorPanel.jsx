@@ -21,6 +21,7 @@ import {
   SLIDE_GALLERY_DEFAULTS,
   STICKY_STORY_DEFAULTS,
   STICKY_STORY_LENGTH_PRESETS,
+  STICKY_STORY_VISUAL_SIZE_OPTIONS,
 } from "../../constants/editorBlocks";
 
 function Row({ label, children }) {
@@ -370,7 +371,31 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
               >
                 <option value="left">Image left</option>
                 <option value="right">Image right</option>
+                </select>
+            </Row>
+
+            <Row label="Visual Size">
+              <select
+                value={selected.attrs.visualSize ?? STICKY_STORY_DEFAULTS.visualSize}
+                onChange={(e) =>
+                  setAttrs("stickyStory", { visualSize: e.target.value })
+                }
+                className={[
+                  "w-full px-3 py-2 rounded-xl border text-sm bg-transparent",
+                  isDarkMode
+                    ? "border-zinc-900 text-white"
+                    : "border-zinc-200 text-black",
+                ].join(" ")}
+              >
+                {STICKY_STORY_VISUAL_SIZE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
+              <div className="text-[11px] text-zinc-500">
+                스티키 이미지 높이를 본문 톤에 맞게 조절합니다.
+              </div>
             </Row>
 
             <Row label="Story Length">

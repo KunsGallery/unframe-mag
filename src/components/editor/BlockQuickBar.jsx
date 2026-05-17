@@ -15,6 +15,7 @@ import {
   SLIDE_GALLERY_DEFAULTS,
   IMAGE_FIT_MODE_OPTIONS,
   IMAGE_HEIGHT_PRESETS,
+  TABLE_SIZE_OPTIONS,
 } from "../../constants/editorBlocks";
 
 function QuickButton({ active = false, onClick, children, disabled = false }) {
@@ -142,6 +143,8 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
   };
 
   const inTable = editor.isActive("table");
+  const tableAttrs = inTable ? editor.getAttributes?.("table") || {} : {};
+  const selectedTableSize = tableAttrs.tableSize ?? "normal";
   const visibleTypes = new Set(["ufImage", "gallery", "slideGallery", "columns"]);
   const showForBlock = selected && visibleTypes.has(selected.type);
   const showForTable = inTable;
@@ -334,6 +337,18 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
 
         {showForTable && (
           <>
+            <Group icon={Table2} title="Size" isDarkMode={isDarkMode}>
+              {TABLE_SIZE_OPTIONS.map((option) => (
+                <QuickButton
+                  key={option.value}
+                  active={selectedTableSize === option.value}
+                  onClick={() => setAttrs("table", { tableSize: option.value })}
+                >
+                  {option.label}
+                </QuickButton>
+              ))}
+            </Group>
+
             <Group icon={Table2} title="Rows" isDarkMode={isDarkMode}>
               <IconButton
                 icon={PlusSquare}

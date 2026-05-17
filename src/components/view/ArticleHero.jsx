@@ -1,7 +1,13 @@
 import React from "react";
 
-export default function ArticleHero({ article, readMinutes = 1, readEmoji = "☕️" }) {
+export default function ArticleHero({
+  article,
+  authorName,
+  readMinutes = 1,
+  readEmoji = "☕️",
+}) {
   const heroSrc = (article.coverMedium || article.cover || "").trim() || null;
+  const subtitle = article.subtitle?.trim?.() || "";
 
   return (
     <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
@@ -21,12 +27,18 @@ export default function ArticleHero({ article, readMinutes = 1, readEmoji = "☕
           {article.category}
         </span>
 
-        <h1 className="text-5xl md:text-8xl font-black italic tracking-tighter leading-none dark:text-white break-keep drop-shadow-sm">
+        <h1 className="text-5xl md:text-8xl font-black italic tracking-tighter leading-none dark:text-white break-keep drop-shadow-sm whitespace-pre-line">
           {article.title}
         </h1>
 
+        {subtitle ? (
+          <p className="mt-6 max-w-3xl mx-auto text-sm sm:text-lg md:text-xl font-light italic leading-relaxed text-zinc-500 dark:text-zinc-300">
+            {subtitle}
+          </p>
+        ) : null}
+
         <div className="mt-12 flex items-center justify-center gap-3 sm:gap-4 text-[11px] sm:text-xs font-bold tracking-widest text-zinc-400 uppercase italic flex-wrap">
-          <span>By {article.author || "Kim Jae Woo"}</span>
+          <span>By {authorName || article.author || "Kim Jae Woo"}</span>
           <div className="w-1 h-1 bg-zinc-300 rounded-full" />
           <span>Archive No.{article.editionNo}</span>
           <div className="w-1 h-1 bg-zinc-300 rounded-full" />

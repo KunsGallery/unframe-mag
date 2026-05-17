@@ -13,8 +13,14 @@ import {
 import { GoogleAuthProvider, signInWithPopup, signOut, getAuth } from "firebase/auth";
 import { db } from "../../firebase/config";
 import { useUserProfile } from "../../hooks/useUserProfile";
+import { useUserProfiles } from "../../hooks/useUserProfiles";
 import { trackEvent } from "../../lib/trackEvent"; // ✅ NEW
 import { isAdminEmail } from "../../constants/admin";
+import {
+  getProfileInitials,
+  resolveProfileDisplayName,
+  resolveProfilePhotoURL,
+} from "../../lib/profileImage";
 
 /** ✅ 스팸 방지(프론트 쿨타임) */
 const COOLDOWN_MS = 30_000; // 30초
@@ -41,6 +47,10 @@ export default function CommentSection({ article }) {
 
   const auth = useMemo(() => getAuth(), []);
   const { user, profile, loading: loadingProfile } = useUserProfile();
+  const currentUserPhotoURL = resolveProfilePhotoURL(profile, user);
+  const currentUserName =
+    resolveProfileDisplayName(profile, user) || user?.email || "U# User";
+  const currentUserInitials = getProfileInitials(currentUserName);
 
   const isAdmin = isAdminEmail(user?.email);
 
@@ -53,6 +63,14 @@ export default function CommentSection({ article }) {
 
   // 쿨타임 표시용
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  const authorUids = useMemo(() => {
+    const ids = comments
+      .map((c) => String(c?.authorUid || "").trim())
+      .filter(Boolean)
+      .filter((uid) => uid !== user?.uid);
+    return [...new Set(ids)];
+  }, [comments, user?.uid]);
+  const { profiles: authorProfiles } = useUserProfiles(authorUids);
 
   /** 댓글 실시간 구독 */
   useEffect(() => {
@@ -178,7 +196,6 @@ export default function CommentSection({ article }) {
         sortIndex: typeof article?.sortIndex === "number" ? article.sortIndex : null,
         articleTitle: article?.title ? String(article.title) : null,
         articleAuthorEmail: article?.authorEmail ? String(article.authorEmail) : null,
-
         text: clean,
         nickname, // ✅ 댓글에서 수정 불가
 
@@ -186,8 +203,7 @@ export default function CommentSection({ article }) {
         author: nickname, // 또는 user.displayName
         authorUid: user.uid,
         authorEmail: user.email || null,
-        authorPhotoURL: user.photoURL || null,
-
+        authorPhotoURL: currentUserPhotoURL,
         createdAt: serverTimestamp(),
       });
 
@@ -267,8 +283,23 @@ export default function CommentSection({ article }) {
       <div className="mt-6 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 bg-white/70 dark:bg-zinc-900/40">
         {user ? (
           <>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-              작성자: <b>{profile?.nickname || "프로필 로딩..."}</b> (댓글에서 변경 불가)
+            <div className="mb-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                {currentUserPhotoURL ? (
+                  <img
+                    src={currentUserPhotoURL}
+                    alt={currentUserName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[11px] font-black opacity-45">
+                    {currentUserInitials}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
+                작성자: <b>{currentUserName || "프로필 로딩..."}</b> (댓글에서 변경 불가)
+              </div>
             </div>
 
             <textarea
@@ -323,15 +354,42 @@ export default function CommentSection({ article }) {
           <ul className="space-y-4">
             {comments.map((c) => {
               const commentIsAdmin = isAdminEmail(c.authorEmail);
+              const profileSource =
+                c.authorUid === user?.uid ? profile : authorProfiles[c.authorUid];
+              const commentName =
+                resolveProfileDisplayName(profileSource, c, {
+                  displayName: c.nickname,
+                  name: c.author,
+                }) || c.nickname || c.author || c.authorEmail || "익명";
+              const commentPhotoURL = resolveProfilePhotoURL(
+                profileSource,
+                c.authorPhotoURL,
+                c
+              );
+              const commentInitials = getProfileInitials(commentName);
               return (
                 <li
                   key={c.id}
                   className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 bg-white dark:bg-zinc-950"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm">{c.nickname || "익명"}</span>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                      {commentPhotoURL ? (
+                        <img
+                          src={commentPhotoURL}
+                          alt={commentName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-[11px] font-black opacity-45">
+                          {commentInitials}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-sm">{commentName}</span>
 
                         {commentIsAdmin && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#004aad] text-white font-black">

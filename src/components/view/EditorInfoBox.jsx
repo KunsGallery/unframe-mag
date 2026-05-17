@@ -10,12 +10,11 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
-
-function initialsOf(name) {
-  const v = String(name || "").trim();
-  if (!v) return "U#";
-  return v.slice(0, 2).toUpperCase();
-}
+import {
+  getProfileInitials,
+  resolveProfileDisplayName,
+  resolveProfilePhotoURL,
+} from "../../lib/profileImage";
 
 export default function EditorInfoBox({ article, currentUser, onToast }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
@@ -127,13 +126,13 @@ export default function EditorInfoBox({ article, currentUser, onToast }) {
   }, [currentUser?.uid, editorUid]);
 
   const displayName = useMemo(() => {
-    return (
-      editorUser?.nickname ||
-      article?.author ||
-      article?.authorEmail ||
-      "Editor"
-    );
-  }, [editorUser?.nickname, article?.author, article?.authorEmail]);
+    return resolveProfileDisplayName(editorUser, article, {
+      displayName: article?.author,
+      name: article?.author,
+    }) || article?.authorEmail || "Editor";
+  }, [editorUser, article?.author, article?.authorEmail]);
+  const editorPhotoURL = resolveProfilePhotoURL(editorUser);
+  const editorInitials = getProfileInitials(displayName);
 
   const bio = useMemo(() => {
     return (
@@ -202,14 +201,14 @@ export default function EditorInfoBox({ article, currentUser, onToast }) {
 
       <div className="mt-5 flex flex-col md:flex-row md:items-center gap-5 md:gap-6">
         <div className="w-20 h-20 rounded-3xl overflow-hidden bg-zinc-100 dark:bg-zinc-900 shrink-0 flex items-center justify-center text-lg font-black">
-          {editorUser?.photoURL ? (
+          {editorPhotoURL ? (
             <img
-              src={editorUser.photoURL}
+              src={editorPhotoURL}
               alt={displayName}
               className="w-full h-full object-cover"
             />
           ) : (
-            <span>{initialsOf(displayName)}</span>
+            <span>{editorInitials}</span>
           )}
         </div>
 

@@ -13,7 +13,6 @@ import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 
-import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -26,6 +25,7 @@ import { Scene } from "../tiptap/nodes/Scene";
 import { UfImage } from "../tiptap/nodes/UfImage";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
 import { StickyStory } from "../tiptap/nodes/StickyStory";
+import { UfTable } from "../tiptap/nodes/UfTable";
 import { Gallery } from "../tiptap/nodes/Gallery";
 import { SlideGallery } from "./nodes/SlideGallery";
 import { UfPoll } from "../tiptap/nodes/UfPoll";
@@ -65,7 +65,7 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       TaskList,
       TaskItem.configure({ nested: true }),
 
-      Table.configure({
+      UfTable.configure({
         resizable: true,
         handleWidth: 6,
         cellMinWidth: 120,

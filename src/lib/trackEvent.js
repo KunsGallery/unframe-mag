@@ -47,6 +47,9 @@ export async function ensureUserProfileIfMissing(user) {
     {
       uid: user.uid,
       email: user.email || null,
+      photoURL: user.photoURL || null,
+      displayName: user.displayName || "U# User",
+      name: user.displayName || "U# User",
       nickname: user.displayName || "U# User",
       nicknameChanged: false,
       role: "user",

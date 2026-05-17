@@ -585,12 +585,6 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     setTitle(e.target.value);
                     draftsApi.setIsDirty(true);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      subtitleRef.current?.focus();
-                    }
-                  }}
                   className={`uf-title-textarea w-full resize-none overflow-hidden text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
                     isDarkMode ? "text-white" : "text-black"
                   }`}
@@ -742,7 +736,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                                 {category || DEFAULT_ARTICLE_CATEGORY}
                               </div>
 
-                              <h2 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter leading-[0.95] break-keep">
+                              <h2 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter leading-[0.95] break-keep whitespace-pre-line">
                                 {title || "ENTER TITLE..."}
                               </h2>
 
@@ -798,7 +792,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                             <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
                               {category || DEFAULT_ARTICLE_CATEGORY}
                             </div>
-                            <h3 className="mt-4 text-2xl font-black italic tracking-tight leading-[1.02] break-keep line-clamp-3">
+                            <h3 className="mt-4 text-2xl font-black italic tracking-tight leading-[1.02] break-keep line-clamp-3 whitespace-pre-line">
                               {title || "ENTER TITLE..."}
                             </h3>
                             <p className="mt-3 text-sm leading-[1.6] text-zinc-400 break-keep line-clamp-3">
@@ -816,7 +810,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                             <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
                               Compact Card
                             </div>
-                            <h3 className="mt-4 text-xl font-black italic tracking-tight leading-[1.06] break-keep line-clamp-3">
+                            <h3 className="mt-4 text-xl font-black italic tracking-tight leading-[1.06] break-keep line-clamp-3 whitespace-pre-line">
                               {title || "ENTER TITLE..."}
                             </h3>
                             <p className="mt-3 text-sm leading-[1.6] text-zinc-400 break-keep line-clamp-2">
@@ -862,7 +856,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                             <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#7db5ff]">
                               {category || DEFAULT_ARTICLE_CATEGORY}
                             </div>
-                            <h2 className="mt-4 text-4xl md:text-5xl font-black italic tracking-tighter leading-[0.97] text-white break-keep">
+                            <h2 className="mt-4 text-4xl md:text-5xl font-black italic tracking-tighter leading-[0.97] text-white break-keep whitespace-pre-line">
                               {title || "ENTER TITLE..."}
                             </h2>
                             <p className="mt-4 text-base md:text-lg italic leading-[1.5] text-white/75 break-keep">

@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { onAuthStateChanged, getAuth } from "firebase/auth";
 import { db } from "../firebase/config";
+import { resolveProfileDisplayName, resolveProfilePhotoURL } from "../lib/profileImage";
 
 // 기본 닉네임 생성(구글 displayName 없을 때 대비)
 function fallbackNickname(user) {
@@ -16,7 +23,14 @@ export function useUserProfile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeProfile = null;
+
     const unsub = onAuthStateChanged(auth, async (u) => {
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
       setUser(u);
 
       if (!u) {
@@ -31,13 +45,16 @@ export function useUserProfile() {
         const snap = await getDoc(ref);
 
         if (!snap.exists()) {
-          const nickname = (u.displayName && String(u.displayName).trim()) || fallbackNickname(u);
+          const displayName =
+            resolveProfileDisplayName(u) || fallbackNickname(u);
 
           const initial = {
             uid: u.uid,
             email: u.email || null,
-            photoURL: u.photoURL || null,
-            nickname,
+            photoURL: resolveProfilePhotoURL(u),
+            displayName,
+            name: displayName,
+            nickname: displayName,
             nicknameChanged: false,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -46,8 +63,41 @@ export function useUserProfile() {
           await setDoc(ref, initial);
           setProfile(initial);
         } else {
-          setProfile({ id: snap.id, ...snap.data() });
+          const resolvedDisplayName =
+            resolveProfileDisplayName(snap.data(), u) ||
+            fallbackNickname(u);
+          setProfile({
+            id: snap.id,
+            ...snap.data(),
+            photoURL: resolveProfilePhotoURL(snap.data(), u),
+            displayName: resolvedDisplayName,
+            name: resolvedDisplayName,
+            nickname: resolvedDisplayName,
+          });
         }
+
+        unsubscribeProfile = onSnapshot(
+          ref,
+          (liveSnap) => {
+            if (!liveSnap.exists()) return;
+            const data = liveSnap.data() || {};
+            const resolvedDisplayName =
+              resolveProfileDisplayName(data, u) || fallbackNickname(u);
+            setProfile({
+              id: liveSnap.id,
+              ...data,
+              photoURL: resolveProfilePhotoURL(data, u),
+              displayName: resolvedDisplayName,
+              name: resolvedDisplayName,
+              nickname: resolvedDisplayName,
+            });
+            setLoading(false);
+          },
+          (e) => {
+            console.error("[useUserProfile] snapshot error:", e);
+            setLoading(false);
+          }
+        );
       } catch (e) {
         console.error("[useUserProfile] error:", e);
         setProfile(null);
@@ -56,7 +106,12 @@ export function useUserProfile() {
       }
     });
 
-    return () => unsub();
+    return () => {
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+      }
+      unsub();
+    };
   }, [auth]);
 
   return { user, profile, loading };

@@ -14,9 +14,17 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useUserProfiles } from "../hooks/useUserProfiles";
+import { useUploadImage } from "../hooks/useUploadImage";
 import { useSavedArticles } from "../hooks/useSavedArticles";
 import { useMyAchievements } from "../hooks/useMyAchievements";
 import { useMyStickers } from "../hooks/useMyStickers";
+import UploadButton from "../components/editor/UploadButton";
+import {
+  getProfileInitials,
+  resolveProfileDisplayName,
+  resolveProfilePhotoURL,
+} from "../lib/profileImage";
 
 import TierBadge from "../components/my/TierBadge";
 import StickerGrid from "../components/my/StickerGrid";
@@ -68,6 +76,7 @@ function timeAgo(ts) {
 export default function MyPage({ isDarkMode, onToast }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
   const { user, profile, loading } = useUserProfile();
+  const { upload, uploading: photoUploading, progress: photoProgress } = useUploadImage();
 
   // Achievements
   const { items: achItems = [], ids: achIds = [], loading: achLoading } =
@@ -85,6 +94,10 @@ export default function MyPage({ isDarkMode, onToast }) {
     () => new Set(myStickerIds).has("first_save"),
     [myStickerIds]
   );
+  const profilePhotoURL = resolveProfilePhotoURL(profile, user);
+  const profileName =
+    resolveProfileDisplayName(profile, user) || user?.email || "U# User";
+  const profileInitials = getProfileInitials(profileName);
 
   // Daily stats
   const [daily, setDaily] = useState(null);
@@ -165,6 +178,8 @@ export default function MyPage({ isDarkMode, onToast }) {
       await setDoc(
         doc(db, "users", user.uid),
         {
+          displayName: next,
+          name: next,
           nickname: next,
           nicknameChanged: true,
           updatedAt: serverTimestamp(),
@@ -179,6 +194,29 @@ export default function MyPage({ isDarkMode, onToast }) {
       setErr("저장 실패(권한/규칙 확인)");
     } finally {
       setSavingNick(false);
+    }
+  };
+
+  const saveProfilePhoto = async (file) => {
+    if (!user?.uid) {
+      toast("프로필 사진은 로그인 후 업로드할 수 있어요.");
+      return;
+    }
+
+    try {
+      const { url } = await upload(file, { variant: "inline" });
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          photoURL: url,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      toast("프로필 사진이 업데이트되었어요.");
+    } catch (e) {
+      console.error(e);
+      toast("프로필 사진 업로드 실패");
     }
   };
 
@@ -256,6 +294,14 @@ export default function MyPage({ isDarkMode, onToast }) {
     return () => unsub();
   }, [user?.uid]);
 
+  const followingEditorUids = useMemo(() => {
+    const ids = followingEditors
+      .map((item) => String(item?.id || "").trim())
+      .filter(Boolean);
+    return [...new Set(ids)];
+  }, [followingEditors]);
+  const { profiles: followingEditorProfiles } = useUserProfiles(followingEditorUids);
+
   const unfollow = async (editorUid) => {
     if (!user?.uid || !editorUid) return;
     try {
@@ -323,6 +369,15 @@ export default function MyPage({ isDarkMode, onToast }) {
 
     return () => unsub();
   }, [isEditorOrAdmin, user?.email]);
+
+  const latestCommentAuthorUids = useMemo(() => {
+    const ids = latestComments
+      .map((c) => String(c?.authorUid || "").trim())
+      .filter(Boolean)
+      .filter((uid) => uid !== user?.uid);
+    return [...new Set(ids)];
+  }, [latestComments, user?.uid]);
+  const { profiles: latestCommentAuthors } = useUserProfiles(latestCommentAuthorUids);
 
   useEffect(() => {
     const email = String(user?.email || "").trim();
@@ -433,15 +488,15 @@ export default function MyPage({ isDarkMode, onToast }) {
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-[20px] overflow-hidden shrink-0 bg-zinc-200 dark:bg-zinc-800">
-                        {user.photoURL ? (
+                        {profilePhotoURL ? (
                           <img
-                            src={user.photoURL}
-                            alt=""
+                            src={profilePhotoURL}
+                            alt={profileName}
                             className="w-full h-full object-cover"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-lg font-black opacity-40">
-                            U#
+                            {profileInitials}
                           </div>
                         )}
                       </div>
@@ -451,11 +506,26 @@ export default function MyPage({ isDarkMode, onToast }) {
                           Signed In
                         </div>
                         <div className="mt-1 text-lg sm:text-xl font-black truncate">
-                          {profile?.nickname || user.displayName || "U# User"}
+                          {profileName}
                         </div>
                         <div className="mt-1 text-xs opacity-55 truncate">
                           {user.email}
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <UploadButton
+                        label="Photo"
+                        title="Upload profile photo"
+                        uploading={photoUploading}
+                        progress={photoProgress}
+                        onPickFile={saveProfilePhoto}
+                      />
+                      <div className="text-[11px] opacity-55">
+                        {photoUploading
+                          ? `업로드 중 ${Math.min(100, Math.max(0, photoProgress || 0))}%`
+                          : "프로필 사진을 바꿀 수 있어요."}
                       </div>
                     </div>
 
@@ -691,6 +761,7 @@ export default function MyPage({ isDarkMode, onToast }) {
                           <CommentCard
                             key={c.id}
                             comment={c}
+                            authorProfile={latestCommentAuthors[c.authorUid]}
                             isDarkMode={isDarkMode}
                           />
                         ))}
@@ -774,6 +845,7 @@ export default function MyPage({ isDarkMode, onToast }) {
                       <FollowingEditorCard
                         key={e.id}
                         item={e}
+                        profile={followingEditorProfiles[e.id]}
                         onUnfollow={unfollow}
                         isDarkMode={isDarkMode}
                       />
@@ -995,7 +1067,12 @@ function SavedArticleCard({ article, editionNo, onRemove, isDarkMode }) {
   );
 }
 
-function FollowingEditorCard({ item, onUnfollow, isDarkMode }) {
+function FollowingEditorCard({ item, profile, onUnfollow, isDarkMode }) {
+  const displayName =
+    resolveProfileDisplayName(profile, item, {
+      displayName: item.editorName,
+      name: item.editorName,
+    }) || item.editorName || "Editor";
   return (
     <div
       className={`rounded-[24px] border p-5 ${
@@ -1010,7 +1087,7 @@ function FollowingEditorCard({ item, onUnfollow, isDarkMode }) {
             Editor
           </div>
           <div className="mt-2 text-lg font-black line-clamp-1">
-            {item.editorName || "Editor"}
+            {displayName}
           </div>
           <div className="mt-1 text-xs opacity-55 line-clamp-1">
             {item.editorEmail
@@ -1035,7 +1112,15 @@ function FollowingEditorCard({ item, onUnfollow, isDarkMode }) {
   );
 }
 
-function CommentCard({ comment, isDarkMode }) {
+function CommentCard({ comment, authorProfile, isDarkMode }) {
+  const displayName =
+    resolveProfileDisplayName(authorProfile, comment, {
+      displayName: comment.nickname,
+      name: comment.author,
+    }) || comment.nickname || comment.author || comment.authorEmail || "익명";
+  const avatarURL = resolveProfilePhotoURL(authorProfile, comment.authorPhotoURL, comment);
+  const avatarInitials = getProfileInitials(displayName);
+
   return (
     <div
       className={`rounded-[24px] border p-4 sm:p-5 ${
@@ -1044,18 +1129,36 @@ function CommentCard({ comment, isDarkMode }) {
           : "border-black/10 bg-black/[0.02]"
       }`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-black line-clamp-1">
-          {comment.articleTitle || `#${padEdition(comment.editionNo)}`}
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0 flex items-center justify-center">
+          {avatarURL ? (
+            <img
+              src={avatarURL}
+              alt={displayName}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[11px] font-black opacity-45">
+              {avatarInitials}
+            </span>
+          )}
         </div>
-        <div className="text-[11px] opacity-50 shrink-0">
-          {timeAgo(comment.createdAt)}
-        </div>
-      </div>
 
-      <div className="mt-3 text-sm leading-6 opacity-80 line-clamp-3">
-        <b className="mr-2">{comment.nickname || "익명"}</b>
-        {comment.text || ""}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-black line-clamp-1">
+              {comment.articleTitle || `#${padEdition(comment.editionNo)}`}
+            </div>
+            <div className="text-[11px] opacity-50 shrink-0">
+              {timeAgo(comment.createdAt)}
+            </div>
+          </div>
+
+          <div className="mt-3 text-sm leading-6 opacity-80 line-clamp-3">
+            <b className="mr-2">{displayName}</b>
+            {comment.text || ""}
+          </div>
+        </div>
       </div>
 
       {comment.editionNo && (

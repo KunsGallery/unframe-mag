@@ -107,7 +107,7 @@ export default function MoreFromEditor({ article, isDarkMode }) {
                 ].join(" ")}
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-black italic tracking-tight line-clamp-1">
+                  <div className="text-sm font-black italic tracking-tight line-clamp-2 whitespace-pre-line">
                     {item.title || "Untitled"}
                   </div>
                   <div className="mt-1 text-[10px] font-black uppercase tracking-[0.25em] opacity-55">

@@ -1,5 +1,9 @@
 import { Node, mergeAttributes } from '@tiptap/core';
-import { STICKY_STORY_DEFAULTS } from '../../constants/editorBlocks';
+import {
+  STICKY_STORY_DEFAULTS,
+  getStickyStoryVisualHeight,
+  normalizeStickyStoryVisualSize,
+} from '../../constants/editorBlocks';
 
 export const StickyStory = Node.create({
   name: 'stickyStory',
@@ -11,6 +15,14 @@ export const StickyStory = Node.create({
       imageSrc: { default: null },
       imagePos: { default: STICKY_STORY_DEFAULTS.imagePos },
       stickyHeight: { default: STICKY_STORY_DEFAULTS.stickyHeight },
+      visualSize: {
+        default: STICKY_STORY_DEFAULTS.visualSize,
+        parseHTML: (element) =>
+          normalizeStickyStoryVisualSize(
+            element.getAttribute("data-visual-size") ||
+              element.getAttribute("data-image-size")
+          ),
+      },
     };
   },
 
@@ -18,8 +30,9 @@ export const StickyStory = Node.create({
     return [{ tag: 'div[data-uf="sticky-story"]' }];
   },
 
-  renderHTML({ HTMLAttributes }) {
-    const { imageSrc, imagePos, stickyHeight } = HTMLAttributes;
+  renderHTML({ HTMLAttributes, node }) {
+    const { imageSrc, imagePos, stickyHeight, visualSize } = node.attrs;
+    const resolvedVisualSize = normalizeStickyStoryVisualSize(visualSize);
 
     const visualChildren = imageSrc
       ? [[
@@ -36,8 +49,13 @@ export const StickyStory = Node.create({
       "div",
       mergeAttributes(HTMLAttributes, {
         "data-uf": "sticky-story",
-        class: `uf-sticky-story is-${imagePos || "left"}`,
-        style: `--uf-sticky-height: ${stickyHeight || STICKY_STORY_DEFAULTS.stickyHeight};`,
+        "data-visual-size": resolvedVisualSize,
+        class: `uf-sticky-story is-${imagePos || "left"} is-${resolvedVisualSize}`,
+        style: `--uf-sticky-height: ${
+          stickyHeight || STICKY_STORY_DEFAULTS.stickyHeight
+        }; --uf-sticky-visual-height: ${getStickyStoryVisualHeight(
+          resolvedVisualSize
+        )};`,
       }),
       ["div", { class: "uf-sticky-story__visual" }, ...visualChildren],
       ["div", { class: "uf-sticky-story__content" }, 0],

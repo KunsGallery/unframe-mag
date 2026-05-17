@@ -282,6 +282,9 @@ export default function App() {
           await setDoc(ref, {
             uid: user.uid,
             email: email || null,
+            photoURL: user.photoURL || null,
+            displayName: nickname,
+            name: nickname,
             nickname,
             nicknameChanged: false,
             role: initialRole,

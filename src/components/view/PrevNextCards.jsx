@@ -75,7 +75,7 @@ function Card({ label, article, disabled }) {
           )}
         </div>
 
-        <div className="mt-3 text-2xl sm:text-[28px] font-black italic tracking-tight leading-[1.02] text-white line-clamp-2">
+        <div className="mt-3 text-2xl sm:text-[28px] font-black italic tracking-tight leading-[1.02] text-white line-clamp-2 whitespace-pre-line">
           {article?.title || (disabled ? "없음" : "Untitled")}
         </div>
 

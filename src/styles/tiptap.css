@@ -55,7 +55,7 @@
 .ProseMirror th,
 .ProseMirror td {
   position: relative;
-  min-width: 140px;
+  min-width: var(--uf-table-cell-min-width, 140px);
   padding: 12px 14px;
   vertical-align: top;
   overflow-wrap: break-word;
@@ -137,7 +137,7 @@
 
   .ProseMirror th,
   .ProseMirror td {
-    min-width: 120px;
+    min-width: var(--uf-table-cell-min-width-mobile, var(--uf-table-cell-min-width, 120px));
     padding: 10px 10px;
     font-size: 12px;
   }

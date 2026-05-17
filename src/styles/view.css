@@ -12,7 +12,7 @@ article.uf-prose [data-uf="sticky-story"]{
 article.uf-prose .uf-sticky-story__visual{
   position: sticky;
   top: 72px;
-  height: calc(100vh - 96px);
+  height: var(--uf-sticky-visual-height, calc(100vh - 96px));
   border-radius: 16px;
   overflow: hidden;
   background: #111;

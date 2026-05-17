@@ -12,6 +12,7 @@ import {
   setUserTier,
   setUserXP,
 } from "../../hooks/useUserRewards";
+import { resolveProfileDisplayName } from "../../lib/profileImage";
 
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase/config";
@@ -30,6 +31,7 @@ export default function UserRewardsPanel({
   const [roleSaving, setRoleSaving] = useState(false);
 
   const [profileSaving, setProfileSaving] = useState(false);
+  const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [photoURL, setPhotoURL] = useState("");
 
@@ -38,12 +40,16 @@ export default function UserRewardsPanel({
     if (!t) return users;
 
     return users.filter((u) => {
-      const nick = String(u.nickname || "").toLowerCase();
+      const nick = String(resolveProfileDisplayName(u) || "").toLowerCase();
+      const display = String(u.displayName || "").toLowerCase();
+      const name = String(u.name || "").toLowerCase();
       const email = String(u.email || "").toLowerCase();
       const role = String(u.role || "").toLowerCase();
 
       return (
         nick.includes(t) ||
+        display.includes(t) ||
+        name.includes(t) ||
         email.includes(t) ||
         role.includes(t) ||
         String(u.uid || "").includes(t)
@@ -57,9 +63,37 @@ export default function UserRewardsPanel({
   );
 
   useEffect(() => {
+    setDisplayName(resolveProfileDisplayName(selected) || "");
     setBio(selected?.bio || "");
     setPhotoURL(selected?.photoURL || "");
-  }, [selected?.uid, selected?.bio, selected?.photoURL]);
+  }, [selected?.uid, selected?.bio, selected?.photoURL, selected?.displayName, selected?.name, selected?.nickname]);
+
+  const saveDisplayName = async () => {
+    if (!selected?.uid) return;
+
+    const next = String(displayName || "").trim();
+    if (!next) {
+      toast("표시 이름을 입력해줘.");
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      await updateDoc(doc(db, "users", selected.uid), {
+        displayName: next,
+        name: next,
+        nickname: next,
+        updatedAt: serverTimestamp(),
+        updatedBy: adminEmail || null,
+      });
+      toast("표시 이름 저장 완료");
+    } catch (e) {
+      console.error(e);
+      toast("표시 이름 저장 실패");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const setUserRole = async (uid, nextRole) => {
     if (!uid) return;
@@ -214,7 +248,7 @@ export default function UserRewardsPanel({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="search nickname / email / role"
+          placeholder="search displayName / nickname / email / role"
           className={`mt-4 w-full px-4 py-3 rounded-xl border bg-transparent text-sm ${
             isDarkMode ? "border-zinc-800" : "border-zinc-200"
           }`}
@@ -241,7 +275,7 @@ export default function UserRewardsPanel({
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-black italic line-clamp-1">
-                    {u.nickname || "(no nickname)"}
+                    {resolveProfileDisplayName(u) || "(no name)"}
                   </div>
 
                   <span
@@ -329,6 +363,30 @@ export default function UserRewardsPanel({
               <div className="grid gap-3">
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-[0.25em] opacity-55">
+                    Display Name
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="표시 이름"
+                      className={`w-full px-4 py-3 rounded-xl border bg-transparent text-sm ${
+                        isDarkMode ? "border-zinc-800" : "border-zinc-200"
+                      }`}
+                    />
+                    <button
+                      onClick={saveDisplayName}
+                      disabled={profileSaving}
+                      className="shrink-0 px-4 py-3 rounded-xl bg-[#004aad] text-white text-xs font-black disabled:opacity-50"
+                      type="button"
+                    >
+                      {profileSaving ? "SAVING…" : "SAVE"}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.25em] opacity-55">
                     Photo URL
                   </div>
                   <input
@@ -354,17 +412,17 @@ export default function UserRewardsPanel({
                     }`}
                   />
                 </div>
+              </div>
 
-                <div className="flex justify-end">
-                  <button
-                    onClick={saveEditorProfile}
-                    disabled={profileSaving}
-                    className="px-4 py-3 rounded-xl bg-[#004aad] text-white text-xs font-black disabled:opacity-50"
-                    type="button"
-                  >
-                    {profileSaving ? "SAVING…" : "SAVE PROFILE"}
-                  </button>
-                </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={saveEditorProfile}
+                  disabled={profileSaving}
+                  className="px-4 py-3 rounded-xl bg-[#004aad] text-white text-xs font-black disabled:opacity-50"
+                  type="button"
+                >
+                  {profileSaving ? "SAVING…" : "SAVE PROFILE"}
+                </button>
               </div>
             </div>
 
