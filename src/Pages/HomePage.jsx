@@ -336,7 +336,9 @@ export default function HomePage({ isDarkMode }) {
               </span>
             </div>
 
-            <h1 className="mt-8 mag-h1">{cover.title || "Untitled"}</h1>
+            <h1 className="mt-8 mag-h1 whitespace-pre-line break-keep leading-[0.88] sm:leading-[0.9]">
+              {cover.title || "Untitled"}
+            </h1>
 
             <p className="mt-8 max-w-2xl mag-deck text-white">
               {cover.excerpt || cover.subtitle || "—"}
@@ -695,6 +697,7 @@ function NetworkCard({ title, kicker, desc, href, isDarkMode }) {
 function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
   const edition = padEdition(item?.editionNo);
   const img = coverUrlOf(item);
+  const excerpt = item?.excerpt || item?.subtitle || "";
 
   const min = estimateReadMinutes(item, { min: 2 });
   const emoji = timeEmoji(min);
@@ -715,7 +718,12 @@ function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
       )}
 
       <div className="absolute inset-0 bg-linear-to-t from-black via-black/35 to-transparent" />
-      <div className="relative z-10 p-10 h-full flex flex-col justify-end">
+      <div
+        className={[
+          "relative z-10 h-full flex flex-col justify-end",
+          compact ? "px-6 sm:px-8 pt-6 sm:pt-8 pb-7 sm:pb-8" : "px-8 sm:px-10 pt-8 sm:pt-10 pb-8 sm:pb-10",
+        ].join(" ")}
+      >
         <div className="flex items-center gap-3 text-[10px] tracking-[0.5em] uppercase font-black italic text-white/80">
           <span className="px-3 py-1 rounded-full bg-white/10 border border-white/10">#{edition}</span>
           <span className="opacity-80 inline-flex items-center gap-2">
@@ -726,10 +734,21 @@ function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
           </span>
         </div>
 
-        <h3 className={`mt-4 font-black italic tracking-tighter uppercase ${compact ? "text-2xl md:text-3xl" : "text-4xl md:text-5xl"} leading-none text-white`}>
+        <h3
+          className={`mt-4 font-black italic tracking-tighter uppercase ${
+            compact ? "text-2xl md:text-3xl" : "text-4xl md:text-5xl"
+          } leading-none text-white`}
+        >
           {item.title || "Untitled"}
         </h3>
-        <p className="mt-4 text-white/75 italic line-clamp-2">{item.excerpt || item.subtitle || "—"}</p>
+        <p
+          className={[
+            "mt-3 text-white/75 italic leading-6",
+            compact ? "line-clamp-1 sm:line-clamp-2 text-[13px] sm:text-sm" : "line-clamp-2 text-sm sm:text-[15px]",
+          ].join(" ")}
+        >
+          {excerpt || "—"}
+        </p>
       </div>
     </Link>
   );

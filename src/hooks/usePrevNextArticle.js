@@ -25,6 +25,8 @@ export function usePrevNextArticle({ db, currentArticle, sameCategory = false })
         return;
       }
 
+      setPrev(null);
+      setNext(null);
       setLoadingNav(true);
       try {
         const categoryFilter =
