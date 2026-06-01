@@ -89,6 +89,17 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const previewExcerpt = previewBodyText
     ? previewBodyText.slice(0, 220) + (previewBodyText.length > 220 ? "..." : "")
     : "본문 미리보기가 여기에 표시됩니다.";
+  const handleStartNewDraft = () => {
+    loadedDraftRef.current = null;
+    draftsApi.startNewDraft({
+      setTitle,
+      setSubtitle,
+      setCategory,
+      setCover,
+      setCoverMedium,
+    });
+    setEditorDocMeta(null);
+  };
 
   useEffect(() => {
     if (!editor) return;
@@ -278,12 +289,12 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   return (
     <div
-      className={`min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 ${
+      className={`min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 overflow-x-hidden ${
         isDarkMode ? "bg-zinc-950" : "bg-zinc-100"
       }`}
     >
       <aside
-        className={`min-w-0 xl:col-span-3 p-6 xl:p-10 flex flex-col gap-10 xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
+        className={`hidden xl:flex min-w-0 xl:col-span-3 p-6 xl:p-10 flex-col gap-10 xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
           isDarkMode
             ? "bg-zinc-900 border-zinc-800 shadow-2xl"
             : "bg-white border-zinc-50 shadow-xl"
@@ -296,17 +307,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             </p>
 
             <button
-              onClick={() => {
-                loadedDraftRef.current = null;
-                draftsApi.startNewDraft({
-                  setTitle,
-                  setSubtitle,
-                  setCategory,
-                  setCover,
-                  setCoverMedium,
-                });
-                setEditorDocMeta(null);
-              }}
+              onClick={handleStartNewDraft}
               className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70 transition"
               title="New Draft"
               type="button"
@@ -496,7 +497,74 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         }`}
       >
         <div className="flex-1 flex flex-col">
-          <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+          <div className="xl:hidden px-5 pt-4 pb-2">
+            <div
+              className={`flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-3 ${
+                isDarkMode ? "border-zinc-900 bg-zinc-950" : "border-zinc-100 bg-white"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  draftsApi.saveDraft(
+                    { silent: false, markClean: true },
+                    {
+                      title,
+                      subtitle,
+                      category,
+                      cover,
+                      coverMedium,
+                      author: authorName,
+                      authorEmail,
+                    }
+                  )
+                }
+                disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+                className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-[0.35em] italic transition ${
+                  isDarkMode
+                    ? "bg-zinc-800 text-zinc-100"
+                    : "bg-zinc-100 text-zinc-700"
+                }`}
+              >
+                {draftsApi.isSaving ? "Saving..." : "Save"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  draftsApi.publish({
+                    title,
+                    subtitle,
+                    category,
+                    cover,
+                    coverMedium,
+                    author: authorName,
+                    authorEmail,
+                  })
+                }
+                disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+                className="h-10 px-4 rounded-xl bg-[#004aad] text-white text-[10px] font-black uppercase tracking-[0.35em] italic transition"
+              >
+                {draftsApi.isSaving ? "Publishing..." : "Publish"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleStartNewDraft}
+                className={`h-10 px-4 rounded-xl border text-[10px] font-black uppercase tracking-[0.35em] italic transition ${
+                  isDarkMode
+                    ? "border-zinc-800 bg-zinc-950 text-zinc-300"
+                    : "border-zinc-200 bg-white text-zinc-600"
+                }`}
+              >
+                New
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden xl:block">
+            <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+          </div>
 
           <div
             className={`px-6 md:px-10 pt-5 pb-3 border-b ${
@@ -573,8 +641,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             </div>
           </div>
 
-          <div className="grow p-12 md:p-32 overflow-y-auto">
-            <div className="max-w-4xl mx-auto space-y-16">
+          <div className="grow px-5 py-8 md:px-10 md:py-12 xl:p-32 overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-10 md:space-y-16">
               <div className="space-y-4">
                 <textarea
                   ref={titleRef}
@@ -585,7 +653,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     setTitle(e.target.value);
                     draftsApi.setIsDirty(true);
                   }}
-                  className={`uf-title-textarea w-full resize-none overflow-hidden text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
+                  className={`uf-title-textarea w-full resize-none overflow-hidden text-4xl md:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
                     isDarkMode ? "text-white" : "text-black"
                   }`}
                 />
@@ -616,7 +684,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     titleRef.current?.setSelectionRange?.(len, len);
                   }
                 }}
-                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-8 ${
+                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-xl md:text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-5 md:pl-8 ${
                   isDarkMode ? "text-zinc-500" : "text-zinc-400"
                 }`}
               />
@@ -624,7 +692,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
               <div className="editor-container relative">
                 <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
 
-                <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+                <div className="hidden xl:block">
+                  <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+                </div>
 
                 <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
 
@@ -644,7 +714,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                 {draftsApi.isDirty ? "  •  EDITING…" : ""}
               </div>
 
-              <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="hidden xl:block pt-6 border-t border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
                     Preview
@@ -885,14 +955,14 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         </div>
 
         <EditorOnboardingModal
-        isOpen={showOnboarding}
-        isDarkMode={isDarkMode}
-        onClose={() => setShowOnboarding(false)}
-        onNeverShowAgain={() => {
-          hideEditorOnboardingForever();
-          setShowOnboarding(false);
-        }}
-      />
+          isOpen={showOnboarding}
+          isDarkMode={isDarkMode}
+          onClose={() => setShowOnboarding(false)}
+          onNeverShowAgain={() => {
+            hideEditorOnboardingForever();
+            setShowOnboarding(false);
+          }}
+        />
 
         <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
       </main>
