@@ -25,6 +25,14 @@ import EditorPage from "./Pages/EditorPage";
 import MyPage from "./Pages/MyPage";
 import ViewPage from "./Pages/ViewPage";
 import AdminPage from "./Pages/AdminPage";
+import ErrorBoundary from "./components/debug/ErrorBoundary";
+import {
+  MobileDebugRuntimeOverlay,
+} from "./components/debug/MobileDebugOverlay";
+import {
+  useIsMobileViewport,
+  useMobileDebugEnabled,
+} from "./components/debug/debugHooks";
 
 function safeNicknameFromDisplayName(displayName) {
   const base = String(displayName || "User")
@@ -216,6 +224,23 @@ function ScrollToTop() {
   return null;
 }
 
+function DebugLayer({ children }) {
+  const debugEnabled = useMobileDebugEnabled();
+  const isMobile = useIsMobileViewport();
+  const enabled = debugEnabled && isMobile;
+
+  if (!enabled) return children;
+
+  return (
+    <>
+      <MobileDebugRuntimeOverlay enabled={enabled} />
+      <ErrorBoundary enabled={enabled} pathname={window.location.pathname}>
+        {children}
+      </ErrorBoundary>
+    </>
+  );
+}
+
 const RequireRole = ({ user, role, allow = [], loading = false, children }) => {
   if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
@@ -363,109 +388,111 @@ export default function App() {
     <Router>
       <ScrollToTop />
 
-      <div
-        className={`min-h-screen font-sans transition-all duration-700 selection:bg-[#004aad] selection:text-white ${
-          isDarkMode ? "bg-black text-white dark" : "bg-white text-black"
-        }`}
-      >
+      <DebugLayer>
         <div
-          className={`fixed inset-0 pointer-events-none transition-opacity duration-700 ${
-            isDarkMode ? "opacity-[0.01]" : "opacity-[0.03]"
+          className={`min-h-screen font-sans transition-all duration-700 selection:bg-[#004aad] selection:text-white ${
+            isDarkMode ? "bg-black text-white dark" : "bg-white text-black"
           }`}
-          style={{
-            backgroundImage:
-              "linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)",
-            backgroundSize: "50px 50px",
-          }}
-        />
+        >
+          <div
+            className={`fixed inset-0 pointer-events-none transition-opacity duration-700 ${
+              isDarkMode ? "opacity-[0.01]" : "opacity-[0.03]"
+            }`}
+            style={{
+              backgroundImage:
+                "linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)",
+              backgroundSize: "50px 50px",
+            }}
+          />
 
-        <Navbar
-          toggleTheme={toggleTheme}
-          isDarkMode={isDarkMode}
-          user={user}
-          role={effectiveRole}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-        />
+          <Navbar
+            toggleTheme={toggleTheme}
+            isDarkMode={isDarkMode}
+            user={user}
+            role={effectiveRole}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+          />
 
-        <InstallPrompt />
+          <InstallPrompt />
 
-        <main className="relative">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <HomePage
-                  isDarkMode={isDarkMode}
-                  user={user}
-                  authLoading={authLoading}
-                />
-              }
-            />
-            <Route
-              path="/about"
-              element={<AboutPage isDarkMode={isDarkMode} user={user} />}
-            />
-            <Route
-              path="/mylibrary"
-              element={
-                <MyPage
-                  isDarkMode={isDarkMode}
-                  user={user}
-                  authLoading={authLoading}
-                />
-              }
-            />
-            <Route
-              path="/article/:id"
-              element={<ViewPage isDarkMode={isDarkMode} user={user} />}
-            />
-
-            <Route
-              path="/write"
-              element={
-                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]} loading={authLoading || roleLoading}>
-                  <EditorPage
+          <main className="relative">
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <HomePage
                     isDarkMode={isDarkMode}
                     user={user}
-                    role={effectiveRole}
+                    authLoading={authLoading}
                   />
-                </RequireRole>
-              }
-            />
-
-            <Route
-              path="/edit/:articleId"
-              element={
-                <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]} loading={authLoading || roleLoading}>
-                  <EditorPage
+                }
+              />
+              <Route
+                path="/about"
+                element={<AboutPage isDarkMode={isDarkMode} user={user} />}
+              />
+              <Route
+                path="/mylibrary"
+                element={
+                  <MyPage
                     isDarkMode={isDarkMode}
                     user={user}
-                    role={effectiveRole}
+                    authLoading={authLoading}
                   />
-                </RequireRole>
-              }
-            />
+                }
+              />
+              <Route
+                path="/article/:id"
+                element={<ViewPage isDarkMode={isDarkMode} user={user} />}
+              />
 
-            <Route
-              path="/admin"
-              element={
-                <RequireRole user={user} role={effectiveRole} allow={["admin"]}>
-                  <AdminPage
-                    user={user}
-                    isDarkMode={isDarkMode}
-                    onToast={(m) => console.log("[TOAST]", m)}
-                  />
-                </RequireRole>
-              }
-            />
+              <Route
+                path="/write"
+                element={
+                  <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]} loading={authLoading || roleLoading}>
+                    <EditorPage
+                      isDarkMode={isDarkMode}
+                      user={user}
+                      role={effectiveRole}
+                    />
+                  </RequireRole>
+                }
+              />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
+              <Route
+                path="/edit/:articleId"
+                element={
+                  <RequireRole user={user} role={effectiveRole} allow={["admin", "editor"]} loading={authLoading || roleLoading}>
+                    <EditorPage
+                      isDarkMode={isDarkMode}
+                      user={user}
+                      role={effectiveRole}
+                    />
+                  </RequireRole>
+                }
+              />
 
-        <GlobalFooter />
-      </div>
+              <Route
+                path="/admin"
+                element={
+                  <RequireRole user={user} role={effectiveRole} allow={["admin"]}>
+                    <AdminPage
+                      user={user}
+                      isDarkMode={isDarkMode}
+                      onToast={(m) => console.log("[TOAST]", m)}
+                    />
+                  </RequireRole>
+                }
+              />
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+
+          <GlobalFooter />
+        </div>
+      </DebugLayer>
     </Router>
   );
 }
