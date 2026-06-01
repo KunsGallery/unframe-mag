@@ -28,6 +28,29 @@ import {
 import { isAdminEmail } from "../constants/admin";
 import { ARTICLE_CATEGORIES, DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 
+function useIsDesktopEditor() {
+  const [isDesktopEditor, setIsDesktopEditor] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+
+    const media = window.matchMedia("(min-width: 1280px)");
+    const sync = () => setIsDesktopEditor(media.matches);
+
+    sync();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", sync);
+      return () => media.removeEventListener("change", sync);
+    }
+
+    media.addListener(sync);
+    return () => media.removeListener(sync);
+  }, []);
+
+  return isDesktopEditor;
+}
+
 export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,6 +90,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const previewCover = coverMedium || cover || "";
   const { upload: uploadCover, uploading: coverUploading, progress: coverProgress } =
     useUploadImage();
+  const isDesktopEditor = useIsDesktopEditor();
 
   const { slashPos, closeSlashMenu, onEditorKeyDown } = useSlashMenu();
 
@@ -167,6 +191,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
     const onUpdate = () => {
       if (isHydratingRef.current) return;
+      if (editor.isDestroyed) return;
       if (editor.view.composing) return;
 
       setDraftDirty((prev) => (prev ? prev : true));
@@ -562,9 +587,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             </div>
           </div>
 
-          <div className="hidden xl:block">
+          {isDesktopEditor && (
             <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
-          </div>
+          )}
 
           <div
             className={`px-6 md:px-10 pt-5 pb-3 border-b ${
@@ -690,20 +715,26 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
               />
 
               <div className="editor-container relative">
-                <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
+                {isDesktopEditor && (
+                  <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
+                )}
 
-                <div className="hidden xl:block">
+                {isDesktopEditor && (
                   <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
-                </div>
+                )}
 
-                <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
+                {isDesktopEditor && (
+                  <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
+                )}
 
                 <EditorContent
                   editor={editor}
                   onKeyDown={(e) => {
                     const native = e.nativeEvent;
                     if (native?.isComposing || native?.keyCode === 229) return;
-                    onEditorKeyDown(editor, e);
+                    if (isDesktopEditor) {
+                      onEditorKeyDown(editor, e);
+                    }
                   }}
                   onClick={() => closeSlashMenu()}
                 />
@@ -964,7 +995,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           }}
         />
 
-        <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+        {isDesktopEditor && <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />}
       </main>
 
       <style>{`

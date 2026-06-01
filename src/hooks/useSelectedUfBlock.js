@@ -10,7 +10,7 @@ export function useSelectedUfBlock(editor) {
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
 
     const SUPPORTED = new Set([
       "parallaxImage",

@@ -12,8 +12,8 @@ import {
 
 function SlideCard({ icon: Icon, eyebrow, title, body, points, accent = "#004aad" }) {
   return (
-    <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-6 md:gap-8 items-stretch">
-      <div className="rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden">
+    <div className="grid grid-cols-1 md:grid-cols-[0.95fr_1.05fr] gap-6 md:gap-8 items-stretch">
+      <div className="hidden sm:block rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden">
         <div className="aspect-[4/3] relative p-6 md:p-8 bg-linear-to-br from-[#004aad]/8 via-transparent to-black/5 dark:to-white/5">
           <div
             className="absolute right-5 top-5 w-16 h-16 rounded-full blur-2xl opacity-60"
@@ -172,10 +172,10 @@ function EditorOnboardingDialog({ onClose, isDarkMode, onNeverShowAgain }) {
         onClick={onClose}
       />
 
-      <div className="absolute inset-0 p-4 md:p-8 flex items-center justify-center">
+      <div className="absolute inset-0 p-2 md:p-8 flex items-center justify-center">
         <div
           className={[
-            "relative w-full max-w-6xl rounded-[32px] border shadow-2xl overflow-hidden",
+            "relative w-full max-w-6xl max-h-[calc(100dvh-32px)] rounded-[32px] border shadow-2xl overflow-hidden flex flex-col",
             isDarkMode
               ? "bg-zinc-950 border-zinc-800"
               : "bg-[#f8f7f4] border-zinc-200",
@@ -184,13 +184,13 @@ function EditorOnboardingDialog({ onClose, isDarkMode, onNeverShowAgain }) {
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 z-10 w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/85 text-zinc-500 hover:text-black dark:hover:text-white flex items-center justify-center transition"
+            className="absolute right-3 top-3 md:right-4 md:top-4 z-20 w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/90 text-zinc-500 hover:text-black dark:hover:text-white flex items-center justify-center transition"
             aria-label="Close onboarding"
           >
             <X size={18} />
           </button>
 
-          <div className="p-6 md:p-10">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 pt-14 md:px-10 md:pt-16">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.36em] italic text-[#004aad]">
@@ -221,50 +221,59 @@ function EditorOnboardingDialog({ onClose, isDarkMode, onNeverShowAgain }) {
 
             <SlideCard {...current} />
 
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
-              <button
-                type="button"
-                onClick={onNeverShowAgain}
-                className="text-[11px] font-black uppercase tracking-[0.24em] italic text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition"
+              <div
+                className={[
+                  "sticky bottom-0 z-10 mt-8 -mx-4 px-4 py-4 md:-mx-10 md:px-10",
+                  isDarkMode
+                    ? "bg-zinc-950/95 border-t border-zinc-800"
+                    : "bg-[#f8f7f4]/95 border-t border-zinc-200",
+                ].join(" ")}
               >
-                다시 보지 않기
-              </button>
-
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <button
                   type="button"
-                  onClick={() => setStep((prev) => Math.max(0, prev - 1))}
-                  disabled={step === 0}
-                  className={[
-                    "h-11 px-4 rounded-xl border flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] italic transition",
-                    step === 0
-                      ? "opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400"
-                      : "border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800",
-                  ].join(" ")}
+                  onClick={onNeverShowAgain}
+                  className="text-[11px] font-black uppercase tracking-[0.24em] italic text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition"
                 >
-                  <ChevronLeft size={16} />
-                  Previous
+                  다시 보지 않기
                 </button>
 
-                {!isLast ? (
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setStep((prev) => Math.min(slides.length - 1, prev + 1))}
-                    className="h-11 px-5 rounded-xl bg-[#004aad] text-white flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] italic hover:opacity-95 transition"
+                    onClick={() => setStep((prev) => Math.max(0, prev - 1))}
+                    disabled={step === 0}
+                    className={[
+                      "h-11 px-4 rounded-xl border flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] italic transition",
+                      step === 0
+                        ? "opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400"
+                        : "border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                    ].join(" ")}
                   >
-                    Next
-                    <ChevronRight size={16} />
+                    <ChevronLeft size={16} />
+                    Previous
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="h-11 px-5 rounded-xl bg-[#004aad] text-white flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] italic hover:opacity-95 transition"
-                  >
-                    <Sparkles size={16} />
-                    Start Editing
-                  </button>
-                )}
+
+                  {!isLast ? (
+                    <button
+                      type="button"
+                      onClick={() => setStep((prev) => Math.min(slides.length - 1, prev + 1))}
+                      className="h-11 px-5 rounded-xl bg-[#004aad] text-white flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] italic hover:opacity-95 transition"
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="h-11 px-5 rounded-xl bg-[#004aad] text-white flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] italic hover:opacity-95 transition"
+                    >
+                      <Sparkles size={16} />
+                      Start Editing
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

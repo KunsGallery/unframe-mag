@@ -75,7 +75,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
   }, [onClose]);
 
   const deleteSlashTrigger = useCallback(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     const { from } = editor.state.selection;
     const start = Math.max(from - 1, 0);
     editor.chain().focus().deleteRange({ from: start, to: from }).run();
@@ -83,7 +83,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
   const insertUploadedContent = useCallback(
     (savedPos, content) => {
-      if (!editor) return false;
+      if (!editor || editor.isDestroyed) return false;
 
       const maxPos = editor.state.doc.content.size;
       const targetPos =
@@ -104,7 +104,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
   const handleSelect = useCallback(
     (item) => {
-      if (!editor || uploading) return;
+      if (!editor || editor.isDestroyed || uploading) return;
 
       deleteSlashTrigger();
 
@@ -454,7 +454,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
     };
   }, [pos]);
 
-  if (!pos) return null;
+  if (!editor || editor.isDestroyed || !pos) return null;
 
   return (
     <>

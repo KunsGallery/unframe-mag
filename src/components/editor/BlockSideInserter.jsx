@@ -138,7 +138,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
 
   const insertUploadedContent = (savedPos, content) => {
-    if (!editor) return false;
+    if (!editor || editor.isDestroyed) return false;
 
     const maxPos = editor.state.doc.content.size;
     const targetPos =
@@ -157,7 +157,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
 
   const updateAnchor = useMemo(
     () => () => {
-      if (!editor?.view?.dom) return;
+      if (!editor || editor.isDestroyed) return;
 
       const editorRoot = editor.view.dom;
       const sel = window.getSelection();
@@ -235,7 +235,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
     };
   }, [editor, updateAnchor]);
 
-  if (!editor || !anchorRect) return null;
+  if (!editor || editor.isDestroyed || !anchorRect) return null;
 
   const insertImage = async (file) => {
     const savedPos = editor?.state.selection.from;

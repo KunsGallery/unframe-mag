@@ -136,7 +136,7 @@ function updateColumnsCount(editor, selected, nextCols) {
 export default function BlockQuickBar({ editor, isDarkMode }) {
   const selected = useSelectedUfBlock(editor);
 
-  if (!editor) return null;
+  if (!editor || editor.isDestroyed) return null;
 
   const setAttrs = (type, patch) => {
     editor.commands.updateAttributes(type, patch);

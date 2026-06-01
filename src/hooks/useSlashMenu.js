@@ -23,6 +23,10 @@ export function useSlashMenu() {
 
   const onEditorKeyDown = useCallback(
     (editor, event) => {
+      if (!editor || editor.isDestroyed) {
+        return false;
+      }
+
       if (event.nativeEvent?.isComposing || event.keyCode === 229) {
         return false;
       }
@@ -45,7 +49,7 @@ export function useSlashMenu() {
       ) {
         requestAnimationFrame(() => {
           try {
-            if (!editor?.view) return;
+            if (!editor || editor.isDestroyed) return;
             const pos = editor.state.selection.from;
             const coords = editor.view.coordsAtPos(pos);
             setSlashPos({ x: coords.left, y: coords.bottom + 8 });
