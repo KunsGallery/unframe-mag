@@ -108,6 +108,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [editorDocMeta, setEditorDocMeta] = useState(null);
   const [loadingEditorMeta, setLoadingEditorMeta] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
 
   const previewBodyText = editor?.getText?.()?.trim?.() || "";
   const previewExcerpt = previewBodyText
@@ -202,6 +203,35 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, [editor, setDraftDirty]);
 
   useEffect(() => {
+    if (!editor) {
+      setEditorReady(false);
+      return undefined;
+    }
+
+    let rafId = 0;
+
+    const syncReady = () => {
+      if (!editor || editor.isDestroyed) {
+        setEditorReady(false);
+        return;
+      }
+
+      if (editor.isInitialized) {
+        setEditorReady(true);
+        return;
+      }
+
+      rafId = window.requestAnimationFrame(syncReady);
+    };
+
+    syncReady();
+
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [editor]);
+
+  useEffect(() => {
     const cleanup = runAutosave({
       title,
       subtitle,
@@ -215,13 +245,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, [runAutosave, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !editorReady) return;
 
     const targetId = preloadedDraftId || articleId;
     if (!targetId) return;
     if (loadedDraftRef.current === targetId) return;
-
-    loadedDraftRef.current = targetId;
 
     let cancelled = false;
 
@@ -229,7 +257,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       try {
         isHydratingRef.current = true;
 
-        await loadDraft(targetId, {
+        const success = await loadDraft(targetId, {
           setTitle,
           setSubtitle,
           setCategory,
@@ -237,7 +265,10 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           setCoverMedium,
         });
 
-        setDraftDirty(false);
+        if (success && !cancelled) {
+          loadedDraftRef.current = targetId;
+          setDraftDirty(false);
+        }
       } finally {
         setTimeout(() => {
           if (!cancelled) isHydratingRef.current = false;
@@ -250,6 +281,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     };
   }, [
     editor,
+    editorReady,
     articleId,
     preloadedDraftId,
     loadDraft,
@@ -342,7 +374,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           </div>
 
           <div className="space-y-2">
-            {draftsApi.drafts.length === 0 ? (
+                {draftsApi.drafts.length === 0 ? (
               <div
                 className={`p-5 rounded-2xl border text-[10px] tracking-widest uppercase italic opacity-60 ${
                   isDarkMode
@@ -352,39 +384,43 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
               >
                 No drafts yet.
               </div>
-            ) : (
-              draftsApi.drafts.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => {
-                    loadedDraftRef.current = null;
-                    draftsApi.loadDraft(d.id, {
-                      setTitle,
-                      setSubtitle,
-                      setCategory,
-                      setCover,
-                      setCoverMedium,
-                    });
-                  }}
-                  className={`w-full text-left p-4 rounded-2xl border transition ${
-                    draftsApi.draftId === d.id
-                      ? "border-[#004aad] bg-[#004aad]/5"
-                      : isDarkMode
-                      ? "border-zinc-800 hover:border-zinc-600"
-                      : "border-zinc-100 hover:border-zinc-300"
-                  }`}
-                  type="button"
-                >
-                  <div className="text-[11px] font-black italic tracking-tight line-clamp-1">
-                    {d.title || "(Untitled)"}
-                  </div>
+              ) : (
+                draftsApi.drafts.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={async () => {
+                      loadedDraftRef.current = null;
+                      const success = await draftsApi.loadDraft(d.id, {
+                        setTitle,
+                        setSubtitle,
+                        setCategory,
+                        setCover,
+                        setCoverMedium,
+                      });
 
-                  <div className="mt-1 text-[9px] tracking-widest uppercase opacity-50">
-                    {d.category || DEFAULT_ARTICLE_CATEGORY}
-                  </div>
-                </button>
-              ))
-            )}
+                      if (success) {
+                        loadedDraftRef.current = d.id;
+                      }
+                    }}
+                    className={`w-full text-left p-4 rounded-2xl border transition ${
+                      draftsApi.draftId === d.id
+                        ? "border-[#004aad] bg-[#004aad]/5"
+                        : isDarkMode
+                        ? "border-zinc-800 hover:border-zinc-600"
+                        : "border-zinc-100 hover:border-zinc-300"
+                    }`}
+                    type="button"
+                  >
+                    <div className="text-[11px] font-black italic tracking-tight line-clamp-1">
+                      {d.title || "(Untitled)"}
+                    </div>
+
+                    <div className="mt-1 text-[9px] tracking-widest uppercase opacity-50">
+                      {d.category || DEFAULT_ARTICLE_CATEGORY}
+                    </div>
+                  </button>
+                ))
+              )}
           </div>
         </div>
 

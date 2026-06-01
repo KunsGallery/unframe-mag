@@ -38,6 +38,42 @@ export function useDrafts({
   const [isDirty, setIsDirty] = useState(false);
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState(null);
 
+  const waitForEditorReady = useCallback(async () => {
+    if (!editor) return false;
+    if (editor.isDestroyed) return false;
+    if (editor.isInitialized) return true;
+
+    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+      return false;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
+      const tick = () => {
+        if (!editor || editor.isDestroyed) {
+          finish(false);
+          return;
+        }
+
+        if (editor.isInitialized) {
+          finish(true);
+          return;
+        }
+
+        window.requestAnimationFrame(tick);
+      };
+
+      window.requestAnimationFrame(tick);
+    });
+  }, [editor]);
+
   const refreshDrafts = useCallback(async () => {
     if (!canWrite) return;
 
@@ -97,17 +133,24 @@ export function useDrafts({
         setters.setCover(data.cover || "");
         setters.setCoverMedium(data.coverMedium || "");
 
+        const ready = await waitForEditorReady();
+        if (!ready || editor.isDestroyed) {
+          return false;
+        }
+
         editor.commands.setContent(data.contentHTML || "");
         setIsDirty(false);
         setLastAutoSavedAt(null);
+        return true;
       } catch (e) {
         console.error("Load draft error:", e);
         toast("초안 로딩 중 오류가 발생했습니다.");
+        return false;
       } finally {
         setIsDraftLoading(false);
       }
     },
-    [db, editor, toast, isAdmin, authorEmail]
+    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady]
   );
 
   const startNewDraft = useCallback(
