@@ -3,30 +3,36 @@ import { useEffect, useState } from "react";
 export function useLightboxFromArticleBody(bodyRef) {
   const [lightbox, setLightbox] = useState(null);
 
-	useEffect(() => {
-		const root = bodyRef?.current;
-		if (!root) return;
+  useEffect(() => {
+    const root = bodyRef?.current;
+    if (!root) return undefined;
 
-		const onClick = (e) => {
-			const img = e.target?.closest?.("img");
-			if (!img) return;
+    const onClickCapture = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
 
-			const src =
-				img.dataset?.originalSrc ||
-				img.dataset?.src ||
-				img.currentSrc ||
-				img.getAttribute("src") ||
-				img.src;
-			if (!src) return;
+      if (target.closest('button, a, [data-lightbox-ignore="true"]')) return;
 
-			const alt = img.getAttribute("alt") || "";
-			const caption = img.getAttribute("data-caption") || alt || null;
+      const img = target.closest("img");
+      if (!img) return;
+      if (img.closest('button, a, [data-lightbox-ignore="true"]')) return;
 
-			setLightbox({ src, alt, caption });
-		};
+      const src =
+        img.dataset?.originalSrc ||
+        img.dataset?.src ||
+        img.currentSrc ||
+        img.getAttribute("src") ||
+        img.src;
+      if (!src) return;
 
-    root.addEventListener("click", onClick);
-    return () => root.removeEventListener("click", onClick);
+      const alt = img.getAttribute("alt") || "";
+      const caption = img.getAttribute("data-caption") || alt || null;
+
+      setLightbox({ src, alt, caption });
+    };
+
+    root.addEventListener("click", onClickCapture, true);
+    return () => root.removeEventListener("click", onClickCapture, true);
   }, [bodyRef]);
 
   return { lightbox, setLightbox };

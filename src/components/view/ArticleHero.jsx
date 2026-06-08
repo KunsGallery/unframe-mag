@@ -39,7 +39,7 @@ export default function ArticleHero({
             }}
           />
         ) : null}
-        <div className="absolute inset-0 bg-linear-to-b from-transparent via-[#fcfcfc]/50 to-[#fcfcfc] dark:via-zinc-950/50 dark:to-zinc-950" />
+        <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-transparent via-[#fcfcfc]/50 to-[#fcfcfc] dark:via-zinc-950/50 dark:to-zinc-950" />
       </div>
 
       <div className="relative z-10 text-center max-w-4xl px-6">

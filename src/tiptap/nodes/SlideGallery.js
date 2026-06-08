@@ -132,6 +132,7 @@ export const SlideGallery = Node.create({
           {
             type: "button",
             class: "uf-slide-gallery__arrow uf-slide-gallery__arrow--prev",
+            "data-lightbox-ignore": "true",
             "data-dir": "prev",
             "aria-label": "Previous slide",
           },
@@ -169,6 +170,7 @@ export const SlideGallery = Node.create({
           {
             type: "button",
             class: "uf-slide-gallery__arrow uf-slide-gallery__arrow--next",
+            "data-lightbox-ignore": "true",
             "data-dir": "next",
             "aria-label": "Next slide",
           },
@@ -185,6 +187,7 @@ export const SlideGallery = Node.create({
             class: "uf-slide-gallery__dot",
             "data-index": String(idx),
             "data-active": idx === 0 ? "true" : "false",
+            "data-lightbox-ignore": "true",
             "aria-label": `Go to slide ${idx + 1}`,
           },
         ]),
