@@ -3,15 +3,13 @@ import { usePrevNextArticle } from "../../hooks/usePrevNextArticle";
 import { db } from "../../firebase/config";
 import { useNavigate } from "react-router-dom";
 import { estimateReadMinutes, timeEmoji } from "../../lib/readingMeta";
+import { getCoverImageUrl } from "../../lib/imageUrl";
 
 function Card({ label, article }) {
   const nav = useNavigate();
 
   const cover =
-    article?.coverMedium ||
-    article?.coverThumb ||
-    article?.cover ||
-    "";
+    getCoverImageUrl(article, { width: 700 });
 
   const readMinutes = estimateReadMinutes(article);
   const readEmoji = timeEmoji(readMinutes);
@@ -42,12 +40,14 @@ function Card({ label, article }) {
               alt=""
               className="absolute inset-0 w-full h-full object-cover scale-110 blur-[14px] opacity-90 transition-transform duration-700 group-hover:scale-[1.14]"
               loading="lazy"
+              decoding="async"
             />
             <img
               src={cover}
               alt=""
               className="absolute inset-0 w-full h-full object-cover opacity-45 transition-transform duration-700 group-hover:scale-[1.04]"
               loading="lazy"
+              decoding="async"
             />
           </>
         ) : (

@@ -152,8 +152,11 @@ export const Gallery = Node.create({
             {
               src: img.src || "",
               alt: img.alt || "",
+              "data-original-src": img.src || "",
               "data-caption": img.caption || "",
               class: "uf-gallery__img",
+              loading: "lazy",
+              decoding: "async",
               style: `object-position:${img.positionX ?? 50}% ${img.positionY ?? 50}%;`,
             },
           ],

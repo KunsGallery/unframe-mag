@@ -6,6 +6,10 @@
   color: inherit;
 }
 
+.ProseMirror.uf-view img {
+  cursor: zoom-in;
+}
+
 article.uf-prose [data-uf="sticky-story"]{
   min-height: var(--uf-sticky-height, 180vh);
   display: grid;

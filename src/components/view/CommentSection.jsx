@@ -285,12 +285,14 @@ export default function CommentSection({ article }) {
           <>
             <div className="mb-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-                {currentUserPhotoURL ? (
-                  <img
-                    src={currentUserPhotoURL}
-                    alt={currentUserName}
-                    className="w-full h-full object-cover"
-                  />
+                      {currentUserPhotoURL ? (
+                        <img
+                          src={currentUserPhotoURL}
+                          alt={currentUserName}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
                 ) : (
                   <span className="text-[11px] font-black opacity-45">
                     {currentUserInitials}
@@ -379,6 +381,8 @@ export default function CommentSection({ article }) {
                           src={commentPhotoURL}
                           alt={commentName}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <span className="text-[11px] font-black opacity-45">

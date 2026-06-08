@@ -1,4 +1,5 @@
 import React from "react";
+import { getCoverImageUrl } from "../../lib/imageUrl";
 
 export default function ArticleNav({ article, nav }) {
   return (
@@ -8,7 +9,13 @@ export default function ArticleNav({ article, nav }) {
           onClick={() => nav(`/article/${article.prev.id}`)}
           className="group relative h-44 rounded-[32px] overflow-hidden border border-zinc-100 dark:border-zinc-800 shadow-sm transition-all hover:-translate-y-1"
         >
-          <img src={article.prev.coverMedium || article.prev.cover} className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:scale-110 transition-transform duration-1000" alt="" />
+          <img
+            src={getCoverImageUrl(article.prev, { width: 700 })}
+            className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:scale-110 transition-transform duration-1000"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-[#fcfcfc] dark:from-zinc-950 p-10 flex flex-col justify-center">
             <span className="text-[10px] font-black text-[#004aad] mb-2 uppercase tracking-widest italic">Previous</span>
             <h4 className="text-lg font-black italic leading-tight dark:text-white line-clamp-2">{article.prev.title}</h4>
@@ -21,7 +28,13 @@ export default function ArticleNav({ article, nav }) {
           onClick={() => nav(`/article/${article.next.id}`)}
           className="group relative h-44 rounded-[32px] overflow-hidden border border-zinc-100 dark:border-zinc-800 shadow-sm transition-all hover:-translate-y-1"
         >
-          <img src={article.next.coverMedium || article.next.cover} className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:scale-110 transition-transform duration-1000" alt="" />
+          <img
+            src={getCoverImageUrl(article.next, { width: 700 })}
+            className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:scale-110 transition-transform duration-1000"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
           <div className="absolute inset-0 bg-gradient-to-l from-[#fcfcfc] dark:from-zinc-950 p-10 flex flex-col justify-center text-right">
             <span className="text-[10px] font-black text-[#004aad] mb-2 uppercase tracking-widest italic">Next</span>
             <h4 className="text-lg font-black italic leading-tight dark:text-white line-clamp-2">{article.next.title}</h4>

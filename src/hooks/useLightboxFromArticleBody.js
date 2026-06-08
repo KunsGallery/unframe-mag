@@ -3,24 +3,27 @@ import { useEffect, useState } from "react";
 export function useLightboxFromArticleBody(bodyRef) {
   const [lightbox, setLightbox] = useState(null);
 
-  useEffect(() => {
-    const root = bodyRef?.current;
-    if (!root) return;
+	useEffect(() => {
+		const root = bodyRef?.current;
+		if (!root) return;
 
-    const onClick = (e) => {
-      const img = e.target?.closest?.("img");
-      if (!img) return;
+		const onClick = (e) => {
+			const img = e.target?.closest?.("img");
+			if (!img) return;
 
-      const src = img.getAttribute("src");
-      if (!src) return;
+			const src =
+				img.dataset?.originalSrc ||
+				img.dataset?.src ||
+				img.currentSrc ||
+				img.getAttribute("src") ||
+				img.src;
+			if (!src) return;
 
-      const caption =
-        img.getAttribute("alt") ||
-        img.getAttribute("data-caption") ||
-        null;
+			const alt = img.getAttribute("alt") || "";
+			const caption = img.getAttribute("data-caption") || alt || null;
 
-      setLightbox({ src, caption });
-    };
+			setLightbox({ src, alt, caption });
+		};
 
     root.addEventListener("click", onClick);
     return () => root.removeEventListener("click", onClick);

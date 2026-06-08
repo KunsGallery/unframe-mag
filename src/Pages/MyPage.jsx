@@ -20,6 +20,7 @@ import { useSavedArticles } from "../hooks/useSavedArticles";
 import { useMyAchievements } from "../hooks/useMyAchievements";
 import { useMyStickers } from "../hooks/useMyStickers";
 import UploadButton from "../components/editor/UploadButton";
+import { getCoverImageUrl } from "../lib/imageUrl";
 import {
   getProfileInitials,
   resolveProfileDisplayName,
@@ -49,7 +50,7 @@ function padEdition(editionNo) {
 }
 
 function coverUrlOfSaved(doc) {
-  return doc?.coverMedium || doc?.cover || "";
+  return getCoverImageUrl(doc, { width: 800 });
 }
 
 // 로컬 기준 yyyymmdd

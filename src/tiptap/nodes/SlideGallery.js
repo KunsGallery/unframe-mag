@@ -155,7 +155,10 @@ export const SlideGallery = Node.create({
               {
                 src: img.src || "",
                 alt: img.alt || "",
+                "data-original-src": img.src || "",
                 class: "uf-slide-gallery__img",
+                loading: "lazy",
+                decoding: "async",
                 style: `object-position:${img.positionX ?? 50}% ${img.positionY ?? 50}%;`,
               },
             ],

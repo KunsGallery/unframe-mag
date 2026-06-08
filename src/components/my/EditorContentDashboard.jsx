@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../firebase/config";
+import { getCoverImageUrl } from "../../lib/imageUrl";
 
 function padEdition(editionNo) {
   if (!editionNo) return "---";
@@ -14,7 +15,7 @@ function tsToMs(ts) {
 }
 
 function coverOf(item) {
-  return item?.coverMedium || item?.cover || "";
+  return getCoverImageUrl(item, { width: 800 });
 }
 
 function timeAgo(ts) {

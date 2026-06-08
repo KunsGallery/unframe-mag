@@ -170,7 +170,18 @@ export const ParallaxImage = Node.create({
       [
         "div",
         { class: "uf-parallax__wrapper" },
-        ["img", { src: src || "", class: "uf-parallax__img", alt: "" }],
+        [
+          "img",
+          {
+            src: src || "",
+            class: "uf-parallax__img",
+            alt: "",
+            "data-original-src": src || "",
+            "data-caption": caption || "",
+            loading: "lazy",
+            decoding: "async",
+          },
+        ],
       ],
       ...(caption
         ? [

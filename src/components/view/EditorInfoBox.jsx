@@ -206,6 +206,8 @@ export default function EditorInfoBox({ article, currentUser, onToast }) {
               src={editorPhotoURL}
               alt={displayName}
               className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <span>{editorInitials}</span>

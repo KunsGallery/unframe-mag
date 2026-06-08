@@ -8,6 +8,7 @@ import { usePopularRollup } from "../hooks/usePopularRollup";
 import { useNetworkConfig } from "../hooks/useNetworkConfig";
 import { ARCHIVE_CATEGORIES as CATEGORIES } from "../constants/categories";
 import { estimateReadMinutes, timeEmoji } from "../lib/readingMeta";
+import { getCoverImageUrl } from "../lib/imageUrl";
 
 function padEdition(editionNo) {
   if (!editionNo) return "---";
@@ -15,8 +16,8 @@ function padEdition(editionNo) {
   return s.length >= 3 ? s : s.padStart(3, "0");
 }
 
-function coverUrlOf(article) {
-  return article?.coverMedium || article?.coverThumb || article?.cover || "";
+function coverUrlOf(article, options = {}) {
+  return getCoverImageUrl(article, options);
 }
 
 // ✅ XP Top10 (3.3.2)
@@ -225,7 +226,7 @@ export default function HomePage({ isDarkMode }) {
   }
 
   const coverEdition = padEdition(cover.editionNo);
-  const coverImg = coverUrlOf(cover);
+  const coverImg = coverUrlOf(cover, { width: 1800 });
   const coverMin = estimateReadMinutes(cover, { min: 2 });
   const coverEmoji = timeEmoji(coverMin);
 
@@ -302,6 +303,8 @@ export default function HomePage({ isDarkMode }) {
             className="absolute inset-0 h-full w-full object-cover opacity-65 scale-105"
             alt="Cover"
             loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         ) : (
           <div className="absolute inset-0 bg-zinc-900" />
@@ -696,7 +699,7 @@ function NetworkCard({ title, kicker, desc, href, isDarkMode }) {
 
 function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
   const edition = padEdition(item?.editionNo);
-  const img = coverUrlOf(item);
+  const img = coverUrlOf(item, { width: compact ? 800 : 1200 });
   const excerpt = item?.excerpt || item?.subtitle || "";
 
   const min = estimateReadMinutes(item, { min: 2 });
@@ -712,7 +715,13 @@ function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
       ].join(" ")}
     >
       {img ? (
-        <img src={img} alt={item.title} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-85 transition" />
+        <img
+          src={img}
+          alt={item.title}
+          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-85 transition"
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         <div className="absolute inset-0 bg-zinc-900" />
       )}
@@ -756,7 +765,7 @@ function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
 
 function ArchiveCard({ item, isDarkMode }) {
   const edition = padEdition(item?.editionNo);
-  const img = coverUrlOf(item);
+  const img = coverUrlOf(item, { width: 800 });
 
   const min = estimateReadMinutes(item, { min: 2 });
   const emoji = timeEmoji(min);
@@ -771,7 +780,13 @@ function ArchiveCard({ item, isDarkMode }) {
     >
       <div className="h-44 overflow-hidden">
         {img ? (
-          <img src={img} alt={item.title} className="h-full w-full object-cover group-hover:scale-[1.02] transition" />
+          <img
+            src={img}
+            alt={item.title}
+            className="h-full w-full object-cover group-hover:scale-[1.02] transition"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="h-full w-full bg-zinc-900" />
         )}

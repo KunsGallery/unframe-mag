@@ -1,13 +1,20 @@
 import React from "react";
+import { getCoverImageUrl } from "../../lib/imageUrl";
 
 export default function ArticleHero({
   article,
   authorName,
   readMinutes = 1,
   readEmoji = "☕️",
+  onOpenImage,
 }) {
-  const heroSrc = (article.coverMedium || article.cover || "").trim() || null;
+  const heroSrc = getCoverImageUrl(article, {
+    width: 2400,
+    quality: "auto:good",
+  }) || null;
+  const originalHeroSrc = (article.cover || heroSrc || "").trim() || null;
   const subtitle = article.subtitle?.trim?.() || "";
+  const heroCaption = article.title || article.subtitle || "";
 
   return (
     <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
@@ -15,8 +22,21 @@ export default function ArticleHero({
         {heroSrc ? (
           <img
             src={heroSrc}
-            className="w-full h-full object-cover opacity-40 dark:opacity-20 blur-[2px]"
-            alt=""
+            data-original-src={originalHeroSrc || undefined}
+            data-caption={heroCaption || undefined}
+            className="w-full h-full object-cover opacity-40 dark:opacity-20 blur-[2px] cursor-zoom-in"
+            alt={article.title || ""}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenImage?.({
+                src: originalHeroSrc || event.currentTarget.currentSrc || event.currentTarget.src,
+                alt: article.title || "",
+                caption: heroCaption || null,
+              });
+            }}
           />
         ) : null}
         <div className="absolute inset-0 bg-linear-to-b from-transparent via-[#fcfcfc]/50 to-[#fcfcfc] dark:via-zinc-950/50 dark:to-zinc-950" />

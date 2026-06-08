@@ -47,7 +47,16 @@ export const UfImage = Node.create({
         "data-uf": "image",
         class: `uf-img is-${size} align-${align}`,
       }),
-      ["img", { src: String(src), alt: alt ? String(alt) : "" }],
+      [
+        "img",
+        {
+          src: String(src),
+          alt: alt ? String(alt) : "",
+          "data-original-src": String(src),
+          loading: "lazy",
+          decoding: "async",
+        },
+      ],
       ...(caption
         ? [["figcaption", { class: "uf-img__caption" }, String(caption)]]
         : []),

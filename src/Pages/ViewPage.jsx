@@ -60,7 +60,7 @@ import ArticleBody from "../components/view/ArticleBody";
 import CommentSection from "../components/view/CommentSection";
 import PrevNextCards from "../components/view/PrevNextCards";
 import ArticleNav from "../components/view/ArticleNav";
-import Lightbox from "../components/view/Lightbox";
+import ImageLightbox from "../components/view/ImageLightbox";
 import EditorInfoBox from "../components/view/EditorInfoBox";
 import MoreFromEditor from "../components/view/MoreFromEditor";
 import { isAdminEmail } from "../constants/admin";
@@ -1297,6 +1297,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
         authorName={articleAuthorName}
         readMinutes={readMinutes}
         readEmoji={readEmoji}
+        onOpenImage={setLightbox}
       />
 
       {canEditArticle && (
@@ -1331,7 +1332,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
         <ArticleNav article={article} nav={nav} />
       </main>
 
-      <Lightbox lightbox={lightbox} onClose={() => setLightbox(null)} />
+      <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }

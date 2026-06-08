@@ -34,10 +34,17 @@ export const StickyStory = Node.create({
     const { imageSrc, imagePos, stickyHeight, visualSize } = node.attrs;
     const resolvedVisualSize = normalizeStickyStoryVisualSize(visualSize);
 
-    const visualChildren = imageSrc
+      const visualChildren = imageSrc
       ? [[
           "img",
-          { src: String(imageSrc), alt: "", class: "uf-sticky-story__img" },
+          {
+            src: String(imageSrc),
+            alt: "",
+            class: "uf-sticky-story__img",
+            "data-original-src": String(imageSrc),
+            loading: "lazy",
+            decoding: "async",
+          },
         ]]
       : [[
           "div",
