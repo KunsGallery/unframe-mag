@@ -200,7 +200,7 @@ export default function HomePage({ isDarkMode }) {
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center text-zinc-400 font-black italic tracking-widest uppercase">
+      <div className="min-h-[70vh] flex items-center justify-center text-[var(--uf-muted)] font-black italic tracking-widest uppercase">
         Loading Archive...
       </div>
     );
@@ -209,8 +209,8 @@ export default function HomePage({ isDarkMode }) {
   if (loadErr) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center text-center gap-3">
-        <div className="text-zinc-400 font-black italic tracking-widest uppercase">{loadErr}</div>
-        <div className="text-xs text-zinc-500">Firestore 연결/규칙(status=published read)을 확인해줘.</div>
+        <div className="text-[var(--uf-muted)] font-black italic tracking-widest uppercase">{loadErr}</div>
+        <div className="text-xs text-[var(--uf-muted)]">Firestore 연결/규칙(status=published read)을 확인해줘.</div>
       </div>
     );
   }
@@ -218,8 +218,8 @@ export default function HomePage({ isDarkMode }) {
   if (!cover) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center text-center gap-3">
-        <div className="text-zinc-400 font-black italic tracking-widest uppercase">No Published Articles</div>
-        <div className="text-xs text-zinc-500">에디터에서 글을 발행(status=published)하면 홈에 나타나요.</div>
+        <div className="text-[var(--uf-muted)] font-black italic tracking-widest uppercase">No Published Articles</div>
+        <div className="text-xs text-[var(--uf-muted)]">에디터에서 글을 발행(status=published)하면 홈에 나타나요.</div>
       </div>
     );
   }
@@ -293,7 +293,7 @@ export default function HomePage({ isDarkMode }) {
   };
 
   return (
-    <div className="animate-in fade-in duration-700">
+    <div className="animate-in fade-in duration-700 bg-[var(--uf-bg)] text-[var(--uf-text)]">
       {/* Hero */}
       <section className="relative h-[92vh] overflow-hidden bg-black text-white">
         {coverImg ? (

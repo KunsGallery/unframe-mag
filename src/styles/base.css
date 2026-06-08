@@ -3,11 +3,47 @@
 /* Tailwind v4 */
 @import "tailwindcss";
 @reference "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --uf-bg: #fcfcfc;
+  --uf-surface: #ffffff;
+  --uf-surface-strong: #f4f4f5;
+  --uf-text: #111111;
+  --uf-muted: #6b7280;
+  --uf-border: rgba(24, 24, 27, 0.12);
+  --uf-editor-bg: #ffffff;
+  --uf-editor-surface: #f8f8f8;
+  --uf-editor-border: rgba(24, 24, 27, 0.12);
+  color-scheme: light;
+}
+
+html.dark,
+html[data-theme="dark"] {
+  --uf-bg: #09090b;
+  --uf-surface: #18181b;
+  --uf-surface-strong: #27272a;
+  --uf-text: #f4f4f5;
+  --uf-muted: #a1a1aa;
+  --uf-border: rgba(255, 255, 255, 0.12);
+  --uf-editor-bg: #09090b;
+  --uf-editor-surface: #18181b;
+  --uf-editor-border: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
+}
 
 /* ===== Base ===== */
 @layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    background: var(--uf-bg);
+    color: var(--uf-text);
+  }
+
   body {
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-    @apply bg-white text-zinc-900 antialiased;
+    @apply antialiased;
   }
 }

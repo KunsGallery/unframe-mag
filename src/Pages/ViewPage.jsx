@@ -1257,7 +1257,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center font-black italic text-zinc-300 animate-pulse uppercase tracking-widest">
+      <div className="h-screen flex items-center justify-center font-black italic text-[var(--uf-muted)] animate-pulse uppercase tracking-widest">
         Archive Loading...
       </div>
     );
@@ -1265,14 +1265,14 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
   if (!article) {
     return (
-      <div className="h-screen flex items-center justify-center font-black italic text-zinc-300 uppercase">
+      <div className="h-screen flex items-center justify-center font-black italic text-[var(--uf-muted)] uppercase">
         404 Not Found
       </div>
     );
   }
 
   return (
-    <div className="uf-page bg-[#fcfcfc] dark:bg-zinc-950 min-h-screen transition-colors duration-500">
+    <div className="uf-page min-h-screen bg-[var(--uf-bg)] text-[var(--uf-text)] transition-colors duration-500">
       <style>{viewRuntimeCSS}</style>
 
       <div className="fixed top-[80px] left-0 w-full h-[3px] bg-zinc-200/70 dark:bg-zinc-800/80 z-90 backdrop-blur-sm">

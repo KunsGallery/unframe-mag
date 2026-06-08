@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UNFRAME | U#</title>
 
-    <meta name="theme-color" content="#004aad" />
-    <meta name="background-color" content="#0a0a0a" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fcfcfc" />
+    <meta name="background-color" content="#fcfcfc" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -28,6 +29,45 @@
     </style>
   </head>
   <body>
+    <script>
+      (() => {
+        const STORAGE_KEY = "uf_theme_preference";
+        const DARK_COLOR = "#09090b";
+        const LIGHT_COLOR = "#fcfcfc";
+        const root = document.documentElement;
+        const body = document.body;
+        const prefersDark =
+          window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+        let preference = "system";
+        try {
+          const stored = window.localStorage.getItem(STORAGE_KEY);
+          if (stored === "light" || stored === "dark" || stored === "system") {
+            preference = stored;
+          }
+        } catch {
+          // localStorage may be unavailable in private or restricted contexts.
+        }
+
+        const resolved =
+          preference === "system" ? (prefersDark ? "dark" : "light") : preference;
+        const isDark = resolved === "dark";
+
+        root.classList.toggle("dark", isDark);
+        root.dataset.theme = resolved;
+        root.style.colorScheme = resolved;
+        root.style.backgroundColor = isDark ? DARK_COLOR : LIGHT_COLOR;
+        root.style.color = isDark ? "#f4f4f5" : "#111111";
+
+        if (body) {
+          body.classList.toggle("dark", isDark);
+          body.dataset.theme = resolved;
+          body.style.colorScheme = resolved;
+          body.style.backgroundColor = isDark ? DARK_COLOR : LIGHT_COLOR;
+          body.style.color = isDark ? "#f4f4f5" : "#111111";
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

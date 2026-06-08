@@ -426,10 +426,10 @@ export default function MyPage({ isDarkMode, onToast }) {
   if (!user) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center text-center gap-3">
-        <div className="text-zinc-400 font-black italic tracking-widest uppercase">
+        <div className="text-[var(--uf-muted)] font-black italic tracking-widest uppercase">
           Login Required
         </div>
-        <div className="text-sm text-zinc-500">
+        <div className="text-sm text-[var(--uf-muted)]">
           My#는 로그인 후 이용할 수 있어요.
         </div>
       </div>
@@ -437,11 +437,7 @@ export default function MyPage({ isDarkMode, onToast }) {
   }
 
   return (
-    <div
-      className={`${
-        isDarkMode ? "bg-black text-white" : "bg-[#f7f5f0] text-black"
-      } min-h-screen`}
-    >
+    <div className="min-h-screen bg-[var(--uf-bg)] text-[var(--uf-text)]">
       <div className="relative overflow-hidden">
         <div
           className={`pointer-events-none absolute inset-0 ${

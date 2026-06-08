@@ -7,19 +7,19 @@
   margin: 2rem 0;
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid rgba(0,0,0,.08);
-  background: white;
+  border: 1px solid var(--uf-border);
+  background: var(--uf-surface);
 }
 
 .ProseMirror th, .ProseMirror td {
   padding: 12px 14px;
-  border-right: 1px solid rgba(0,0,0,.06);
-  border-bottom: 1px solid rgba(0,0,0,.06);
+  border-right: 1px solid var(--uf-border);
+  border-bottom: 1px solid var(--uf-border);
   vertical-align: top;
 }
 
 .ProseMirror th {
-  background: rgba(0,0,0,.04);
+  background: var(--uf-surface-strong);
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: .12em;
@@ -60,7 +60,7 @@
   vertical-align: top;
   overflow-wrap: break-word;
   word-break: break-word;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--uf-border);
   background: transparent;
   box-sizing: border-box;
   overflow: hidden;
@@ -68,7 +68,7 @@
 
 .dark .ProseMirror th,
 .dark .ProseMirror td {
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--uf-border);
 }
 
 .ProseMirror th {
@@ -76,11 +76,11 @@
   font-weight: 900;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--uf-surface-strong);
 }
 
 .dark .ProseMirror th {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--uf-surface-strong);
 }
 
 .ProseMirror td {
@@ -156,13 +156,13 @@
 
 /* Poll 편집 강조(에디터/뷰 공통으로 들어가도 괜찮지만, 에디터에서만 원하면 editor.css로 옮겨도 됨) */
 .ProseMirror .uf-poll {
-  outline: 1px dashed rgba(0,0,0,0.12);
+  outline: 1px dashed var(--uf-border);
   outline-offset: 10px;
   border-radius: 18px;
 }
 
 .dark .ProseMirror .uf-poll {
-  outline-color: rgba(255,255,255,0.18);
+  outline-color: var(--uf-border);
 }
 
 .ProseMirror .uf-poll.ProseMirror-selectednode {

@@ -8,11 +8,9 @@
 .ProseMirror.uf-editor{
   line-height: 1.85;
   font-size: 16px;
-  color: #111;
-}
-
-.dark .ProseMirror.uf-editor{
-  color: #f4f4f5;
+  color: var(--uf-text);
+  background: var(--uf-editor-bg);
+  caret-color: var(--uf-text);
 }
 
 /* 블록 리듬 */
@@ -44,34 +42,24 @@
 /* 테이블 가독성(에디터 강화) */
 .ProseMirror.uf-editor table{
   margin: 1rem 0;
-  background: rgba(255,255,255,0.85);
+  background: var(--uf-editor-surface);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 10px 26px rgba(0,0,0,0.06);
 }
 
 .dark .ProseMirror.uf-editor table{
-  background: rgba(9,9,11,0.55);
   box-shadow: 0 14px 34px rgba(0,0,0,0.35);
 }
 
 .ProseMirror.uf-editor th,
 .ProseMirror.uf-editor td{
-  border: 1px solid rgba(0,0,0,0.14);
+  border: 1px solid var(--uf-editor-border);
   padding: 10px 12px;
 }
 
-.dark .ProseMirror.uf-editor th,
-.dark .ProseMirror.uf-editor td{
-  border-color: rgba(255,255,255,0.16);
-}
-
 .ProseMirror.uf-editor th{
-  background: rgba(0,74,173,0.10);
-}
-
-.dark .ProseMirror.uf-editor th{
-  background: rgba(0,74,173,0.22);
+  background: color-mix(in srgb, var(--uf-editor-surface) 82%, #004aad 18%);
 }
 
 .ProseMirror.uf-editor .selectedCell{

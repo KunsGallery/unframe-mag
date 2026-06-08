@@ -1,6 +1,11 @@
 /* src/styles/view.css */
 
 /* ✅ StickyStory: contentHTML 본문(uf-prose) 안에서만 동작 (View 전용) */
+.ProseMirror.uf-view {
+  background: transparent;
+  color: inherit;
+}
+
 article.uf-prose [data-uf="sticky-story"]{
   min-height: var(--uf-sticky-height, 180vh);
   display: grid;

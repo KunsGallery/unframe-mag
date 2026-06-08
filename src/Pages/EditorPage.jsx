@@ -338,7 +338,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   if (!canWrite) {
     return (
-      <div className="p-40 text-center font-black italic uppercase tracking-widest text-zinc-400">
+      <div className="p-40 text-center font-black italic uppercase tracking-widest text-[var(--uf-muted)]">
         Access Denied.
       </div>
     );
@@ -346,9 +346,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   return (
     <div
-      className={`min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 overflow-x-hidden ${
-        isDarkMode ? "bg-zinc-950" : "bg-zinc-100"
-      }`}
+      className="min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 overflow-x-hidden bg-[var(--uf-bg)] text-[var(--uf-text)]"
     >
       <aside
         className={`hidden xl:flex min-w-0 xl:col-span-3 p-6 xl:p-10 flex-col gap-10 xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
@@ -553,9 +551,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       </aside>
 
       <main
-        className={`min-w-0 xl:col-span-9 flex transition-colors duration-500 ${
-          isDarkMode ? "bg-black" : "bg-white"
-        }`}
+        className="min-w-0 xl:col-span-9 flex transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
       >
         <div className="flex-1 flex flex-col">
           <div className="xl:hidden px-5 pt-4 pb-2">
@@ -714,7 +710,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     setTitle(e.target.value);
                     draftsApi.setIsDirty(true);
                   }}
-                  className={`uf-title-textarea w-full resize-none overflow-hidden text-4xl md:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-zinc-100 dark:placeholder:text-zinc-900 ${
+                  className={`uf-title-textarea w-full resize-none overflow-hidden text-4xl md:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-[var(--uf-muted)] ${
                     isDarkMode ? "text-white" : "text-black"
                   }`}
                 />
@@ -745,7 +741,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     titleRef.current?.setSelectionRange?.(len, len);
                   }
                 }}
-                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-xl md:text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-5 md:pl-8 ${
+                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-xl md:text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-5 md:pl-8 placeholder:text-[var(--uf-muted)] ${
                   isDarkMode ? "text-zinc-500" : "text-zinc-400"
                 }`}
               />
@@ -1057,7 +1053,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         .ProseMirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           float: left;
-          color: #adb5bd;
+          color: var(--uf-muted);
           pointer-events: none;
           height: 0;
         }

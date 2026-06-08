@@ -7,7 +7,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { Sun, Moon, Edit3, LogOut } from "lucide-react";
+import { Edit3, LogOut } from "lucide-react";
 
 // Firebase
 import { auth, googleProvider, db } from "./firebase/config";
@@ -33,6 +33,8 @@ import {
   useIsMobileViewport,
   useMobileDebugEnabled,
 } from "./components/debug/debugHooks";
+import { useTheme } from "./hooks/useTheme";
+import ThemeToggle from "./components/common/ThemeToggle";
 
 function safeNicknameFromDisplayName(displayName) {
   const base = String(displayName || "User")
@@ -142,17 +144,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
           </Link>
         )}
 
-        <button
-          onClick={toggleTheme}
-          className="w-14 h-14 rounded-2xl flex items-center justify-center bg-zinc-50 dark:bg-zinc-900 text-zinc-400 hover:text-[#004aad] transition-all shadow-inner group"
-          type="button"
-        >
-          {isDarkMode ? (
-            <Sun size={24} className="group-hover:rotate-90 transition-all duration-700" />
-          ) : (
-            <Moon size={24} className="group-hover:-rotate-12 transition-all duration-700" />
-          )}
-        </button>
+        <ThemeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
 
         {user ? (
           <button
@@ -251,7 +243,7 @@ const RequireRole = ({ user, role, allow = [], loading = false, children }) => {
 const NotFound = () => (
   <div className="py-40 px-6 text-center">
     <h1 className="text-4xl font-black italic tracking-tighter mb-4">404</h1>
-    <p className="opacity-60 italic">Page not found.</p>
+    <p className="text-[var(--uf-muted)] italic">Page not found.</p>
     <div className="mt-10">
       <Link
         to="/"
@@ -267,7 +259,7 @@ const NotFound = () => (
 // App
 // ----------------------------------------------------------------------------
 export default function App() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { resolvedTheme, isDarkMode, toggleTheme } = useTheme();
 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -382,17 +374,14 @@ export default function App() {
     }
   };
 
-  const toggleTheme = () => setIsDarkMode((v) => !v);
-
   return (
     <Router>
       <ScrollToTop />
 
       <DebugLayer>
         <div
-          className={`min-h-screen font-sans transition-all duration-700 selection:bg-[#004aad] selection:text-white ${
-            isDarkMode ? "bg-black text-white dark" : "bg-white text-black"
-          }`}
+          className="min-h-screen font-sans transition-all duration-700 selection:bg-[#004aad] selection:text-white bg-[var(--uf-bg)] text-[var(--uf-text)]"
+          data-theme={resolvedTheme}
         >
           <div
             className={`fixed inset-0 pointer-events-none transition-opacity duration-700 ${

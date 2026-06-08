@@ -135,7 +135,7 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
 
   if (!isAdmin) {
     return (
-      <div className="p-24 text-center font-black italic uppercase tracking-widest text-zinc-400">
+      <div className="p-24 text-center font-black italic uppercase tracking-widest text-[var(--uf-muted)]">
         Admin only.
       </div>
     );
@@ -143,14 +143,14 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
 
   if (loading) {
     return (
-      <div className="p-24 text-center font-black italic uppercase tracking-widest text-zinc-400">
+      <div className="p-24 text-center font-black italic uppercase tracking-widest text-[var(--uf-muted)]">
         Loading…
       </div>
     );
   }
 
   return (
-    <div className={`${isDarkMode ? "bg-zinc-950 text-white" : "bg-white text-black"} min-h-screen`}>
+    <div className="min-h-screen bg-[var(--uf-bg)] text-[var(--uf-text)]">
       <div className="max-w-[1100px] mx-auto px-6 py-16">
         <div className="flex items-end justify-between gap-6">
           <div>
