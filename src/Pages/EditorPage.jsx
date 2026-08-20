@@ -551,7 +551,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       </aside>
 
       <main
-        className="min-w-0 xl:col-span-9 flex items-start transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
+        className="min-w-0 xl:col-span-9 xl:pr-[320px] flex items-start transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
       >
         <div className="min-w-0 flex-1 flex flex-col">
           <div className="xl:hidden px-5 pt-4 pb-2">

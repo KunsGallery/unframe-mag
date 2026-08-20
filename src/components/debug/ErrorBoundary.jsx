@@ -1,6 +1,27 @@
 import React from "react";
 import { MobileDebugOverlay } from "./MobileDebugOverlay";
 
+const RENDER_RECOVERY_KEY = "uf_render_recovery_reload_v1";
+
+function reloadRenderErrorOnce(pathname) {
+  try {
+    const last = JSON.parse(sessionStorage.getItem(RENDER_RECOVERY_KEY) || "null");
+    const samePath = last?.path === pathname;
+    const recent = Date.now() - Number(last?.at || 0) < 15000;
+    if (samePath && recent) return false;
+
+    sessionStorage.setItem(
+      RENDER_RECOVERY_KEY,
+      JSON.stringify({ at: Date.now(), path: pathname })
+    );
+  } catch {
+    // Storage can be restricted in embedded browsers; still try one recovery.
+  }
+
+  window.location.reload();
+  return true;
+}
+
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -17,6 +38,10 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error("[ErrorBoundary]", error, errorInfo);
+
+    if (!this.props.enabled) {
+      reloadRenderErrorOnce(this.props.pathname || window.location.pathname);
+    }
   }
 
   componentDidUpdate(prevProps) {

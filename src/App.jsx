@@ -50,6 +50,14 @@ function safeNicknameFromDisplayName(displayName) {
   return nick.length ? nick : "User";
 }
 
+function shouldPreferRedirectLogin() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR/i.test(ua);
+  const isChromeLike = /Chrome|Chromium|CriOS|Edg|OPR|ChatGPT/i.test(ua);
+  return isChromeLike && !isSafari;
+}
+
 // ----------------------------------------------------------------------------
 // Shared Components
 // ----------------------------------------------------------------------------
@@ -377,6 +385,10 @@ export default function App() {
   const handleLogin = async () => {
     try {
       googleProvider.setCustomParameters({ prompt: "select_account" });
+      if (shouldPreferRedirectLogin()) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
       console.error("[App] google popup login error:", e);

@@ -8,6 +8,24 @@ import "./styles/index.css";
 let updateSW = () => {};
 
 const RECOVERY_RELOAD_KEY = "uf_app_shell_recovery_reload_v1";
+const CACHE_CLEANUP_KEY = "uf_cache_cleanup_20260820_nav2";
+
+async function clearLegacyAppCachesOnce() {
+  if (typeof window === "undefined" || !("caches" in window)) return;
+
+  try {
+    if (localStorage.getItem(CACHE_CLEANUP_KEY) === "1") return;
+    const names = await caches.keys();
+    await Promise.all(
+      names
+        .filter((name) => /workbox|precache|runtime|vite-pwa|unframe|uf/i.test(name))
+        .map((name) => caches.delete(name))
+    );
+    localStorage.setItem(CACHE_CLEANUP_KEY, "1");
+  } catch (e) {
+    console.warn("[app shell] cache cleanup skipped", e);
+  }
+}
 
 function reloadAppShellOnce(reason) {
   if (typeof window === "undefined") return;
@@ -53,6 +71,8 @@ if ("serviceWorker" in navigator) {
     reloadAppShellOnce("service-worker-controller-change");
   });
 }
+
+clearLegacyAppCachesOnce();
 
 updateSW = registerSW({
   immediate: true,
