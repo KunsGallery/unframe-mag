@@ -1167,7 +1167,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
               />
             </Row>
 
-            <Row label="Images">
+            <Row label="Slide Captions">
               <div className="space-y-3">
                 {(selected.attrs.images ?? []).map((img, idx, arr) => {
                   const posX =
@@ -1275,22 +1275,27 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                         </button>
                       </div>
 
-                      <input
-                        type="text"
-                        value={img?.caption ?? ""}
-                        onChange={(e) => {
-                          const next = [...arr];
-                          next[idx] = { ...next[idx], caption: e.target.value };
-                          setAttrs("slideGallery", { images: next });
-                        }}
-                        placeholder="Caption"
-                        className={[
-                          "w-full px-3 py-2 rounded-xl border text-xs bg-transparent",
-                          isDarkMode
-                            ? "border-zinc-900 text-white placeholder:text-zinc-600"
-                            : "border-zinc-200 text-black placeholder:text-zinc-400",
-                        ].join(" ")}
-                      />
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
+                          Caption
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={img?.caption ?? ""}
+                          onChange={(e) => {
+                            const next = [...arr];
+                            next[idx] = { ...next[idx], caption: e.target.value };
+                            setAttrs("slideGallery", { images: next });
+                          }}
+                          placeholder="이미지 제목 또는 캡션"
+                          className={[
+                            "w-full resize-y px-3 py-2 rounded-xl border text-xs leading-5 bg-transparent",
+                            isDarkMode
+                              ? "border-zinc-900 text-white placeholder:text-zinc-600"
+                              : "border-zinc-200 text-black placeholder:text-zinc-400",
+                          ].join(" ")}
+                        />
+                      </div>
 
                       <div className="space-y-2">
                         <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">

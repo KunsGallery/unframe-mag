@@ -223,16 +223,15 @@ function ScrollToTop() {
 }
 
 function DebugLayer({ children }) {
+  const location = useLocation();
   const debugEnabled = useMobileDebugEnabled();
   const isMobile = useIsMobileViewport();
   const enabled = debugEnabled && isMobile;
 
-  if (!enabled) return children;
-
   return (
     <>
-      <MobileDebugRuntimeOverlay enabled={enabled} />
-      <ErrorBoundary enabled={enabled} pathname={window.location.pathname}>
+      {enabled && <MobileDebugRuntimeOverlay enabled={enabled} />}
+      <ErrorBoundary enabled={enabled} pathname={location.pathname}>
         {children}
       </ErrorBoundary>
     </>

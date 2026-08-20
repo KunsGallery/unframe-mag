@@ -19,8 +19,18 @@ export default class ErrorBoundary extends React.Component {
     console.error("[ErrorBoundary]", error, errorInfo);
   }
 
+  componentDidUpdate(prevProps) {
+    if (this.state.error && prevProps.pathname !== this.props.pathname) {
+      this.setState({ error: null, errorInfo: null });
+    }
+  }
+
   handleClose = () => {
     this.setState({ error: null, errorInfo: null });
+  };
+
+  handleReload = () => {
+    window.location.reload();
   };
 
   render() {
@@ -39,6 +49,13 @@ export default class ErrorBoundary extends React.Component {
               <div className="mt-3 text-sm text-zinc-300 break-words">
                 {error.message || String(error)}
               </div>
+              <button
+                type="button"
+                onClick={this.handleReload}
+                className="mt-5 w-full rounded-xl bg-white px-4 py-3 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-950"
+              >
+                Reload
+              </button>
             </div>
           </div>
         );
@@ -59,4 +76,3 @@ export default class ErrorBoundary extends React.Component {
     return children;
   }
 }
-

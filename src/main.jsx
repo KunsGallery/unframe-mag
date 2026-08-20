@@ -2,12 +2,63 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App.jsx";
+import ErrorBoundary from "./components/debug/ErrorBoundary.jsx";
 import "./styles/index.css";
 
 let updateSW = () => {};
 
+const RECOVERY_RELOAD_KEY = "uf_app_shell_recovery_reload_v1";
+
+function reloadAppShellOnce(reason) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const last = JSON.parse(sessionStorage.getItem(RECOVERY_RELOAD_KEY) || "null");
+    const samePath = last?.path === window.location.pathname;
+    const recent = Date.now() - Number(last?.at || 0) < 15000;
+    if (samePath && recent) return;
+
+    sessionStorage.setItem(
+      RECOVERY_RELOAD_KEY,
+      JSON.stringify({ at: Date.now(), path: window.location.pathname, reason })
+    );
+  } catch {
+    // If storage is unavailable, still try one browser-level recovery.
+  }
+
+  window.location.reload();
+}
+
+function isRecoverableAppShellError(value) {
+  const message = String(value?.message || value?.reason?.message || value || "");
+  return /failed to fetch dynamically imported module|importing a module script failed|loading chunk|module script|stale service worker|mime type/i.test(
+    message
+  );
+}
+
+window.addEventListener("error", (event) => {
+  if (isRecoverableAppShellError(event.error || event.message)) {
+    reloadAppShellOnce("window-error");
+  }
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  if (isRecoverableAppShellError(event.reason)) {
+    reloadAppShellOnce("unhandled-rejection");
+  }
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    reloadAppShellOnce("service-worker-controller-change");
+  });
+}
+
 updateSW = registerSW({
   immediate: true,
+  onRegisteredSW(_swUrl, registration) {
+    registration?.update?.();
+  },
   onOfflineReady() {
     console.log("App ready for offline use");
   },
@@ -19,6 +70,8 @@ updateSW = registerSW({
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary pathname={window.location.pathname}>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );

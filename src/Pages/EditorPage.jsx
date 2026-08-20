@@ -551,9 +551,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       </aside>
 
       <main
-        className="min-w-0 xl:col-span-9 flex transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
+        className="min-w-0 xl:col-span-9 flex items-start transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
       >
-        <div className="flex-1 flex flex-col">
+        <div className="min-w-0 flex-1 flex flex-col">
           <div className="xl:hidden px-5 pt-4 pb-2">
             <div
               className={`flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-3 ${
@@ -698,7 +698,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             </div>
           </div>
 
-          <div className="grow px-5 py-8 md:px-10 md:py-12 xl:p-32 overflow-y-auto">
+          <div className="grow px-5 py-8 md:px-10 md:py-12 xl:p-32">
             <div className="max-w-4xl mx-auto space-y-10 md:space-y-16">
               <div className="space-y-4">
                 <textarea
@@ -741,7 +741,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     titleRef.current?.setSelectionRange?.(len, len);
                   }
                 }}
-                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-xl md:text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l-4 border-[#004aad] pl-5 md:pl-8 placeholder:text-[var(--uf-muted)] ${
+                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-xl md:text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l border-[#004aad]/70 pl-5 md:pl-8 placeholder:text-[var(--uf-muted)] ${
                   isDarkMode ? "text-zinc-500" : "text-zinc-400"
                 }`}
               />
@@ -1106,7 +1106,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         .uf-prose blockquote{
           margin: 2em 0;
           padding-left: 1.25em;
-          border-left: 4px solid #004aad;
+          border-left: 1px solid rgba(0, 74, 173, 0.72);
           font-style: italic;
         }
 
@@ -1186,7 +1186,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         .uf-editor .uf-img.align-left,
         .uf-editor .uf-img.align-center,
         .uf-editor .uf-img.align-right {
-          transition: margin .18s ease, max-width .18s ease;
+          transition: opacity .18s ease, transform .18s ease;
         }
 
         .uf-editor pre,
