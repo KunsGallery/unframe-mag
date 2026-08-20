@@ -583,13 +583,16 @@
 }
 
 .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__track {
-  grid-auto-columns: max-content;
+  grid-auto-columns: 100%;
   align-items: start;
 }
 
 .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__slide {
-  width: max-content;
+  width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__img {

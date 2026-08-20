@@ -593,13 +593,16 @@ export default function ViewPage({ isDarkMode, onToast }) {
 }
 
 .uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__track {
-  grid-auto-columns: max-content;
+  grid-auto-columns: 100%;
   align-items: start;
 }
 
 .uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__slide {
-  width: max-content;
+  width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .uf-prose .uf-slide-gallery[data-fit-mode="height"] .uf-slide-gallery__img {
