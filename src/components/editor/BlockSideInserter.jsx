@@ -271,6 +271,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
         uploaded.push({
           src: url,
           alt: "",
+          caption: "",
           positionX: 50,
           positionY: 50,
         });
@@ -303,6 +304,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
         uploaded.push({
           src: url,
           alt: "",
+          caption: "",
           positionX: 50,
           positionY: 50,
         });

@@ -11,7 +11,13 @@ import { Edit3, LogOut } from "lucide-react";
 
 // Firebase
 import { auth, googleProvider, db } from "./firebase/config";
-import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import {
+  getRedirectResult,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 
 // PWA
@@ -234,11 +240,17 @@ function DebugLayer({ children }) {
 }
 
 const RequireRole = ({ user, role, allow = [], loading = false, children }) => {
-  if (loading) return null;
+  if (loading) return <RouteLoading label="Checking access..." />;
   if (!user) return <Navigate to="/" replace />;
   if (!allow.includes(role)) return <Navigate to="/" replace />;
   return children;
 };
+
+const RouteLoading = ({ label = "Loading U#..." }) => (
+  <div className="min-h-[70vh] flex items-center justify-center px-6 text-center text-[var(--uf-muted)] font-black italic tracking-widest uppercase">
+    {label}
+  </div>
+);
 
 const NotFound = () => (
   <div className="py-40 px-6 text-center">
@@ -279,6 +291,12 @@ export default function App() {
       }
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    getRedirectResult(auth).catch((e) => {
+      console.error("[App] google redirect login error:", e);
+    });
   }, []);
 
   useEffect(() => {
@@ -362,7 +380,22 @@ export default function App() {
       googleProvider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
-      console.error(e);
+      console.error("[App] google popup login error:", e);
+      const code = String(e?.code || "");
+      const shouldUseRedirect =
+        code === "auth/popup-blocked" ||
+        code === "auth/popup-closed-by-user" ||
+        code === "auth/cancelled-popup-request" ||
+        code === "auth/web-storage-unsupported" ||
+        code === "auth/operation-not-supported-in-this-environment";
+
+      if (shouldUseRedirect) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirectError) {
+          console.error("[App] google redirect login error:", redirectError);
+        }
+      }
     }
   };
 
@@ -465,7 +498,7 @@ export default function App() {
               <Route
                 path="/admin"
                 element={
-                  <RequireRole user={user} role={effectiveRole} allow={["admin"]}>
+                  <RequireRole user={user} role={effectiveRole} allow={["admin"]} loading={authLoading || roleLoading}>
                     <AdminPage
                       user={user}
                       isDarkMode={isDarkMode}

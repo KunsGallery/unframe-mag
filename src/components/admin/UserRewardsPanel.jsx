@@ -66,7 +66,7 @@ export default function UserRewardsPanel({
     setDisplayName(resolveProfileDisplayName(selected) || "");
     setBio(selected?.bio || "");
     setPhotoURL(selected?.photoURL || "");
-  }, [selected?.uid, selected?.bio, selected?.photoURL, selected?.displayName, selected?.name, selected?.nickname]);
+  }, [selected]);
 
   const saveDisplayName = async () => {
     if (!selected?.uid) return;

@@ -425,7 +425,7 @@
 
 .uf-poll button { position: relative; }
 .uf-poll button > .uf-poll__bar {
-  transition: width 420ms cubic-bezier(.2,.8,.2,1);
+  transition: transform 420ms cubic-bezier(.2,.8,.2,1);
 }
 
 /* =========================
@@ -556,6 +556,21 @@
 .uf-slide-gallery__img {
   display: block;
   border-radius: var(--uf-slide-radius, 20px);
+}
+
+.uf-slide-gallery__caption {
+  margin-top: 10px;
+  color: rgba(24, 24, 27, 0.58);
+  font-size: 12px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+
+.dark .uf-slide-gallery__caption {
+  color: rgba(244, 244, 245, 0.62);
 }
 
 .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track {

@@ -283,12 +283,15 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
         case "playlist": {
           const url = window.prompt(
-            "Playlist URL (Spotify playlist)",
-            "https://open.spotify.com/playlist/"
+            "Playlist URL (Spotify or YouTube playlist)",
+            "https://www.youtube.com/playlist?list="
           );
 
           const theme = "0";
           const r = url ? toEmbedURL("playlist", url, { theme }) : null;
+          if (url && !r?.ok) {
+            toast("지원되지 않는 링크예요. Spotify 또는 YouTube 플레이리스트 링크를 확인해주세요.");
+          }
 
           editor
             .chain()
@@ -339,7 +342,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
       safeClose();
     },
-    [editor, deleteSlashTrigger, safeClose, uploading, setError]
+    [editor, deleteSlashTrigger, safeClose, uploading, setError, toast]
   );
 
   const handleGalleryFiles = useCallback(
@@ -359,6 +362,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
           uploaded.push({
             src: url,
             alt: "",
+            caption: "",
             positionX: 50,
             positionY: 50,
           });

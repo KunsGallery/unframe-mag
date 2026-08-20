@@ -40,6 +40,18 @@ export function buildYouTubeEmbed(url) {
   const u = safeURL(url);
   if (!u) return null;
   const host = u.hostname.replace(/^www\./, "");
+  const isYouTubeHost =
+    host === "youtube.com" ||
+    host === "m.youtube.com" ||
+    host === "music.youtube.com" ||
+    host === "youtu.be";
+
+  if (!isYouTubeHost) return null;
+
+  const listId = u.searchParams.get("list");
+  if (listId) {
+    return `https://www.youtube.com/embed/videoseries?list=${encodeURIComponent(listId)}`;
+  }
 
   // youtu.be/{id}
   if (host === "youtu.be") {
@@ -48,7 +60,7 @@ export function buildYouTubeEmbed(url) {
   }
 
   // youtube.com/watch?v=
-  if (host === "youtube.com" || host === "m.youtube.com") {
+  if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
     const id = u.searchParams.get("v");
     if (id) return `https://www.youtube.com/embed/${id}`;
   }
@@ -82,12 +94,28 @@ export function toEmbedURL(kind, inputUrl, opts = {}) {
 
   // Spotify 우선
   const spotify = buildSpotifyEmbed(url, { theme: opts.theme ?? "0" });
-  if (spotify) return { ok: true, embedUrl: spotify, provider: "spotify" };
+  if (spotify) {
+    console.info("[ufEmbed] resolved", {
+      kind,
+      provider: "spotify",
+      inputUrl: url,
+      embedUrl: spotify,
+    });
+    return { ok: true, embedUrl: spotify, provider: "spotify" };
+  }
 
-  // (확장) 유튜브도 허용하고 싶으면 여기에 붙이면 됨
   const yt = buildYouTubeEmbed(url);
-  if (yt) return { ok: true, embedUrl: yt, provider: "youtube" };
+  if (yt) {
+    console.info("[ufEmbed] resolved", {
+      kind,
+      provider: "youtube",
+      inputUrl: url,
+      embedUrl: yt,
+    });
+    return { ok: true, embedUrl: yt, provider: "youtube" };
+  }
 
+  console.warn("[ufEmbed] unsupported url", { kind, inputUrl: url });
   return { ok: false, embedUrl: "", reason: "UNSUPPORTED_URL" };
 }
 

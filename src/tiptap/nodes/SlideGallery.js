@@ -11,6 +11,7 @@ function normalizeImages(images = []) {
   return (images || []).map((img) => ({
     src: img?.src || "",
     alt: img?.alt || "",
+    caption: img?.caption || "",
     positionX: Number.isFinite(Number(img?.positionX)) ? Number(img.positionX) : 50,
     positionY: Number.isFinite(Number(img?.positionY)) ? Number(img.positionY) : 50,
   }));
@@ -157,12 +158,16 @@ export const SlideGallery = Node.create({
                 src: img.src || "",
                 alt: img.alt || "",
                 "data-original-src": img.src || "",
+                "data-caption": img.caption || "",
                 class: "uf-slide-gallery__img",
                 loading: "lazy",
                 decoding: "async",
                 style: `object-position:${img.positionX ?? 50}% ${img.positionY ?? 50}%;`,
               },
             ],
+            ...(img.caption
+              ? [["figcaption", { class: "uf-slide-gallery__caption" }, img.caption]]
+              : []),
           ]),
         ],
         [

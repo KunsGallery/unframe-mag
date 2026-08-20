@@ -4,13 +4,16 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.jsx";
 import "./styles/index.css";
 
-registerSW({
+let updateSW = () => {};
+
+updateSW = registerSW({
   immediate: true,
   onOfflineReady() {
     console.log("App ready for offline use");
   },
   onNeedRefresh() {
-    console.log("New content available, refresh recommended");
+    console.log("New content available, refreshing app shell");
+    updateSW(true);
   },
 });
 

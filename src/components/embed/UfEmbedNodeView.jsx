@@ -29,7 +29,11 @@ export default function UfEmbedNodeView(props) {
     }
     const r = toEmbedURL(kind, nextUrl, { theme });
     if (!r.ok) {
-      setErr("지원되지 않는 링크예요. (현재 Spotify 링크 권장)");
+      setErr(
+        kind === "playlist"
+          ? "지원되지 않는 링크예요. Spotify 또는 YouTube 플레이리스트 링크를 확인해주세요."
+          : "지원되지 않는 링크예요. Spotify podcast 링크를 확인해주세요."
+      );
       updateAttributes({ url: nextUrl, embedUrl: "" });
       return;
     }
@@ -90,7 +94,7 @@ export default function UfEmbedNodeView(props) {
                 placeholder={
                   kind === "podcast"
                     ? "Spotify podcast(show/episode) URL"
-                    : "Spotify playlist URL"
+                    : "Spotify or YouTube playlist URL"
                 }
                 className="flex-1 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-transparent text-sm font-black"
               />

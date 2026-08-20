@@ -130,7 +130,7 @@ export default function EditorInfoBox({ article, currentUser, onToast }) {
       displayName: article?.author,
       name: article?.author,
     }) || article?.authorEmail || "Editor";
-  }, [editorUser, article?.author, article?.authorEmail]);
+  }, [editorUser, article]);
   const editorPhotoURL = resolveProfilePhotoURL(editorUser);
   const editorInitials = getProfileInitials(displayName);
 

@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       injectRegister: "auto",
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
       includeAssets: [
         "icons/icon-192.png",

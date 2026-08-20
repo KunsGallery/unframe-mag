@@ -443,12 +443,12 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
     const placeholder =
       kind === "podcast"
         ? "https://open.spotify.com/show/"
-        : "https://open.spotify.com/playlist/";
+        : "https://open.spotify.com/playlist/ or https://www.youtube.com/playlist?list=";
 
     const url = window.prompt(
       kind === "podcast"
         ? "Podcast URL (Spotify show/episode)"
-        : "Playlist URL (Spotify playlist)",
+        : "Playlist URL (Spotify or YouTube playlist)",
       placeholder
     );
 
@@ -457,7 +457,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
     const r = url ? toEmbedURL(kind, url, { theme }) : null;
 
     if (url && !r?.ok) {
-      toast("지원되지 않는 링크예요. (현재 Spotify 링크 권장)");
+      toast("지원되지 않는 링크예요. Spotify 또는 YouTube 플레이리스트 링크를 확인해주세요.");
     }
 
     const nodeType = kind === "podcast" ? "ufPodcast" : "ufPlaylist";

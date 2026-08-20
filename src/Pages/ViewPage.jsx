@@ -164,7 +164,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
 .uf-prose blockquote{
   margin: 2em 0;
   padding-left: 1.25em;
-  border-left: 4px solid #004aad;
+  border-left: 1px solid rgba(0, 74, 173, 0.72);
   font-style: italic;
 }
 
@@ -568,6 +568,21 @@ export default function ViewPage({ isDarkMode, onToast }) {
   border-radius: var(--uf-slide-radius, 20px);
 }
 
+.uf-prose .uf-slide-gallery__caption {
+  margin-top: 10px;
+  color: rgba(24, 24, 27, 0.58);
+  font-size: 12px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+
+.dark .uf-prose .uf-slide-gallery__caption {
+  color: rgba(244, 244, 245, 0.62);
+}
+
 .uf-prose .uf-slide-gallery[data-fit-mode="crop"] .uf-slide-gallery__track {
   grid-auto-columns: 100%;
 }
@@ -875,10 +890,19 @@ export default function ViewPage({ isDarkMode, onToast }) {
 
   const canEditArticle = isAdmin || isOwnerEditor;
   useEffect(() => {
+    let alive = true;
+    const clearAuthorProfile = () => {
+      queueMicrotask(() => {
+        if (alive) setArticleAuthorProfile(null);
+      });
+    };
+
     const authorEmail = String(article?.authorEmail || "").trim();
     if (!authorEmail) {
-      setArticleAuthorProfile(null);
-      return;
+      clearAuthorProfile();
+      return () => {
+        alive = false;
+      };
     }
 
     const q = query(
@@ -903,7 +927,10 @@ export default function ViewPage({ isDarkMode, onToast }) {
       }
     );
 
-    return () => unsub();
+    return () => {
+      alive = false;
+      unsub();
+    };
   }, [article?.authorEmail]);
 
   const articleAuthorName =

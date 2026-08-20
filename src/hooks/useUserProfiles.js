@@ -12,14 +12,23 @@ export function useUserProfiles(uids = []) {
   }, [uids]);
 
   useEffect(() => {
+    let alive = true;
+    const resetProfiles = () => {
+      queueMicrotask(() => {
+        if (alive) setProfiles({});
+      });
+    };
+
     const unique = key ? key.split("|").filter(Boolean) : [];
 
     if (unique.length === 0) {
-      setProfiles({});
-      return;
+      resetProfiles();
+      return () => {
+        alive = false;
+      };
     }
 
-    setProfiles({});
+    resetProfiles();
 
     const unsubs = unique.map((uid) => {
       const ref = doc(db, "users", uid);
@@ -42,6 +51,7 @@ export function useUserProfiles(uids = []) {
     });
 
     return () => {
+      alive = false;
       unsubs.forEach((unsubscribe) => unsubscribe());
     };
   }, [key]);

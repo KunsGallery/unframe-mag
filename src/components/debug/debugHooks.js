@@ -39,14 +39,23 @@ export function useMobileDebugEnabled() {
   });
 
   useEffect(() => {
+    let alive = true;
+    const syncEnabled = (next) => {
+      queueMicrotask(() => {
+        if (alive) setEnabled(next);
+      });
+    };
+
     if (queryMode === "1") {
       try {
         localStorage.setItem("uf_debug", "1");
       } catch {
         // ignore storage failures
       }
-      setEnabled(true);
-      return;
+      syncEnabled(true);
+      return () => {
+        alive = false;
+      };
     }
 
     if (queryMode === "0") {
@@ -55,11 +64,16 @@ export function useMobileDebugEnabled() {
       } catch {
         // ignore storage failures
       }
-      setEnabled(DEV_ENABLED || readDebugFlag());
-      return;
+      syncEnabled(DEV_ENABLED || readDebugFlag());
+      return () => {
+        alive = false;
+      };
     }
 
-    setEnabled(DEV_ENABLED || readDebugFlag());
+    syncEnabled(DEV_ENABLED || readDebugFlag());
+    return () => {
+      alive = false;
+    };
   }, [queryMode, location.search]);
 
   useEffect(() => {
