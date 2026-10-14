@@ -1,0 +1,74 @@
+.uf-workspace { --uf-panel-width: 320px; min-height: calc(100vh - 80px); background: var(--uf-bg); color: var(--uf-text); letter-spacing: 0; }
+.uf-workspace button { cursor: pointer; }
+.uf-workspace button:disabled { opacity: .45; cursor: not-allowed; }
+.uf-workspace :is(button,input,textarea,select,summary):focus-visible { outline: 2px solid #004aad; outline-offset: 3px; }
+.uf-workspace button { letter-spacing: 0; }
+.uf-workspace-actions { position: sticky; top: 80px; z-index: 35; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 18px; background: var(--uf-bg); border-bottom: 1px solid var(--uf-editor-border); }
+.uf-workspace-document { display: flex; flex-direction: column; gap: 3px; font-size: 13px; min-width: 0; }
+.uf-workspace-document span { font-size: 12px; color: var(--uf-text); opacity: .75; }
+.uf-workspace-commands { display: flex; gap: 5px; flex-wrap: wrap; }
+.uf-workspace-commands button,.uf-document-settings > button,.uf-panel-heading button,.uf-recovery button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 8px 10px; border-radius: 4px; border: 1px solid var(--uf-editor-border); font-size: 13px; font-weight: 600; }
+.uf-workspace-commands button:hover:not(:disabled) { background: var(--uf-editor-surface); }
+.uf-workspace-commands .uf-primary { color: white; background: #004aad; border-color: #004aad; }
+.uf-workspace-commands .uf-primary:hover:not(:disabled) { background: #003782; }
+.uf-toolbar-shell { position: sticky; top: calc(80px + var(--uf-action-height, 70px)); z-index: 30; background: var(--uf-bg); }
+.uf-format-toolbar { overflow-x: clip; }
+.uf-writing-surface { width: 100%; max-width: 920px; margin: auto; padding: 44px 48px 100px; }
+.uf-writing-title,.uf-writing-subtitle { display: block; width: 100%; resize: none; overflow: hidden; background: transparent; border: 0; color: var(--uf-text); letter-spacing: 0; }
+.uf-writing-title { font-size: 36px; font-weight: 800; line-height: 1.25; margin-bottom: 20px; overflow-wrap: anywhere; }
+.uf-writing-subtitle { font-size: 19px; line-height: 1.6; margin-bottom: 36px; }
+.uf-writing-title::placeholder,.uf-writing-subtitle::placeholder { color: var(--uf-text); opacity: .55; }
+.uf-workspace .ProseMirror.uf-editor { min-height: 55vh; scroll-margin-top: 260px; }
+.uf-workspace .ProseMirror.uf-editor > * { scroll-margin-top: 260px; }
+.uf-workspace .uf-editor :is(h1,h2,h3) { letter-spacing: 0; line-height: 1.35; }
+.uf-workspace .uf-editor h1 { font-size: 30px; }
+.uf-workspace .uf-editor h2 { font-size: 26px; }
+.uf-workspace .uf-editor h3 { font-size: 22px; }
+.uf-workspace .uf-editor :is(p,li) { letter-spacing: 0; }
+.uf-workspace-panel { position: fixed; top: 80px; right: 0; bottom: 0; width: var(--uf-panel-width); z-index: 40; background: var(--uf-bg); border-left: 1px solid var(--uf-editor-border); }
+.uf-panel-content { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.uf-panel-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding: 8px; gap: 4px; border-bottom: 1px solid var(--uf-editor-border); }
+.uf-panel-tabs button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; font-size: 12px; border-radius: 4px; }
+.uf-panel-tabs button[aria-pressed="true"] { color: #004aad; background: #004aad12; font-weight: 700; }
+.dark .uf-panel-tabs button[aria-pressed="true"] { color: #8ac0ff; background: #004aad40; }
+.uf-panel-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1; }
+.uf-panel-body > section:not(.uf-outline,.uf-document-settings,.uf-draft-list) { padding: 20px; }
+.uf-inspector-embedded { border: none; }
+.uf-inspector-embedded > div { padding: 20px; }
+.uf-inspector-embedded :is(input,select,textarea) { font-size: 13px; min-height: 40px; }
+.uf-inspector-embedded .tracking-widest { letter-spacing: 0; font-size: 12px; }
+.uf-inspector-embedded .text-zinc-400 { color: var(--uf-text); opacity: .72; }
+.uf-inspector-embedded .rounded-2xl { border-radius: 6px; }
+.uf-document-settings,.uf-draft-list,.uf-outline { padding: 20px; }
+.uf-document-settings h2,.uf-panel-heading h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.uf-document-settings label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
+.uf-document-settings :is(input,select),.uf-search input { min-width: 0; width: 100%; font-size: 13px; font-weight: 400; padding: 10px; border: 1px solid var(--uf-editor-border); background: var(--uf-bg); border-radius: 4px; }
+.uf-document-settings img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; }
+.uf-document-settings summary { font-size: 13px; cursor: pointer; margin: 15px 0; }
+.uf-document-settings .hidden.sm\:inline { display: inline; }
+.uf-panel-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.uf-panel-heading h2 { margin: 0; }
+.uf-draft-list > button { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; border-bottom: 1px solid var(--uf-editor-border); padding: 14px 10px; font-size: 13px; }
+.uf-draft-list > button span { font-size: 11px; opacity: .7; }
+.uf-draft-list > button strong { overflow-wrap: anywhere; }
+.uf-draft-list > button[aria-current] { background: #004aad12; }
+.uf-search { display: flex; align-items: center; gap: 6px; margin-bottom: 18px; }
+.uf-outline ol { list-style: none; padding: 0; }
+.uf-outline li { display: grid; grid-template-columns: minmax(0,1fr) 32px 32px; align-items: center; border-bottom: 1px solid var(--uf-editor-border); }
+.uf-outline li.is-current { background: #004aad12; }
+.uf-outline li button { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; }
+.uf-outline li button:first-child { justify-content: flex-start; text-align: left; padding: 8px; overflow-wrap: anywhere; }
+.uf-outline li span { font-size: 10px; opacity: .6; }
+.uf-outline-heading { font-weight: 700; }
+.uf-empty { padding: 16px 0; font-size: 13px; opacity: .75; }
+.uf-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--uf-editor-border); font-size: 13px; }
+.uf-recovery div { flex: 1; min-width: 180px; overflow-wrap: anywhere; }
+.uf-workspace-drawer { inset: 0 0 0 auto; margin: 0; height: 100dvh; max-height: 100dvh; width: min(380px,100%); max-width: 100%; background: var(--uf-bg); color: var(--uf-text); padding: 0; border: 0; }
+.uf-workspace-drawer[open] { display: flex; flex-direction: column; }
+.uf-workspace-drawer::backdrop { background: #0008; }
+.uf-drawer-heading { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--uf-editor-border); }
+.uf-drawer-heading button { width: 44px; height: 44px; display: grid; place-items: center; }
+.uf-workspace-drawer .uf-panel-content { flex: 1; height: auto; }
+.uf-overlay-loading { position: fixed; inset: auto 20px 20px; z-index: 60; background: var(--uf-bg); padding: 16px; border: 1px solid var(--uf-editor-border); }
+@media (min-width: 1024px) { .uf-workspace-main,.uf-workspace > .uf-recovery { margin-right: var(--uf-panel-width); } .uf-workspace.is-focus .uf-workspace-main,.uf-workspace.is-focus > .uf-recovery { margin-right: 0; } }
+@media (max-width: 640px) { .uf-workspace-actions { padding: 8px 10px; } .uf-workspace-document { width: 100%; } .uf-workspace-commands { width: 100%; justify-content: space-between; } .uf-workspace-commands button { padding: 8px; min-height: 40px; } .uf-workspace-commands button:nth-child(2) { display: none; } .uf-writing-surface { padding: 26px 20px 70px; } .uf-writing-title { font-size: 28px; } .uf-writing-subtitle { font-size: 17px; } }

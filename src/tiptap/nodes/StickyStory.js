@@ -13,6 +13,7 @@ export const StickyStory = Node.create({
   addAttributes() {
     return {
       imageSrc: { default: null },
+      alt: { default: '' },
       imagePos: { default: STICKY_STORY_DEFAULTS.imagePos },
       stickyHeight: { default: STICKY_STORY_DEFAULTS.stickyHeight },
       visualSize: {
@@ -39,7 +40,7 @@ export const StickyStory = Node.create({
           "img",
           {
             src: String(imageSrc),
-            alt: "",
+            alt: node.attrs.alt || "",
             class: "uf-sticky-story__img",
             "data-original-src": String(imageSrc),
             loading: "lazy",

@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import {
   Image as ImageIcon,
   LayoutGrid,
@@ -18,14 +20,17 @@ import {
   TABLE_SIZE_OPTIONS,
 } from "../../constants/editorBlocks";
 
+const labels = { Image: "이미지 크기", Align: "정렬", Mode: "배치", Columns: "열", Gap: "간격", Fit: "맞춤", Height: "높이", Rounded: "모서리", Vertical: "세로 정렬", Mobile: "모바일", Delete: "삭제", Size: "크기", Rows: "행", Table: "표", xsmall: "아주 작게", small: "작게", normal: "기본", wide: "넓게", full: "전체", grid: "격자", design: "디자인", start: "위", center: "가운데", "stack on": "세로 쌓기 켜짐", "stack off": "세로 쌓기 꺼짐", "Delete Columns": "다단 삭제", "Add Top": "위에 추가", "Add Below": "아래에 추가", "Add Left": "왼쪽에 추가", "Add Right": "오른쪽에 추가", "Delete Table": "표 삭제" };
 function QuickButton({ active = false, onClick, children, disabled = false }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      aria-pressed={active}
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={[
-        "h-8 px-3 rounded-lg border text-[10px] font-black uppercase tracking-[0.18em] italic transition",
+        "min-h-9 px-2 rounded border text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-blue-600",
         disabled
           ? "opacity-40 cursor-not-allowed bg-zinc-100 dark:bg-zinc-900 text-zinc-400 border-zinc-200 dark:border-zinc-800"
           : active
@@ -33,7 +38,7 @@ function QuickButton({ active = false, onClick, children, disabled = false }) {
           : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800",
       ].join(" ")}
     >
-      {children}
+      {labels[children] || children}
     </button>
   );
 }
@@ -43,9 +48,11 @@ function IconButton({ icon: Icon, label, onClick, disabled = false, danger = fal
     <button
       type="button"
       disabled={disabled}
+      title={labels[label] || label}
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={[
-        "h-8 px-3 rounded-lg border flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] italic transition",
+        "min-h-9 px-2 rounded border flex items-center gap-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-blue-600",
         disabled
           ? "opacity-40 cursor-not-allowed bg-zinc-100 dark:bg-zinc-900 text-zinc-400 border-zinc-200 dark:border-zinc-800"
           : danger
@@ -54,7 +61,7 @@ function IconButton({ icon: Icon, label, onClick, disabled = false, danger = fal
       ].join(" ")}
     >
       <Icon size={13} />
-      <span>{label}</span>
+      <span>{labels[label] || label}</span>
     </button>
   );
 }
@@ -63,15 +70,15 @@ function Group({ icon: Icon, title, children, isDarkMode }) {
   return (
     <div
       className={[
-        "rounded-xl border px-3 py-2 flex flex-wrap items-center gap-2",
+        "py-1 flex flex-wrap items-center gap-1.5",
         isDarkMode
           ? "bg-zinc-950 border-zinc-800"
           : "bg-white border-zinc-200",
       ].join(" ")}
     >
-      <div className="flex items-center gap-2 mr-2 text-[10px] font-black uppercase tracking-[0.22em] italic text-zinc-400">
+      <div className="flex items-center gap-1 mr-1 text-xs font-medium text-zinc-500">
         <Icon size={13} />
-        <span>{title}</span>
+        <span>{labels[title] || title}</span>
       </div>
       {children}
     </div>
@@ -98,16 +105,8 @@ function updateColumnsCount(editor, selected, nextCols) {
     .chain()
     .focus()
     .command(({ tr, state }) => {
-      const { from, to } = state.selection;
-      let pos = null;
-
-      state.doc.nodesBetween(from, to, (node, p) => {
-        if (node.type.name === "columns" && pos == null) {
-          pos = p;
-        }
-      });
-
-      if (pos == null) return false;
+      const pos = selected.pos;
+      if (tr.doc.nodeAt(pos) !== selected.node) return false;
 
       const newNode = state.schema.nodes.columns.create(
         {
@@ -135,32 +134,81 @@ function updateColumnsCount(editor, selected, nextCols) {
 
 export default function BlockQuickBar({ editor, isDarkMode }) {
   const selected = useSelectedUfBlock(editor);
+  const panel = useRef(null);
+  const [anchor, setAnchor] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!editor || editor.isDestroyed || !selected) return;
+    let frame;
+    const measure = () => {
+      const dom = editor.view.nodeDOM(selected.pos);
+      if (!dom?.getBoundingClientRect) { setAnchor(null); return; }
+      const rect = dom.getBoundingClientRect();
+      const width = Math.min(480, window.innerWidth - 24);
+      setAnchor({ left: window.scrollX + Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), top: window.scrollY + rect.bottom + 6, width, visible: rect.bottom >= 0 && rect.top <= window.innerHeight });
+    };
+    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
+    measure();
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
+    const observer = new ResizeObserver(schedule);
+    observer.observe(editor.view.dom);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("scroll", schedule, true); window.removeEventListener("resize", schedule); };
+  }, [editor, selected]);
 
   if (!editor || editor.isDestroyed) return null;
 
   const setAttrs = (type, patch) => {
-    editor.commands.updateAttributes(type, patch);
+    if (selected?.type !== type || !editor.isEditable) return;
+    const node = editor.state.doc.nodeAt(selected.pos);
+    if (node !== selected.node) return;
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(selected.pos, undefined, { ...node.attrs, ...patch }));
+  };
+  const tableCommand = (command) => {
+    if (editor.state.doc.nodeAt(selected.pos) !== selected.node) return;
+    const { $from } = editor.state.selection;
+    for (let depth = $from.depth; depth > 0; depth--) {
+      if ($from.node(depth) === selected.node) {
+        editor.chain().focus()[command]().run();
+        return;
+      }
+    }
   };
 
-  const inTable = editor.isActive("table");
-  const tableAttrs = inTable ? editor.getAttributes?.("table") || {} : {};
+  const inTable = selected?.type === "table";
+  const tableAttrs = inTable ? selected.attrs : {};
   const selectedTableSize = tableAttrs.tableSize ?? "normal";
   const visibleTypes = new Set(["ufImage", "gallery", "slideGallery", "columns"]);
   const showForBlock = selected && visibleTypes.has(selected.type);
   const showForTable = inTable;
 
-  if (!showForBlock && !showForTable) return null;
+  if ((!showForBlock && !showForTable) || !anchor?.visible || !editor.isEditable) return null;
 
-  return (
-    <div className="mb-6">
+  return createPortal(
+    <div ref={panel} data-uf-quick-settings role="region" aria-label="선택 블록 빠른 설정" style={{ position: "absolute", left: anchor.left, top: anchor.top, width: anchor.width, zIndex: 40 }} className={isDarkMode ? "dark" : ""}>
       <div
         className={[
-          "rounded-2xl border p-3 flex flex-wrap items-center gap-3",
+          "rounded-lg border p-2 flex flex-wrap items-center gap-x-3 gap-y-1 max-h-[45vh] overflow-auto",
           isDarkMode
             ? "bg-zinc-950/95 border-zinc-800"
             : "bg-[#fcfcfc] border-zinc-200",
         ].join(" ")}
       >
+        {selected.type === "ufImage" && (
+          <label className="w-full text-xs text-zinc-600 dark:text-zinc-300">캡션
+            <input className="mt-1 w-full min-h-9 rounded border border-zinc-300 bg-transparent px-2 text-base dark:border-zinc-700" value={selected.attrs.caption ?? ""} onChange={(event) => setAttrs("ufImage", { caption: event.target.value })} />
+          </label>
+        )}
+        {["gallery", "slideGallery"].includes(selected.type) && (selected.attrs.images || []).map((image, index) => (
+          <label key={index} className="w-full text-xs text-zinc-600 dark:text-zinc-300">이미지 {index + 1} 캡션
+            <input className="mt-1 w-full min-h-9 rounded border border-zinc-300 bg-transparent px-2 text-base dark:border-zinc-700" value={image.caption ?? ""} onChange={(event) => {
+              const node = editor.state.doc.nodeAt(selected.pos);
+              if (node !== selected.node || node.attrs.images[index] !== image) return;
+              const images = node.attrs.images.map((item, i) => i === index ? { ...item, caption: event.target.value } : item);
+              setAttrs(selected.type, { images });
+            }} />
+          </label>
+        ))}
         {selected?.type === "ufImage" && (
           <>
             <Group icon={ImageIcon} title="Image" isDarkMode={isDarkMode}>
@@ -182,7 +230,7 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
                   active={(selected.attrs.align ?? "center") === align}
                   onClick={() => setAttrs("ufImage", { align })}
                 >
-                  {align}
+                  <span title={{ left: "왼쪽", center: "가운데", right: "오른쪽" }[align]} aria-label={{ left: "왼쪽 정렬", center: "가운데 정렬", right: "오른쪽 정렬" }[align]}>{React.createElement({ left: AlignLeft, center: AlignCenter, right: AlignRight }[align], { size: 16 })}</span>
                 </QuickButton>
               ))}
             </Group>
@@ -210,7 +258,7 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
                   active={Number(selected.attrs.columns ?? 2) === n}
                   onClick={() => setAttrs("gallery", { columns: n })}
                 >
-                  {n} col
+                  {n}열
                 </QuickButton>
               ))}
             </Group>
@@ -284,7 +332,7 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
                   active={Number(selected.attrs.columns ?? 2) === n}
                   onClick={() => updateColumnsCount(editor, selected, n)}
                 >
-                  {n} col
+                  {n}열
                 </QuickButton>
               ))}
             </Group>
@@ -329,7 +377,9 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
                 icon={Trash2}
                 label="Delete Columns"
                 danger
-                onClick={() => editor.chain().focus().deleteNode("columns").run()}
+                onClick={() => {
+                  if (editor.state.doc.nodeAt(selected.pos) === selected.node) editor.view.dispatch(editor.state.tr.delete(selected.pos, selected.pos + selected.node.nodeSize));
+                }}
               />
             </Group>
           </>
@@ -353,17 +403,17 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
               <IconButton
                 icon={PlusSquare}
                 label="Add Top"
-                onClick={() => editor.chain().focus().addRowBefore().run()}
+                onClick={() => tableCommand("addRowBefore")}
               />
               <IconButton
                 icon={PlusSquare}
                 label="Add Below"
-                onClick={() => editor.chain().focus().addRowAfter().run()}
+                onClick={() => tableCommand("addRowAfter")}
               />
               <IconButton
                 icon={MinusSquare}
                 label="Delete"
-                onClick={() => editor.chain().focus().deleteRow().run()}
+                onClick={() => tableCommand("deleteRow")}
               />
             </Group>
 
@@ -371,17 +421,17 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
               <IconButton
                 icon={PlusSquare}
                 label="Add Left"
-                onClick={() => editor.chain().focus().addColumnBefore().run()}
+                onClick={() => tableCommand("addColumnBefore")}
               />
               <IconButton
                 icon={PlusSquare}
                 label="Add Right"
-                onClick={() => editor.chain().focus().addColumnAfter().run()}
+                onClick={() => tableCommand("addColumnAfter")}
               />
               <IconButton
                 icon={MinusSquare}
                 label="Delete"
-                onClick={() => editor.chain().focus().deleteColumn().run()}
+                onClick={() => tableCommand("deleteColumn")}
               />
             </Group>
 
@@ -390,12 +440,12 @@ export default function BlockQuickBar({ editor, isDarkMode }) {
                 icon={Trash2}
                 label="Delete Table"
                 danger
-                onClick={() => editor.chain().focus().deleteTable().run()}
+                onClick={() => tableCommand("deleteTable")}
               />
             </Group>
           </>
         )}
       </div>
-    </div>
+    </div>, document.body
   );
 }

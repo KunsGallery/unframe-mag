@@ -7,6 +7,8 @@ import { draftSnapshot, readRecovery, recoveryKey, writeRecovery } from '../src/
 const source = await readFile(new URL('../src/hooks/useDrafts.js', import.meta.url), 'utf8');
 const recoverySource = await readFile(new URL('../src/lib/draftRecovery.js', import.meta.url), 'utf8');
 const publicationSource = await readFile(new URL('../src/lib/publicationTransaction.js', import.meta.url), 'utf8');
+const historySource = await readFile(new URL('../src/lib/editorHistory.js', import.meta.url), 'utf8');
+const categoriesSource = await readFile(new URL('../src/constants/categories.js', import.meta.url), 'utf8');
 const meta = { title: '', subtitle: '', category: 'ART', cover: '', coverMedium: '', authorEmail: 'author@example.com' };
 const deferred = () => {
   let resolve;
@@ -21,34 +23,38 @@ const snapshot = (data, id) => ({ id, exists: () => data !== undefined, data: ()
 
 // Optimistic retries and staged writes model the Firestore transaction contract,
 // including the Web SDK's document-only reads and read-before-write requirement.
-function backend(initial = {}, { permissionConflicts = false } = {}) {
+function backend(initial = {}, { permissionConflicts = false, failHistory = false } = {}) {
   const data = new Map(Object.entries(initial));
   const versions = new Map();
   const commits = [];
+  const attempts = [];
   let serial = 0;
   let retries = 0;
   const firestore = {
-    collection: (_db, name) => ({ collection: name }),
+    collection: (_db, ...parts) => ({ collection: parts.join('/') }),
     query: (collection, ...clauses) => ({ collection: collection.collection, clauses }),
     orderBy: (field, direction) => ({ order: field, direction }),
     limit: (value) => ({ limit: value }),
     where: (field, _operator, value) => ({ field, value }),
-    doc: (dbOrCollection, collection, id) => {
-      const name = dbOrCollection.collection || collection;
-      const docId = dbOrCollection.collection ? 'auto-' + (++serial) : id;
-      return { id: docId, path: name + '/' + docId };
+    doc: (dbOrCollection, ...parts) => {
+      const path = dbOrCollection.collection ? dbOrCollection.collection + '/auto-' + (++serial) : parts.join('/');
+      return { id: path.split('/').at(-1), path };
     },
     getDocs: async (query) => {
-      let docs = [...data].filter(([key, value]) => key.startsWith(query.collection + '/') &&
+      let docs = [...data].filter(([key, value]) => key.startsWith(query.collection + '/') && key.split('/').length === query.collection.split('/').length + 1 &&
         query.clauses.every((clause) => !clause.field || value[clause.field] === clause.value));
       const order = query.clauses.find((clause) => clause.order);
       if (order) docs.sort((a, b) => (b[1][order.order] || 0) - (a[1][order.order] || 0));
       const cap = query.clauses.find((clause) => clause.limit);
       if (cap) docs = docs.slice(0, cap.limit);
-      return { docs: docs.map(([key, value]) => snapshot(value, key.split('/')[1])), empty: !docs.length };
+      return { docs: docs.map(([key, value]) => ({ ...snapshot(value, key.split('/').at(-1)), ref: { path: key } })), empty: !docs.length };
     },
     getDoc: async (ref) => snapshot(data.get(ref.path), ref.id),
     serverTimestamp: () => 123,
+    writeBatch: () => {
+      const removed = [];
+      return { delete: (ref) => removed.push(ref.path), commit: async () => removed.forEach((path) => data.delete(path)) };
+    },
     runTransaction: async (_db, callback) => {
       for (let attempt = 0; attempt < 20; attempt++) {
         const reads = new Map();
@@ -60,11 +66,15 @@ function backend(initial = {}, { permissionConflicts = false } = {}) {
             reads.set(ref.path, versions.get(ref.path) || 0);
             return snapshot(data.get(ref.path), ref.id);
           },
-          set: (ref, value) => writes.push({ type: 'set', ref, value: structuredClone(value) }),
+          set: (ref, value) => {
+            if (failHistory && ref.path.includes('/history/')) throw new Error('History write denied');
+            writes.push({ type: 'set', ref, value: structuredClone(value) });
+          },
           update: (ref, value) => writes.push({ type: 'update', ref, value: structuredClone(value) }),
           delete: (ref) => writes.push({ type: 'delete', ref }),
         };
         const result = await callback(transaction);
+        attempts.push(writes);
         if ([...reads].some(([key, version]) => (versions.get(key) || 0) !== version)) {
           retries++;
           if (permissionConflicts) throw Object.assign(new Error('stale counter denied by rules'), { code: 'permission-denied' });
@@ -82,7 +92,7 @@ function backend(initial = {}, { permissionConflicts = false } = {}) {
       throw new Error('retry limit');
     },
   };
-  return { firestore, data, commits, get retries() { return retries; }, get allocatedRefs() { return serial; } };
+  return { firestore, data, commits, attempts, get retries() { return retries; }, get allocatedRefs() { return serial; } };
 }
 
 async function harness({ overrides = {}, server = backend(), storage = memoryStorage(), initialProps = {} } = {}) {
@@ -127,6 +137,7 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     },
   };
   const context = createContext({
+    TextEncoder,
     console: { log() {}, error() {} },
     setTimeout(fn, delay) { const id = Symbol(); timers.set(id, { fn, delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
@@ -144,9 +155,21 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     }, { context });
   });
   await publicationModule.evaluate();
+  const categoriesModule = new SourceTextModule(categoriesSource, { context });
+  await categoriesModule.link(() => {});
+  const historyModule = new SourceTextModule(historySource, { context });
+  await historyModule.link((specifier) => {
+    if (specifier.includes('categories')) return categoriesModule;
+    const exports = { ...server.firestore, ...overrides };
+    return new SyntheticModule(Object.keys(exports), function () {
+      for (const [name, value] of Object.entries(exports)) this.setExport(name, value);
+    }, { context });
+  });
+  await historyModule.evaluate();
   await module.link((specifier) => {
     if (specifier.includes('draftRecovery')) return recoveryModule;
     if (specifier.includes('publicationTransaction')) return publicationModule;
+    if (specifier.includes('editorHistory')) return historyModule;
     const exports = specifier === 'react' ? react
       : specifier === 'firebase/firestore' ? { ...server.firestore, ...overrides }
         : { DEFAULT_ARTICLE_CATEGORY: 'ART' };
@@ -199,6 +222,52 @@ test('failed autosave retains recovery, dirty state and the previous save timest
   assert.equal(await h.render().saveDraft({}, meta), false);
   assert.equal(h.render().isSaving, false);
   h.unmount();
+});
+
+test('null-to-editor mount refreshes drafts after editor cleanup invalidates the initial pending list', async () => {
+  const requests = [];
+  const h = await harness({ initialProps: { editor: null }, overrides: {
+    getDocs: async () => {
+      const request = deferred();
+      requests.push(request);
+      return request.promise;
+    },
+  } });
+  assert.equal(requests.length, 1);
+  h.render({ editor: h.editor });
+  assert.equal(requests.length, 2, 'editor arrival starts a fresh list request');
+  requests[1].resolve({ docs: [snapshot({ title: 'Current draft', status: 'draft' }, 'current')] });
+  await new Promise(setImmediate);
+  assert.equal(h.render().drafts[0]?.id, 'current');
+  requests[0].resolve({ docs: [snapshot({ title: 'Stale draft', status: 'draft' }, 'stale')] });
+  await new Promise(setImmediate);
+  assert.equal(h.render().drafts[0]?.id, 'current', 'initial request cannot replace the fresh list');
+  h.unmount();
+});
+
+test('manual save and publication update saved status while failed operations preserve its timestamp', async () => {
+  for (const publication of [false, true]) {
+    let fail = false;
+    const server = backend();
+    const h = await harness({ server, overrides: {
+      runTransaction: async (...args) => {
+        if (fail) throw new Error('offline');
+        return server.firestore.runTransaction(...args);
+      },
+    } });
+    h.render().setLastAutoSavedAt(42);
+    h.render().setIsDirty(true);
+    const save = () => publication ? h.render().publish({ ...meta, title: 'Published' }) : h.render().saveDraft({ markClean: true }, meta);
+    assert.equal(await save(), true);
+    const savedAt = h.render().lastAutoSavedAt;
+    assert.equal(typeof savedAt, 'number');
+    assert.ok(savedAt > 42);
+    fail = true;
+    h.render().setIsDirty(true);
+    assert.equal(await save(), false);
+    assert.equal(h.render().lastAutoSavedAt, savedAt);
+    h.unmount();
+  }
 });
 
 test('continuous typing and metadata changes keep one deadline and save the latest snapshot', async () => {
@@ -662,4 +731,194 @@ test('simultaneous publications recover from rule-denied counter conflicts using
   assert.equal(server.allocatedRefs, 2);
   assert.equal(server.commits.length, 2);
   assert.ok(server.commits.every((commit) => commit.length === 2));
+});
+
+const historyMeta = { ...meta, title: '새 초안', category: 'EXHIBITION' };
+const historyRows = (server, articleId) => [...server.data].filter(([path]) => path.startsWith(`articles/${articleId}/history/`)).map(([path, value]) => ({ path, ...value }));
+
+test('manual saves and autosaves write one unique atomic snapshot per successful operation', async () => {
+  const h = await harness({ initialProps: { historyUserId: 'actor-uid' } });
+  h.render().setIsDirty(true);
+  assert.equal(await h.render().saveDraft({ markClean: true }, historyMeta), true);
+  const id = h.render().draftId;
+  h.render().setIsDirty(true);
+  h.render().runAutosave({ ...historyMeta, title: '자동 저장 초안' });
+  await h.fireAutosave();
+  const rows = historyRows(h.server, id);
+  assert.equal(rows.length, 2);
+  assert.equal(new Set(rows.map((row) => row.path)).size, 2);
+  assert.deepEqual(rows.map((row) => row.label), ['초안 저장', '자동 저장']);
+  assert.ok(rows.every((row) => row.ownerEmail === meta.authorEmail && row.userId === 'actor-uid' && row.authorUid === 'actor-uid'));
+  assert.ok(h.server.commits.every((commit) => commit.length === 2 && commit.some((write) => write.ref.path.includes('/history/'))));
+  assert.equal(rows[1].snapshot.title, '자동 저장 초안');
+  assert.equal(rows[1].snapshot.contentHTML, h.editor.html);
+  assert.equal(rows[1].snapshot.authorEmail, undefined);
+  h.unmount();
+});
+
+test('published-to-revision save preserves source BEFORE and draft AFTER with persisted owner and separate actor', async () => {
+  const owner = 'owner@example.com';
+  const server = backend({ 'articles/source': { ...historyMeta, title: '원본', contentHTML: '<p>원본 내용</p>', status: 'published', authorEmail: owner, sortIndex: 7 } });
+  const h = await harness({ server, initialProps: { isAdmin: true, historyUserId: 'admin-uid' } });
+  await h.render().loadDraft('source', h.setters);
+  h.editor.html = '<p>수정 내용</p>';
+  h.render().setIsDirty(true);
+  assert.equal(await h.render().saveDraft({ markClean: true }, historyMeta), true);
+  const draftId = h.render().draftId;
+  assert.notEqual(draftId, 'source');
+  assert.equal(server.data.get('articles/source').title, '원본');
+  assert.equal(historyRows(server, 'source')[0].snapshot.contentHTML, '<p>원본 내용</p>');
+  assert.equal(historyRows(server, draftId)[0].snapshot.contentHTML, '<p>수정 내용</p>');
+  assert.ok([...historyRows(server, 'source'), ...historyRows(server, draftId)].every((row) => row.ownerEmail === owner && row.authorUid === 'admin-uid'));
+  assert.equal(server.commits[0].length, 3);
+});
+
+test('revision publication atomically records source BEFORE/AFTER and deletes draft without changing edition', async () => {
+  const owner = 'owner@example.com';
+  const server = backend({
+    'articles/source': { ...historyMeta, title: '원본', status: 'published', authorEmail: owner, sortIndex: 7, editionNo: '007' },
+    'articles/revision': { ...historyMeta, status: 'draft', authorEmail: owner, sourceArticleId: 'source' },
+  });
+  const h = await harness({ server, initialProps: { isAdmin: true, historyUserId: 'admin-uid' } });
+  await h.render().loadDraft('revision', h.setters);
+  assert.equal(await h.render().publish({ ...historyMeta, title: '수정본' }), true);
+  assert.equal(server.data.has('articles/revision'), false);
+  assert.equal(server.data.get('articles/source').editionNo, '007');
+  assert.equal(server.data.has('counters/articles'), false);
+  const rows = historyRows(server, 'source');
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => row.snapshot.title), ['원본', '수정본']);
+  assert.ok(rows.every((row) => row.ownerEmail === owner && row.userId === 'admin-uid'));
+  assert.equal(server.commits[0].length, 4);
+});
+
+test('direct published update records BEFORE/AFTER while new publication records only AFTER', async () => {
+  const server = backend({ 'articles/source': { ...historyMeta, title: '원본', status: 'published', authorEmail: meta.authorEmail, sortIndex: 7 } });
+  const h = await harness({ server, initialProps: { historyUserId: 'actor-uid' } });
+  await h.render().loadDraft('source', h.setters);
+  assert.equal(await h.render().publish({ ...historyMeta, title: '새 원본' }), true);
+  assert.deepEqual(historyRows(server, 'source').map((row) => row.snapshot.title), ['원본', '새 원본']);
+  assert.equal(server.commits[0].length, 3);
+  const fresh = await harness({ initialProps: { historyUserId: 'actor-uid' } });
+  assert.equal(await fresh.render().publish(historyMeta), true);
+  assert.equal(historyRows(fresh.server, fresh.render().draftId).length, 1);
+  assert.equal(fresh.server.commits[0].length, 3);
+});
+
+test('history denial rolls back article, history and publication counter together and retains recovery', async () => {
+  for (const publication of [false, true]) {
+    const server = backend({}, { failHistory: true });
+    const h = await harness({ server, initialProps: { historyUserId: 'actor-uid' } });
+    h.render().setIsDirty(true);
+    const result = publication ? await h.render().publish(historyMeta) : await h.render().saveDraft({ markClean: true }, historyMeta);
+    assert.equal(result, false);
+    assert.equal(server.data.size, 0);
+    assert.equal(server.commits.length, 0);
+    assert.equal(h.render().isDirty, true);
+    assert.equal(h.render().isSaving, false);
+    assert.ok(readRecovery(h.storage, recoveryKey(meta.authorEmail)));
+  }
+});
+
+test('postcommit history pruning failure never reports a committed save or publication as failed', async () => {
+  for (const publication of [false, true]) {
+    const server = backend();
+    const h = await harness({ server, initialProps: { historyUserId: 'actor-uid' }, overrides: {
+      getDocs: async (query) => {
+        if (query.collection.endsWith('/history')) throw new Error('prune denied');
+        return server.firestore.getDocs(query);
+      },
+    } });
+    h.render().setIsDirty(true);
+    const result = publication ? await h.render().publish(historyMeta) : await h.render().saveDraft({ markClean: true }, historyMeta);
+    assert.equal(result, true);
+    assert.equal(h.render().isDirty, false);
+    assert.equal(historyRows(server, h.render().draftId).length, 1);
+    assert.equal(server.commits.length, 1);
+  }
+});
+
+test('concurrent publication retries reuse history IDs and commit no orphan or duplicate snapshots', async () => {
+  for (const permissionConflicts of [false, true]) {
+    const server = backend({ 'counters/articles': { lastIndex: 6, articleId: 'legacy' } }, { permissionConflicts });
+    const a = await harness({ server, initialProps: { historyUserId: 'uid-a' } });
+    const b = await harness({ server, initialProps: { historyUserId: 'uid-b' } });
+    assert.deepEqual(await Promise.all([a.render().publish({ ...historyMeta, title: 'A' }), b.render().publish({ ...historyMeta, title: 'B' })]), [true, true]);
+    assert.ok(server.retries > 0);
+    assert.equal(server.allocatedRefs, 6, 'article and before/after IDs allocated only once per operation');
+    assert.equal(server.commits.length, 2);
+    const histories = [...server.data].filter(([path]) => path.includes('/history/'));
+    assert.equal(histories.length, 2);
+    for (const [path, row] of histories) {
+      assert.equal(server.data.get(path.split('/history/')[0]).title, row.snapshot.title);
+      const attemptedIds = server.attempts.flat().filter((write) => write.value?.snapshot?.title === row.snapshot.title).map((write) => write.ref.path);
+      assert.equal(new Set(attemptedIds).size, 1);
+    }
+  }
+});
+
+test('concurrent published updates capture the freshly retried BEFORE source and retain both pairs under limit', async () => {
+  const server = backend({ 'articles/source': { ...historyMeta, title: 'Original', status: 'published', authorEmail: meta.authorEmail, sortIndex: 7 } });
+  const a = await harness({ server, initialProps: { historyUserId: 'uid-a' } });
+  const b = await harness({ server, initialProps: { historyUserId: 'uid-b' } });
+  await a.render().loadDraft('source', a.setters);
+  await b.render().loadDraft('source', b.setters);
+  assert.deepEqual(await Promise.all([a.render().publish({ ...historyMeta, title: 'A' }), b.render().publish({ ...historyMeta, title: 'B' })]), [true, true]);
+  assert.ok(server.retries > 0);
+  const rows = historyRows(server, 'source');
+  assert.equal(rows.length, 4);
+  assert.equal(rows.filter((row) => row.label === '발행 전 원본').length, 2);
+  assert.ok(rows.some((row) => row.label === '발행 전 원본' && row.snapshot.title === 'Original'));
+  assert.ok(rows.some((row) => row.label === '발행 전 원본' && row.snapshot.title !== 'Original'));
+  assert.equal(new Set(rows.map((row) => row.path)).size, 4);
+});
+
+test('holdAutosave keeps restored edits local until explicit save and failed save preserves the hold', async () => {
+  const server = backend();
+  let fail = true;
+  const h = await harness({ server, initialProps: { historyUserId: 'actor-uid' }, overrides: {
+    runTransaction: async (...args) => {
+      if (fail) throw new Error('offline');
+      return server.firestore.runTransaction(...args);
+    },
+  } });
+  h.render().setIsDirty(true);
+  h.render().holdAutosave();
+  h.render().runAutosave(historyMeta);
+  await h.fireAutosave();
+  assert.equal(server.commits.length, 0);
+  assert.equal(h.render().recoveryNeedsSave, true);
+  assert.equal(await h.render().saveDraft({ markClean: true }, historyMeta), false);
+  fail = false;
+  await h.fireAutosave();
+  assert.equal(server.commits.length, 0);
+  assert.equal(await h.render().saveDraft({ markClean: true }, historyMeta), true);
+  assert.equal(h.render().recoveryNeedsSave, false);
+  h.render().setIsDirty(true);
+  h.render().runAutosave({ ...historyMeta, title: 'Next' });
+  await h.fireAutosave();
+  assert.equal(server.commits.length, 2);
+  h.unmount();
+});
+
+test('hold during an in-flight save prevents completion from clearing restored edits or resuming autosave', async () => {
+  const pending = deferred();
+  const server = backend();
+  const h = await harness({ server, initialProps: { historyUserId: 'actor-uid' }, overrides: {
+    runTransaction: async (...args) => { await pending.promise; return server.firestore.runTransaction(...args); },
+  } });
+  h.render().setIsDirty(true);
+  const saving = h.render().saveDraft({ markClean: true }, historyMeta);
+  h.editor.html = '<p>Restored</p>';
+  h.render().setIsDirty(true);
+  h.render().holdAutosave();
+  h.render().runAutosave({ ...historyMeta, title: 'Restored' });
+  pending.resolve();
+  assert.equal(await saving, true);
+  assert.equal(h.render().isDirty, true);
+  assert.equal(h.render().recoveryNeedsSave, true);
+  await h.fireAutosave();
+  assert.equal(server.commits.length, 1);
+  assert.equal(historyRows(server, h.render().draftId)[0].snapshot.title, historyMeta.title);
+  h.unmount();
 });

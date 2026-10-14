@@ -1,7 +1,7 @@
 // src/Pages/EditorPage.jsx
-import React, { useContext, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import React, { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { UNSAFE_DataRouterContext, useBlocker, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Save, Send, Plus, ChevronDown, ChevronUp, CircleHelp, RotateCcw, Trash2 } from "lucide-react";
+import { Save, Send, Plus, CircleHelp, RotateCcw, Trash2, Eye, ListTree, SlidersHorizontal, History, LayoutTemplate, FileText, PanelRightClose, PanelRightOpen, Maximize2 } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { doc, getDoc } from "firebase/firestore";
@@ -10,6 +10,13 @@ import { db } from "../firebase/config";
 import SlashMenu from "../components/editor/SlashMenu";
 import EditorToolbar from "../components/editor/EditorToolbar";
 import InspectorPanel from "../components/editor/InspectorPanel";
+import EditorOutline from "../components/editor/EditorOutline";
+import EditorToolsPanel from "../components/editor/EditorToolsPanel";
+import { focusEditorBlock } from "../lib/editorOutline";
+const EditorPreview = lazy(() => import("../components/editor/EditorPreview"));
+const PublicationChecklist = lazy(() => import("../components/editor/PublicationChecklist"));
+const EditorHistoryPanel = lazy(() => import("../components/editor/EditorHistoryPanel"));
+const EditorTemplatesPanel = lazy(() => import("../components/editor/EditorTemplatesPanel"));
 import BlockQuickBar from "../components/editor/BlockQuickBar";
 import BlockSideInserter from "../components/editor/BlockSideInserter";
 
@@ -19,6 +26,7 @@ import { uploadImageWithProgress } from "../lib/uploadWithProgress";
 
 import { createEditorConfig } from "../tiptap/editorConfig";
 import { useDrafts } from "../hooks/useDrafts";
+import { useEditorConfirmation } from "../hooks/useEditorConfirmation";
 import { useSlideGalleryRuntime } from "../hooks/useSlideGalleryRuntime";
 import { useSlashMenu } from "../hooks/useSlashMenu";
 import EditorOnboardingModal from "../components/editor/EditorOnboardingModal";
@@ -35,7 +43,7 @@ function useIsDesktopEditor() {
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return undefined;
 
-    const media = window.matchMedia("(min-width: 1280px)");
+    const media = window.matchMedia("(min-width: 1024px)");
     const sync = () => setIsDesktopEditor(media.matches);
 
     sync();
@@ -82,6 +90,7 @@ function EditorLeaveGuard({ draftsApi, meta }) {
 }
 
 export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
+  const { confirm: confirmEditor, confirmation } = useEditorConfirmation();
   const navigate = useNavigate();
   const location = useLocation();
   const dataRouter = useContext(UNSAFE_DataRouterContext);
@@ -111,13 +120,28 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [category, setCategory] = useState(DEFAULT_ARTICLE_CATEGORY);
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
-  const [previewMode, setPreviewMode] = useState("hero");
-  const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const [panelTab, setPanelTab] = useState("settings");
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [previewContent, setPreviewContent] = useState(null);
+  const [showChecks, setShowChecks] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
 
   const titleRef = useRef(null);
   const subtitleRef = useRef(null);
+  const workspaceRef = useRef(null);
+  const actionsRef = useRef(null);
+  useLayoutEffect(() => {
+    const element = actionsRef.current;
+    if (!element) return;
+    const sync = () => workspaceRef.current?.style.setProperty('--uf-action-height', `${element.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(sync);
+    observer.observe(element);
+    sync();
+    return () => observer.disconnect();
+  }, [canWrite]);
 
-  const previewCover = coverMedium || cover || "";
+
   const { upload: uploadCover, uploading: coverUploading, progress: coverProgress } =
     useUploadImage();
   const isDesktopEditor = useIsDesktopEditor();
@@ -142,13 +166,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
 
-  const previewBodyText = editor?.getText?.()?.trim?.() || "";
-  const previewExcerpt = previewBodyText
-    ? previewBodyText.slice(0, 220) + (previewBodyText.length > 220 ? "..." : "")
-    : "본문 미리보기가 여기에 표시됩니다.";
-  const handleStartNewDraft = () => {
+  const handleStartNewDraft = async () => {
     if (draftsApi.isSaving || draftsApi.isDraftLoading) return;
-    if (draftsApi.isDirty && !window.confirm("저장하지 않은 변경사항이 있어요. 변경사항을 버리고 새 초안을 시작할까요?")) return;
+    if (draftsApi.isDirty && !await confirmEditor("저장하지 않은 변경사항이 있어요. 변경사항을 버리고 새 초안을 시작할까요?")) return;
     loadedDraftRef.current = null;
     draftsApi.startNewDraft({
       setTitle,
@@ -178,6 +198,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     authorName: user?.displayName || "",
     authorEmail: user?.email || "",
     userId: user?.email || "",
+    historyUserId: user?.uid || "",
     documentId: preloadedDraftId || articleId || null,
     onToast,
     navigate,
@@ -225,7 +246,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, [captureRecovery]);
 
   const saveStatusText = useMemo(() => {
-    if (!lastAutoSavedAt) return isDirty ? "Unsaved changes" : "Not saved yet";
+    if (!lastAutoSavedAt) return isDirty ? "저장하지 않은 변경사항" : "아직 저장되지 않음";
 
     try {
       const d =
@@ -236,9 +257,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       const hh = String(d.getHours()).padStart(2, "0");
       const mm = String(d.getMinutes()).padStart(2, "0");
 
-      return isDirty ? `Saved at ${hh}:${mm} · modified again` : `Saved at ${hh}:${mm}`;
+      return isDirty ? `${hh}:${mm} 저장 후 수정 중` : `${hh}:${mm} 저장됨`;
     } catch {
-      return isDirty ? "Unsaved changes" : "Saved";
+      return isDirty ? "저장하지 않은 변경사항" : "저장됨";
     }
   }, [lastAutoSavedAt, isDirty]);
 
@@ -258,15 +279,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   useEffect(() => {
     if (!editor) return;
-
+    let recoveryTimer;
     const onUpdate = () => {
       if (editor.isDestroyed) return;
       setDraftDirty((prev) => (prev ? prev : true));
-      captureRecovery(currentMetaRef.current);
+      clearTimeout(recoveryTimer);
+      recoveryTimer = setTimeout(() => captureRecovery(currentMetaRef.current), 700);
     };
 
     editor.on("update", onUpdate);
-    return () => editor.off("update", onUpdate);
+    return () => { clearTimeout(recoveryTimer); editor.off("update", onUpdate); };
   }, [editor, setDraftDirty, captureRecovery]);
 
   useEffect(() => {
@@ -398,6 +420,47 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     return () => clearTimeout(timer);
   }, []);
 
+  const editingDisabled = draftsApi.isSaving || draftsApi.isDraftLoading || !!recoveryCandidate;
+  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium };
+  const openPanel = (tab) => { setPanelTab(tab); setPanelOpen(true); setFocusMode(false); };
+  const saveCurrent = async () => {
+    const saved = await draftsApi.saveDraft({ markClean: true }, currentMetaRef.current);
+    if (saved) setHistoryRefresh((value) => value + 1);
+    return saved;
+  };
+  const restoreSnapshot = async (snapshot) => {
+    if (editingDisabled || !editor?.isInitialized) return false;
+    if (draftsApi.isDirty && !await confirmEditor("현재 변경사항을 선택한 기록으로 바꿀까요?")) return false;
+    const before = editor.getHTML();
+    try { editor.commands.setContent(snapshot.contentHTML, { emitUpdate: false }); }
+    catch { editor.commands.setContent(before, { emitUpdate: false }); toast("이 기록을 불러올 수 없어요."); return false; }
+    for (const [key, setter] of Object.entries(setters)) {
+      const field = key.slice(3); const name = field[0].toLowerCase() + field.slice(1);
+      setter(snapshot[name] || (name === "category" ? DEFAULT_ARTICLE_CATEGORY : ""));
+    }
+    draftsApi.setIsDirty(true);
+    draftsApi.holdAutosave?.();
+    const restoredMeta = { ...currentMetaRef.current, ...snapshot };
+    draftsApi.runAutosave(restoredMeta);
+    draftsApi.captureRecovery(restoredMeta);
+    toast("편집 화면에 복원했어요. 확인한 뒤 저장하거나 발행해 주세요.");
+    return true;
+  };
+
+  const { saveDraft, isSaving, isDraftLoading, recovery } = draftsApi;
+  useEffect(() => {
+    const handleSave = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && canWrite) {
+        event.preventDefault();
+        if (!isSaving && !isDraftLoading && !recovery) {
+          saveDraft({ markClean: true }, currentMetaRef.current).then((saved) => { if (saved) setHistoryRefresh((value) => value + 1); });
+        }
+      }
+    };
+    window.addEventListener("keydown", handleSave);
+    return () => window.removeEventListener("keydown", handleSave);
+  }, [canWrite, saveDraft, isSaving, isDraftLoading, recovery]);
+
   if (!canWrite) {
     return (
       <div className="p-40 text-center font-black italic uppercase tracking-widest text-[var(--uf-muted)]">
@@ -407,718 +470,100 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }
 
   return (
-    <div
-      className="min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 overflow-x-hidden bg-[var(--uf-bg)] text-[var(--uf-text)]"
-    >
+    <div ref={workspaceRef} className={`uf-workspace ${focusMode ? "is-focus" : ""}`}>
+      {confirmation}
       {dataRouter && <EditorLeaveGuard draftsApi={draftsApi} meta={currentMeta} />}
-      {draftsApi.recovery && (
-        <section aria-label="초안 복구" className="col-span-full flex flex-wrap items-center justify-between gap-4 border-b border-[var(--uf-muted)] px-6 py-4">
-          <div className="min-w-0 text-sm" role="status">
-            <p className="font-bold">이 기기에 저장하지 않은 초안이 있어요.</p>
-            <p className="mt-1 break-words">{draftsApi.recovery.snapshot.title || "제목 없는 초안"}</p>
+      {draftsApi.recovery && <section aria-label="초안 복구" className="uf-recovery">
+        <div role="status"><strong>이 기기에 저장하지 않은 초안이 있어요.</strong><p>{draftsApi.recovery.snapshot.title || "제목 없는 초안"}</p></div>
+        <button type="button" disabled={!editorReady || draftsApi.isDraftLoading || draftsApi.isSaving} onClick={async () => {
+          if (isDirty && !await confirmEditor("현재 변경사항을 복구할 초안으로 바꿀까요?")) return;
+          draftsApi.restoreRecovery(setters);
+        }}><RotateCcw size={16} />복구</button>
+        <button type="button" disabled={draftsApi.isSaving} onClick={async () => { if (await confirmEditor("이 기기의 복구 초안을 삭제할까요?")) draftsApi.discardRecovery(); }}><Trash2 size={16} />삭제</button>
+      </section>}
+      {draftsApi.recoveryError && <p role="alert" className="uf-recovery">기기 저장 공간에 초안을 보관하지 못했어요. 페이지를 닫기 전에 저장해 주세요.</p>}
+      {draftsApi.recoveryNeedsSave && <p role="status" className="uf-recovery">초안을 복구했어요. 저장 버튼을 누르면 서버에 반영됩니다.</p>}
+      <main className="uf-workspace-main" inert={!!recoveryCandidate}>
+        <header ref={actionsRef} className="uf-workspace-actions">
+          <div className="uf-workspace-document">
+            <strong>{loadingEditorMeta ? "불러오는 중" : editorDocMeta?.editMode === "revision" ? "발행 글 수정" : editorDocMeta?.status === "published" ? "발행된 글" : "새 글 / 초안"}</strong>
+            <span role="status" aria-live="polite">{draftsApi.isSaving ? "저장 중..." : saveStatusText}</span>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" disabled={!editorReady || draftsApi.isDraftLoading || draftsApi.isSaving} onClick={() => {
-              if (isDirty && !window.confirm("현재 변경사항을 복구할 초안으로 바꿀까요?")) return;
-              draftsApi.restoreRecovery({ setTitle, setSubtitle, setCategory, setCover, setCoverMedium });
-            }} className="inline-flex min-h-11 items-center gap-2 rounded px-3 py-2 bg-[#004aad] text-white disabled:opacity-50"><RotateCcw size={16} />복구</button>
-            <button type="button" disabled={draftsApi.isSaving} onClick={() => {
-              if (window.confirm("이 기기의 복구 초안을 삭제할까요?")) draftsApi.discardRecovery();
-            }} className="inline-flex min-h-11 items-center gap-2 rounded px-3 py-2 border border-[var(--uf-muted)] disabled:opacity-50"><Trash2 size={16} />삭제</button>
+          <div className="uf-workspace-commands">
+            <button type="button" title="집중 모드" aria-label="집중 모드" aria-pressed={focusMode} onClick={() => setFocusMode((value) => !value)}><Maximize2 size={18} /></button>
+            <button type="button" title="편집 도움말" aria-label="편집 도움말" onClick={() => setShowOnboarding(true)}><CircleHelp size={18} /></button>
+            <button type="button" title="편집 작업 패널" aria-label="편집 작업 패널" aria-expanded={isDesktopEditor ? !focusMode : panelOpen} onClick={() => { if (isDesktopEditor) setFocusMode((value) => !value); else setPanelOpen(true); }}>{focusMode ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}</button>
+            <button type="button" disabled={!editorReady || draftsApi.isDraftLoading} onClick={() => setPreviewContent(editor.getJSON())}><Eye size={17} /><span>미리보기</span></button>
+            <button type="button" disabled={editingDisabled} onClick={saveCurrent}><Save size={17} /><span>저장</span></button>
+            <button type="button" className="uf-primary" disabled={editingDisabled || !editorReady || coverUploading} onClick={() => setShowChecks(true)}><Send size={17} /><span>발행</span></button>
           </div>
-        </section>
-      )}
-      {draftsApi.recoveryError && <p role="alert" className="col-span-full border-b border-[var(--uf-muted)] px-6 py-3 text-sm">기기 저장 공간에 초안을 보관하지 못했어요. 페이지를 닫기 전에 저장해 주세요.</p>}
-      {draftsApi.recoveryNeedsSave && <p role="status" className="col-span-full border-b border-[var(--uf-muted)] px-6 py-3 text-sm">초안을 복구했어요. 저장 버튼을 누르면 서버에 반영됩니다.</p>}
-      <aside
-        inert={!!draftsApi.recovery}
-        className={`hidden xl:flex min-w-0 xl:col-span-3 p-6 xl:p-10 flex-col gap-10 xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
-          isDarkMode
-            ? "bg-zinc-900 border-zinc-800 shadow-2xl"
-            : "bg-white border-zinc-50 shadow-xl"
-        }`}
-      >
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-black italic">
-              Drafts
-            </p>
-
-            <button
-              onClick={handleStartNewDraft}
-              className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad] hover:opacity-70 transition"
-              title="New Draft"
-              type="button"
-            >
-              <Plus size={14} /> NEW
-            </button>
-          </div>
-
-          <div className="space-y-2">
-                {draftsApi.drafts.length === 0 ? (
-              <div
-                className={`p-5 rounded-2xl border text-[10px] tracking-widest uppercase italic opacity-60 ${
-                  isDarkMode
-                    ? "border-zinc-800 text-zinc-400"
-                    : "border-zinc-100 text-zinc-500"
-                }`}
-              >
-                No drafts yet.
-              </div>
-              ) : (
-                draftsApi.drafts.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={async () => {
-                      if (draftsApi.isSaving || draftsApi.isDraftLoading) return;
-                      if (draftsApi.isDirty && !window.confirm("저장하지 않은 변경사항이 있어요. 변경사항을 버리고 다른 초안을 열까요?")) return;
-                      loadedDraftRef.current = null;
-                      const success = await draftsApi.loadDraft(d.id, {
-                        setTitle,
-                        setSubtitle,
-                        setCategory,
-                        setCover,
-                        setCoverMedium,
-                      });
-
-                      if (success) {
-                        loadedDraftRef.current = d.id;
-                      }
-                    }}
-                    className={`w-full text-left p-4 rounded-2xl border transition ${
-                      draftsApi.draftId === d.id
-                        ? "border-[#004aad] bg-[#004aad]/5"
-                        : isDarkMode
-                        ? "border-zinc-800 hover:border-zinc-600"
-                        : "border-zinc-100 hover:border-zinc-300"
-                    }`}
-                    type="button"
-                  >
-                    <div className="text-[11px] font-black italic tracking-tight line-clamp-1">
-                      {d.title || "(Untitled)"}
-                    </div>
-
-                    <div className="mt-1 text-[9px] tracking-widest uppercase opacity-50">
-                      {d.category || DEFAULT_ARTICLE_CATEGORY}
-                    </div>
-                  </button>
-                ))
-              )}
+        </header>
+        <div className="uf-toolbar-shell"><EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} /></div>
+        <div className="uf-writing-surface" aria-busy={draftsApi.isDraftLoading}>
+          <textarea ref={titleRef} aria-label="글 제목" rows={1} placeholder="글 제목" value={title} disabled={draftsApi.isDraftLoading} onChange={(event) => { setTitle(event.target.value); setDraftDirty(true); }} className="uf-title-textarea uf-writing-title" />
+          <textarea ref={subtitleRef} aria-label="부제목" rows={1} placeholder="부제목" value={subtitle} disabled={draftsApi.isDraftLoading} onChange={(event) => { setSubtitle(event.target.value); setDraftDirty(true); }}
+            onKeyDown={(event) => {
+              if (event.nativeEvent?.isComposing || event.nativeEvent?.keyCode === 229) return;
+              if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); editor?.chain().focus().run(); }
+              if (event.key === "Backspace" && !subtitle) { event.preventDefault(); titleRef.current?.focus(); }
+            }} className="uf-subtitle-textarea uf-writing-subtitle" />
+          <div className="editor-container relative">
+            <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
+            {isDesktopEditor && <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />}
+            <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
+            <div ref={galleryContainerRef}><EditorContent editor={editor} onKeyDown={(event) => {
+              if (event.nativeEvent?.isComposing || event.nativeEvent?.keyCode === 229) return;
+              onEditorKeyDown(editor, event);
+            }} onClick={() => closeSlashMenu()} /></div>
           </div>
         </div>
-
-        <div className="space-y-8 px-2 uppercase tracking-widest font-black italic">
-          <div className="space-y-3">
-            <label className="text-[10px] text-zinc-400 uppercase tracking-widest">
-              Category
-            </label>
-
-            <select
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                draftsApi.setIsDirty(true);
-              }}
-              className={`w-full p-4 border-2 text-[12px] focus:outline-none focus:border-[#004aad] transition-colors ${
-                isDarkMode
-                  ? "bg-zinc-900 border-zinc-700 text-white"
-                  : "bg-zinc-50 border-zinc-100 text-black"
-              }`}
-            >
-              {ARTICLE_CATEGORIES.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.key}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <label className="text-[10px] text-zinc-400 uppercase tracking-widest">
-                Cover
-              </label>
-
-              <UploadButton
-                label="Upload"
-                title="Upload Cover (auto sets Medium)"
-                uploading={coverUploading}
-                progress={coverProgress}
-                onPickFile={async (file) => {
-                  try {
-                    const { url, coverMedium: cm } = await uploadCover(file, {
-                      variant: "cover",
-                    });
-                    setCover(url);
-                    setCoverMedium(cm || url);
-                    draftsApi.setIsDirty(true);
-                    toast("커버 업로드 완료");
-                  } catch (e) {
-                    console.error(e);
-                    toast("커버 업로드 실패");
-                  }
-                }}
-              />
-            </div>
-
-            <input
-              type="text"
-              placeholder="Cover URL"
-              value={cover}
-              onChange={(e) => {
-                setCover(e.target.value);
-                draftsApi.setIsDirty(true);
-              }}
-              className={`w-full p-3 text-[10px] border-b focus:outline-none bg-transparent ${
-                isDarkMode ? "border-zinc-800" : "border-zinc-200"
-              }`}
-            />
-
-            <input
-              type="text"
-              placeholder="Cover Medium URL (auto)"
-              value={coverMedium}
-              onChange={(e) => {
-                setCoverMedium(e.target.value);
-                draftsApi.setIsDirty(true);
-              }}
-              className={`w-full p-3 text-[10px] border-b focus:outline-none bg-transparent ${
-                isDarkMode ? "border-zinc-800" : "border-zinc-200"
-              }`}
-            />
-          </div>
-        </div>
-
-        <div className="mt-auto space-y-4 px-2 pb-6">
-          <button
-            onClick={() =>
-              draftsApi.saveDraft(
-                { silent: false, markClean: true },
-                {
-                  title,
-                  subtitle,
-                  category,
-                  cover,
-                  coverMedium,
-                  author: authorName,
-                  authorEmail,
-                }
-              )
-            }
-            disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
-            className={`w-full py-5 font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 transition-all hover:opacity-70 rounded-2xl ${
-              isDarkMode ? "bg-zinc-800 text-zinc-300" : "bg-zinc-50 text-zinc-500"
-            }`}
-            type="button"
-          >
-            <Save size={14} /> {draftsApi.isSaving ? "SAVING..." : "Save Draft"}
-          </button>
-
-          <button
-            onClick={() =>
-              draftsApi.publish({
-                title,
-                subtitle,
-                category,
-                cover,
-                coverMedium,
-                author: authorName,
-                authorEmail,
-              })
-            }
-            disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
-            className="w-full py-5 bg-[#004aad] text-white font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 hover:bg-black shadow-xl transition-all rounded-2xl italic"
-            type="button"
-          >
-            <Send size={14} /> {draftsApi.isSaving ? "PUBLISHING..." : "Publish Issue"}
-          </button>
-        </div>
-      </aside>
-
-      <main
-        inert={!!draftsApi.recovery}
-        className="min-w-0 xl:col-span-9 xl:pr-[320px] flex items-start transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
-      >
-        <div className="min-w-0 flex-1 flex flex-col">
-          <div className="xl:hidden px-5 pt-4 pb-2">
-            <div
-              className={`flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-3 ${
-                isDarkMode ? "border-zinc-900 bg-zinc-950" : "border-zinc-100 bg-white"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  draftsApi.saveDraft(
-                    { silent: false, markClean: true },
-                    {
-                      title,
-                      subtitle,
-                      category,
-                      cover,
-                      coverMedium,
-                      author: authorName,
-                      authorEmail,
-                    }
-                  )
-                }
-                disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
-                className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-[0.35em] italic transition ${
-                  isDarkMode
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "bg-zinc-100 text-zinc-700"
-                }`}
-              >
-                {draftsApi.isSaving ? "Saving..." : "Save"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  draftsApi.publish({
-                    title,
-                    subtitle,
-                    category,
-                    cover,
-                    coverMedium,
-                    author: authorName,
-                    authorEmail,
-                  })
-                }
-                disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
-                className="h-10 px-4 rounded-xl bg-[#004aad] text-white text-[10px] font-black uppercase tracking-[0.35em] italic transition"
-              >
-                {draftsApi.isSaving ? "Publishing..." : "Publish"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleStartNewDraft}
-                className={`h-10 px-4 rounded-xl border text-[10px] font-black uppercase tracking-[0.35em] italic transition ${
-                  isDarkMode
-                    ? "border-zinc-800 bg-zinc-950 text-zinc-300"
-                    : "border-zinc-200 bg-white text-zinc-600"
-                }`}
-              >
-                New
-              </button>
-            </div>
-          </div>
-
-          {isDesktopEditor && (
-            <EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
-          )}
-
-          <div
-            className={`px-6 md:px-10 pt-5 pb-3 border-b ${
-              isDarkMode ? "border-zinc-900" : "border-zinc-100"
-            }`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {loadingEditorMeta ? (
-                  <span
-                    className={`text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full ${
-                      isDarkMode
-                        ? "bg-zinc-900 text-zinc-400"
-                        : "bg-zinc-100 text-zinc-500"
-                    }`}
-                  >
-                    loading
-                  </span>
-                ) : editorDocMeta?.editMode === "revision" ? (
-                  <span className="text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full bg-[#004aad] text-white">
-                    revision draft
-                  </span>
-                ) : editorDocMeta?.status === "published" ? (
-                  <span className="text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full bg-emerald-600 text-white">
-                    published
-                  </span>
-                ) : (
-                  <span
-                    className={`text-[10px] font-black tracking-[0.25em] uppercase italic px-3 py-1.5 rounded-full ${
-                      isDarkMode
-                        ? "bg-zinc-900 text-zinc-300"
-                        : "bg-zinc-100 text-zinc-700"
-                    }`}
-                  >
-                    draft
-                  </span>
-                )}
-
-                {editorDocMeta?.sourceEditionNo && (
-                  <span
-                    className={`text-[10px] font-black tracking-[0.22em] uppercase italic px-3 py-1.5 rounded-full ${
-                      isDarkMode
-                        ? "bg-zinc-900 text-zinc-400"
-                        : "bg-black/5 text-zinc-600"
-                    }`}
-                  >
-                    from #{String(editorDocMeta.sourceEditionNo).padStart(3, "0")}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowOnboarding(true)}
-                  className={`h-8 px-3 rounded-lg border flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] italic transition ${
-                    isDarkMode
-                      ? "bg-zinc-950 border-zinc-800 text-zinc-300 hover:bg-zinc-900"
-                      : "bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50"
-                  }`}
-                >
-                  <CircleHelp size={14} />
-                  Guide
-                </button>
-
-                <div
-                  className={`text-[11px] font-black italic ${
-                    draftsApi.isDirty ? "text-amber-500" : "text-zinc-400"
-                  }`}
-                >
-                  {saveStatusText}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grow px-5 py-8 md:px-10 md:py-12 xl:p-32">
-            <div className="max-w-4xl mx-auto space-y-10 md:space-y-16">
-              <div className="space-y-4">
-                <textarea
-                  ref={titleRef}
-                  rows={1}
-                  placeholder="ENTER TITLE..."
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                    draftsApi.setIsDirty(true);
-                  }}
-                  className={`uf-title-textarea w-full resize-none overflow-hidden text-4xl md:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[1.02] focus:outline-none bg-transparent placeholder:text-[var(--uf-muted)] ${
-                    isDarkMode ? "text-white" : "text-black"
-                  }`}
-                />
-
-                <div className="h-2 w-24 bg-[#004aad] shadow-[0_0_15px_#004aad]" />
-              </div>
-
-              <textarea
-                ref={subtitleRef}
-                rows={1}
-                placeholder="Subtitle here..."
-                value={subtitle}
-                onChange={(e) => {
-                  setSubtitle(e.target.value);
-                  draftsApi.setIsDirty(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    editor?.chain().focus().run();
-                    return;
-                  }
-
-                  if (e.key === "Backspace" && !subtitle) {
-                    e.preventDefault();
-                    titleRef.current?.focus();
-                    const len = titleRef.current?.value?.length ?? 0;
-                    titleRef.current?.setSelectionRange?.(len, len);
-                  }
-                }}
-                className={`uf-subtitle-textarea w-full resize-none overflow-hidden text-xl md:text-2xl font-light italic leading-[1.5] focus:outline-none bg-transparent border-l border-[#004aad]/70 pl-5 md:pl-8 placeholder:text-[var(--uf-muted)] ${
-                  isDarkMode ? "text-zinc-500" : "text-zinc-400"
-                }`}
-              />
-
-              <div className="editor-container relative">
-                {isDesktopEditor && (
-                  <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
-                )}
-
-                {isDesktopEditor && (
-                  <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
-                )}
-
-                {isDesktopEditor && (
-                  <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
-                )}
-
-                <div ref={galleryContainerRef}>
-                  <EditorContent
-                    editor={editor}
-                    onKeyDown={(e) => {
-                      const native = e.nativeEvent;
-                      if (native?.isComposing || native?.keyCode === 229) return;
-                      if (isDesktopEditor) {
-                        onEditorKeyDown(editor, e);
-                      }
-                    }}
-                    onClick={() => closeSlashMenu()}
-                  />
-                </div>
-              </div>
-
-              <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
-                {draftsApi.lastAutoSavedAt ? "AUTOSAVED" : ""}
-                {draftsApi.isDirty ? "  •  EDITING…" : ""}
-              </div>
-
-              <div className="hidden xl:block pt-6 border-t border-zinc-200 dark:border-zinc-800">
-                <div className="flex items-center justify-between gap-4 mb-6">
-                  <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">
-                    Preview
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {!previewCollapsed && (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewMode("hero")}
-                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
-                            previewMode === "hero"
-                              ? "bg-[#004aad] text-white"
-                              : isDarkMode
-                              ? "bg-zinc-900 text-zinc-400"
-                              : "bg-zinc-100 text-zinc-500"
-                          }`}
-                        >
-                          Hero
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setPreviewMode("pick")}
-                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
-                            previewMode === "pick"
-                              ? "bg-[#004aad] text-white"
-                              : isDarkMode
-                              ? "bg-zinc-900 text-zinc-400"
-                              : "bg-zinc-100 text-zinc-500"
-                          }`}
-                        >
-                          Pick
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setPreviewMode("article")}
-                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
-                            previewMode === "article"
-                              ? "bg-[#004aad] text-white"
-                              : isDarkMode
-                              ? "bg-zinc-900 text-zinc-400"
-                              : "bg-zinc-100 text-zinc-500"
-                          }`}
-                        >
-                          Article
-                        </button>
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setPreviewCollapsed((prev) => !prev)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.25em] italic transition ${
-                        isDarkMode
-                          ? "bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
-                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                      }`}
-                    >
-                      {previewCollapsed ? (
-                        <>
-                          <ChevronDown size={14} />
-                          Expand
-                        </>
-                      ) : (
-                        <>
-                          <ChevronUp size={14} />
-                          Collapse
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {!previewCollapsed && (
-                  <>
-                    {previewMode === "hero" && (
-                      <div
-                        className={`rounded-[28px] overflow-hidden border ${
-                          isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-[#fcfcfc]"
-                        }`}
-                      >
-                        <div className="grid md:grid-cols-[1.1fr_0.9fr] min-h-[420px]">
-                          <div className="p-10 md:p-14 flex flex-col justify-between">
-                            <div>
-                              <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#004aad]">
-                                {category || DEFAULT_ARTICLE_CATEGORY}
-                              </div>
-
-                              <h2 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter leading-[0.95] break-keep whitespace-pre-line">
-                                {title || "ENTER TITLE..."}
-                              </h2>
-
-                              <p className="mt-6 text-lg md:text-xl font-light italic leading-[1.5] text-zinc-400 break-keep">
-                                {subtitle || "Subtitle preview appears here."}
-                              </p>
-                            </div>
-
-                            <div className="pt-10 text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
-                              by {authorName}
-                            </div>
-                          </div>
-
-                          <div className="relative min-h-[280px]">
-                            {previewCover ? (
-                              <img
-                                src={previewCover}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
-                                No Cover
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {previewMode === "pick" && (
-                      <div className="grid md:grid-cols-2 gap-6">
-                        <div
-                          className={`rounded-[24px] overflow-hidden border ${
-                            isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"
-                          }`}
-                        >
-                          <div className="aspect-4/3 relative">
-                            {previewCover ? (
-                              <img
-                                src={previewCover}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
-                                No Cover
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="p-6">
-                            <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
-                              {category || DEFAULT_ARTICLE_CATEGORY}
-                            </div>
-                            <h3 className="mt-4 text-2xl font-black italic tracking-tight leading-[1.02] break-keep line-clamp-3 whitespace-pre-line">
-                              {title || "ENTER TITLE..."}
-                            </h3>
-                            <p className="mt-3 text-sm leading-[1.6] text-zinc-400 break-keep line-clamp-3">
-                              {subtitle || "Subtitle preview appears here."}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div
-                          className={`rounded-[24px] overflow-hidden border ${
-                            isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"
-                          }`}
-                        >
-                          <div className="p-6">
-                            <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-[#004aad]">
-                              Compact Card
-                            </div>
-                            <h3 className="mt-4 text-xl font-black italic tracking-tight leading-[1.06] break-keep line-clamp-3 whitespace-pre-line">
-                              {title || "ENTER TITLE..."}
-                            </h3>
-                            <p className="mt-3 text-sm leading-[1.6] text-zinc-400 break-keep line-clamp-2">
-                              {subtitle || "Subtitle preview appears here."}
-                            </p>
-                          </div>
-
-                          <div className="aspect-16/9 relative border-t border-zinc-200 dark:border-zinc-800">
-                            {previewCover ? (
-                              <img
-                                src={previewCover}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] italic text-zinc-400">
-                                No Cover
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {previewMode === "article" && (
-                      <div
-                        className={`rounded-[28px] overflow-hidden border ${
-                          isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-[#fcfcfc]"
-                        }`}
-                      >
-                        <div className="relative aspect-16/7">
-                          {previewCover ? (
-                            <img
-                              src={previewCover}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900" />
-                          )}
-                          <div className="absolute inset-0 bg-linear-to-t from-black/65 via-black/25 to-transparent" />
-                          <div className="absolute left-0 right-0 bottom-0 p-8 md:p-12">
-                            <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-[#7db5ff]">
-                              {category || DEFAULT_ARTICLE_CATEGORY}
-                            </div>
-                            <h2 className="mt-4 text-4xl md:text-5xl font-black italic tracking-tighter leading-[0.97] text-white break-keep whitespace-pre-line">
-                              {title || "ENTER TITLE..."}
-                            </h2>
-                            <p className="mt-4 text-base md:text-lg italic leading-[1.5] text-white/75 break-keep">
-                              {subtitle || "Subtitle preview appears here."}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="p-8 md:p-12">
-                          <div className="max-w-3xl">
-                            <div className="text-[10px] font-black uppercase tracking-[0.35em] italic text-zinc-400">
-                              Article Body Preview
-                            </div>
-                            <p className="mt-6 text-[18px] leading-[1.95] font-light break-keep">
-                              {previewExcerpt}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <EditorOnboardingModal
-          isOpen={showOnboarding}
-          isDarkMode={isDarkMode}
-          onClose={() => setShowOnboarding(false)}
-          onNeverShowAgain={() => {
-            hideEditorOnboardingForever();
-            setShowOnboarding(false);
-          }}
-        />
-
-        {isDesktopEditor && <InspectorPanel editor={editor} isDarkMode={isDarkMode} onToast={onToast} />}
+        <EditorOnboardingModal isOpen={showOnboarding} isDarkMode={isDarkMode} onClose={() => setShowOnboarding(false)} onNeverShowAgain={() => { hideEditorOnboardingForever(); setShowOnboarding(false); }} />
       </main>
-
-      <style>{`
+      {(!isDesktopEditor || !focusMode) && <EditorToolsPanel desktop={isDesktopEditor} open={panelOpen} onClose={() => setPanelOpen(false)}>
+        <div className="uf-panel-content" inert={!!recoveryCandidate}>
+          <nav className="uf-panel-tabs" aria-label="편집 작업">
+            {[["settings", SlidersHorizontal, "블록"], ["outline", ListTree, "목차"], ["document", FileText, "글 설정"], ["drafts", FileText, "초안"], ["history", History, "이력"], ["templates", LayoutTemplate, "템플릿"]].map(([tab, Icon, label]) => <button type="button" key={tab} aria-pressed={panelTab === tab} onClick={() => setPanelTab(tab)}><Icon size={17} />{label}</button>)}
+          </nav>
+          <div className="uf-panel-body">
+            {panelTab === "settings" && <InspectorPanel embedded editor={editor} isDarkMode={isDarkMode} onToast={onToast} />}
+            {panelTab === "outline" && <EditorOutline editor={editor} disabled={editingDisabled} onNavigate={(pos) => { if (!isDesktopEditor) setPanelOpen(false); requestAnimationFrame(() => focusEditorBlock(editor, pos)); }} />}
+            {panelTab === "document" && <section className="uf-document-settings">
+              <h2>글 설정</h2>
+              <label>카테고리<select value={category} disabled={editingDisabled} onChange={(event) => { setCategory(event.target.value); setDraftDirty(true); }}>{ARTICLE_CATEGORIES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+              <label>대표 이미지{(coverMedium || cover) && <img src={coverMedium || cover} alt="대표 이미지" />}</label>
+              <UploadButton label="대표 이미지 업로드" title="대표 이미지 업로드" uploading={coverUploading} progress={coverProgress} disabled={editingDisabled} onPickFile={async (file) => {
+                try { const result = await uploadCover(file, { variant: "cover" }); setCover(result.url); setCoverMedium(result.coverMedium || result.url); setDraftDirty(true); }
+                catch { toast("대표 이미지 업로드에 실패했어요."); }
+              }} />
+              <label>대표 이미지 주소<input type="url" value={cover} disabled={editingDisabled} onChange={(event) => { setCover(event.target.value); setDraftDirty(true); }} /></label>
+              <details><summary>이미지 고급 설정</summary><label>목록용 이미지 주소<input type="url" value={coverMedium} disabled={editingDisabled} onChange={(event) => { setCoverMedium(event.target.value); setDraftDirty(true); }} /></label></details>
+              {cover && <button type="button" disabled={editingDisabled || coverUploading} onClick={() => { setCover(""); setCoverMedium(""); setDraftDirty(true); }}><Trash2 size={16} />대표 이미지 삭제</button>}
+            </section>}
+            {panelTab === "drafts" && <section className="uf-draft-list"><div className="uf-panel-heading"><h2>내 초안</h2><button type="button" disabled={editingDisabled} onClick={handleStartNewDraft}><Plus size={16} />새 글</button></div>
+              {!draftsApi.drafts.length && <p className="uf-empty">저장한 초안이 없어요.</p>}
+              {draftsApi.drafts.map((draft) => <button type="button" key={draft.id} disabled={editingDisabled} aria-current={draftId === draft.id ? "true" : undefined} onClick={async () => {
+                if (isDirty && !await confirmEditor("저장하지 않은 변경사항을 버리고 다른 초안을 열까요?")) return;
+                const success = await loadDraft(draft.id, setters);
+                if (success) { loadedDraftRef.current = draft.id; if (!isDesktopEditor) setPanelOpen(false); }
+              }}><strong>{draft.title || "제목 없는 초안"}</strong><span>{draft.category || DEFAULT_ARTICLE_CATEGORY}</span></button>)}
+            </section>}
+            <Suspense fallback={<p role="status" className="uf-empty">불러오는 중...</p>}>
+              {panelTab === "history" && <EditorHistoryPanel db={db} articleId={draftId || articleId} sourceArticleId={editorDocMeta?.sourceArticleId} userId={user?.uid} getSnapshot={() => ({ ...currentMetaRef.current, contentHTML: editor.getHTML() })} onRestore={restoreSnapshot} disabled={editingDisabled} refreshKey={historyRefresh} />}
+              {panelTab === "templates" && <EditorTemplatesPanel editor={editor} userId={user?.uid} getSnapshot={() => ({ ...currentMetaRef.current, contentHTML: editor.getHTML() })} onApply={(template) => restoreSnapshot(template.snapshot)} onToast={onToast} disabled={editingDisabled} />}
+            </Suspense>
+          </div>
+        </div>
+      </EditorToolsPanel>}
+      <Suspense fallback={<p role="status" className="uf-overlay-loading">불러오는 중...</p>}>
+        {previewContent && <EditorPreview content={previewContent} meta={{ ...currentMeta, author: editorDocMeta?.author || authorName, editionNo: editorDocMeta?.sourceEditionNo || editorDocMeta?.editionNo || '미발행' }} isDarkMode={isDarkMode} onClose={() => setPreviewContent(null)} />}
+        {showChecks && <PublicationChecklist editor={editor} meta={currentMeta} isSaving={draftsApi.isSaving} onClose={() => setShowChecks(false)} onFocusIssue={(issue) => {
+          setShowChecks(false);
+          if (typeof issue.position === "number") { if (!isDesktopEditor) setPanelOpen(false); focusEditorBlock(editor, issue.position); }
+          else if (issue.field === "title") titleRef.current?.focus();
+          else if (issue.field === "cover") openPanel("document");
+        }} onPublish={async () => { const success = await draftsApi.publish(currentMetaRef.current); if (success) setShowChecks(false); return success; }} />}
+      </Suspense>
+      <style data-uf-editor-styles>{`
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;

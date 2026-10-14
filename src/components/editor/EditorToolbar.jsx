@@ -46,7 +46,7 @@ import {
 } from "../../constants/editorBlocks";
 
 const FONT_OPTIONS = [
-  { label: "Default", value: "" },
+  { label: "기본", value: "" },
   { label: "Pretendard", value: "Pretendard, system-ui, sans-serif" },
   { label: "Noto Serif KR", value: '"Noto Serif KR", serif' },
   { label: "Cormorant", value: '"Cormorant Garamond", serif' },
@@ -54,7 +54,7 @@ const FONT_OPTIONS = [
 ];
 
 const FONT_SIZE_OPTIONS = [
-  { label: "Default", value: "" },
+  { label: "기본", value: "" },
   { label: "14", value: "14px" },
   { label: "16", value: "16px" },
   { label: "18", value: "18px" },
@@ -103,7 +103,7 @@ function ToolbarGroup({ title, children, isDarkMode, active = false, compact = f
   return (
     <div
       className={[
-        "min-w-0 rounded-xl border px-2 py-2",
+        "min-w-0 px-1 py-1",
         active
           ? isDarkMode
             ? "border-[#004aad]/40 bg-[#004aad]/10"
@@ -114,10 +114,10 @@ function ToolbarGroup({ title, children, isDarkMode, active = false, compact = f
         compact ? "flex items-center gap-2" : "",
       ].join(" ")}
     >
-      <div className="text-[9px] font-black tracking-[0.2em] uppercase italic text-zinc-400 mb-1.5">
+      <div className="sr-only">
         {title}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+      <div role="group" aria-label={title} className="flex flex-wrap items-center gap-1">{children}</div>
     </div>
   );
 }
@@ -137,11 +137,14 @@ function ToolbarIconButton({
   return (
     <button
       onClick={onClick}
+      onMouseDown={(event) => event.preventDefault()}
       title={title || label}
+      aria-label={title || label}
+      aria-pressed={active}
       type={type}
       disabled={disabled}
       className={[
-        "h-8 rounded-lg border flex items-center gap-1.5 text-[10px] font-black italic transition shrink-0",
+        "h-9 min-w-9 rounded-md border flex items-center justify-center gap-1.5 text-xs font-medium transition shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004aad]",
         short ? "px-2" : "px-2.5",
         disabled
           ? "opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400"
@@ -151,19 +154,21 @@ function ToolbarIconButton({
         className,
       ].join(" ")}
     >
-      <Icon size={13} className={iconClassName} />
+      <Icon size={16} aria-hidden="true" className={iconClassName} />
       {!short && <span>{label}</span>}
     </button>
   );
 }
 
-function ToolbarSelect({ value, onChange, children, isDarkMode, className = "" }) {
+function ToolbarSelect({ value, onChange, children, isDarkMode, className = "", label }) {
   return (
     <select
       value={value}
       onChange={onChange}
+      aria-label={label}
+      title={label}
       className={[
-        "h-8 rounded-lg border px-2 text-[10px] font-black italic focus:outline-none shrink-0 min-w-0",
+        "h-9 rounded-md border px-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad] shrink-0 min-w-0",
         isDarkMode
           ? "border-zinc-800 bg-zinc-900 text-zinc-100"
           : "border-zinc-200 bg-white text-zinc-700",
@@ -196,6 +201,7 @@ function ToolbarNumberField({
       <span className="text-zinc-400 whitespace-nowrap">{label}</span>
       <input
         type="number"
+        aria-label={label}
         step={step}
         min={min}
         value={value}
@@ -223,6 +229,74 @@ function ColorSwatchGroup({ title, icon: Icon, children, isDarkMode }) {
       </div>
       {children}
     </div>
+  );
+}
+
+function ToolbarColors({ editor, isDarkMode, textColor, setTextColor, highlightColor, setHighlightColor }) {
+  return (
+    <ToolbarGroup title="색상" isDarkMode={isDarkMode}>
+              <ColorSwatchGroup title="글자 색" icon={Palette} isDarkMode={isDarkMode}>
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setTextColor(value);
+                    editor.chain().focus().setColor(value).run();
+                  }}
+                  className="w-8 h-8 rounded-lg overflow-hidden bg-transparent border-0 p-0"
+                  title="글자 색" aria-label="글자 색"
+                />
+                <button
+                  onClick={() => editor.chain().focus().unsetColor().run()}
+                  className="h-8 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-[10px] font-black italic bg-white dark:bg-zinc-900"
+                  title="글자 색 지우기" aria-label="글자 색 지우기"
+                  type="button"
+                >
+                  <Eraser size={12} />
+                </button>
+              </ColorSwatchGroup>
+
+              <ColorSwatchGroup title="강조색" icon={Highlighter} isDarkMode={isDarkMode}>
+                <div className="flex items-center gap-1">
+                  {HIGHLIGHT_PRESETS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => editor.chain().focus().toggleHighlight({ color }).run()}
+                      className={`w-6 h-6 rounded-md border transition ${
+                        editor.isActive("highlight", { color })
+                          ? "ring-2 ring-[#004aad] border-[#004aad]"
+                          : "border-zinc-200 dark:border-zinc-700"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={`강조색 ${color}`} aria-label={`강조색 ${color}`} aria-pressed={editor.isActive("highlight", { color })}
+                      type="button"
+                    />
+                  ))}
+                </div>
+
+                <input
+                  type="color"
+                  value={highlightColor}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setHighlightColor(value);
+                    editor.chain().focus().setHighlight({ color: value }).run();
+                  }}
+                  className="w-8 h-8 rounded-lg overflow-hidden bg-transparent border-0 p-0"
+                  title="사용자 지정 강조색" aria-label="사용자 지정 강조색"
+                />
+
+                <button
+                  onClick={() => editor.chain().focus().unsetHighlight().run()}
+                  className="h-8 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-[10px] font-black italic bg-white dark:bg-zinc-900"
+                  title="강조색 지우기" aria-label="강조색 지우기"
+                  type="button"
+                >
+                  <Eraser size={12} />
+                </button>
+              </ColorSwatchGroup>
+            </ToolbarGroup>
   );
 }
 
@@ -480,15 +554,26 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
   return (
     <div
-      className={`border-b sticky top-[80px] z-30 backdrop-blur-3xl transition-colors ${
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        const openMenu = event.currentTarget.querySelector("details[open]");
+        if (!openMenu) return;
+        openMenu.open = false;
+        openMenu.querySelector("summary")?.focus();
+        event.stopPropagation();
+      }}
+      className={`uf-format-toolbar relative min-w-0 border-b transition-colors ${
         isDarkMode ? "bg-black/92 border-zinc-900" : "bg-white/92 border-zinc-100"
       }`}
     >
-      <div className="px-3 sm:px-4 py-2 space-y-2">
-        <div className="grid grid-cols-1 xl:grid-cols-[1.55fr_1.45fr] gap-2">
-          <div className="min-w-0 flex flex-wrap gap-2 items-start">
-            <ToolbarGroup title="Type" isDarkMode={isDarkMode}>
+      <div className="px-2 sm:px-3 py-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <details name="uf-format-options" className="group">
+            <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad]">글꼴 · 색상</summary>
+            <div className="absolute left-0 right-0 top-full z-10 max-h-[min(50vh,320px)] overflow-auto border-b border-zinc-200 bg-white p-3 shadow-md dark:border-zinc-800 dark:bg-zinc-950">
+            <ToolbarGroup title="글꼴" isDarkMode={isDarkMode}>
               <ToolbarSelect
+                label="글꼴"
                 value={editorState.fontFamily}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -509,6 +594,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               </ToolbarSelect>
 
               <ToolbarSelect
+                label="글자 크기"
                 value={editorState.fontSize}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -529,7 +615,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               </ToolbarSelect>
 
               <ToolbarNumberField
-                label="Tr"
+                label="자간"
                 value={editorState.letterSpacing}
                 suffix="px"
                 isDarkMode={isDarkMode}
@@ -544,7 +630,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               />
 
               <ToolbarNumberField
-                label="Ld"
+                label="줄 간격"
                 value={editorState.lineHeight}
                 suffix="px"
                 min="1"
@@ -559,195 +645,159 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
                 }}
               />
             </ToolbarGroup>
-
-            <ToolbarGroup title="Format" isDarkMode={isDarkMode}>
+            <ToolbarColors editor={editor} isDarkMode={isDarkMode} textColor={textColor} setTextColor={setTextColor} highlightColor={highlightColor} setHighlightColor={setHighlightColor} />
+            </div>
+          </details>
+          <div role="group" aria-label="기본 서식" tabIndex={0} className="order-first flex w-full min-w-0 items-center gap-2 overflow-x-auto py-1 [&>div]:shrink-0 [&>div>div]:flex-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad]">
+            <ToolbarGroup title="서식" isDarkMode={isDarkMode}>
               <ToolbarIconButton
                 icon={Bold}
-                label="B"
+                label="굵게"
                 short
                 active={editorState.bold}
                 onClick={() => editor.chain().focus().toggleBold().run()}
               />
               <ToolbarIconButton
                 icon={Italic}
-                label="I"
+                label="기울임"
                 short
                 active={editorState.italic}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
               />
               <ToolbarIconButton
                 icon={UnderlineIcon}
-                label="U"
+                label="밑줄"
                 short
                 active={editorState.underline}
                 onClick={() => editor.chain().focus().toggleUnderline().run()}
               />
               <ToolbarIconButton
                 icon={Strikethrough}
-                label="S"
+                label="취소선"
                 short
                 active={editorState.strike}
                 onClick={() => editor.chain().focus().toggleStrike().run()}
               />
               <ToolbarIconButton
                 icon={Code}
-                label="Code"
+                short
+                label="코드 블록"
                 active={editorState.codeBlock}
                 onClick={() => editor.chain().focus().toggleCodeBlock().run()}
               />
             </ToolbarGroup>
 
-            <ToolbarGroup title="Structure" isDarkMode={isDarkMode}>
+            <ToolbarGroup title="문단" isDarkMode={isDarkMode}>
               <ToolbarIconButton
                 icon={Heading1}
-                label="H1"
+                short
+                label="제목 1"
                 active={editorState.h1}
                 onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
               />
               <ToolbarIconButton
                 icon={Heading2}
-                label="H2"
+                short
+                label="제목 2"
                 active={editorState.h2}
                 onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
               />
               <ToolbarIconButton
                 icon={Quote}
-                label="Quote"
+                short
+                label="인용"
                 active={editorState.blockquote}
                 onClick={() => editor.chain().focus().toggleBlockquote().run()}
               />
               <ToolbarIconButton
                 icon={List}
-                label="List"
+                short
+                label="글머리 목록"
                 active={editorState.bulletList}
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
               />
               <ToolbarIconButton
                 icon={ListOrdered}
-                label="Num"
+                short
+                label="번호 목록"
                 active={editorState.orderedList}
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
               />
               <ToolbarIconButton
                 icon={CheckSquare}
-                label="Task"
+                short
+                label="체크 목록"
                 active={editorState.taskList}
                 onClick={() => editor.chain().focus().toggleTaskList().run()}
               />
             </ToolbarGroup>
 
-            <ToolbarGroup title="Align / Link" isDarkMode={isDarkMode}>
+            <ToolbarGroup title="정렬 및 링크" isDarkMode={isDarkMode}>
               <ToolbarIconButton
                 icon={AlignLeft}
-                label="L"
+                label="왼쪽 정렬"
                 short
                 active={editorState.alignLeft}
                 onClick={() => editor.chain().focus().setTextAlign("left").run()}
               />
               <ToolbarIconButton
                 icon={AlignCenter}
-                label="C"
+                label="가운데 정렬"
                 short
                 active={editorState.alignCenter}
                 onClick={() => editor.chain().focus().setTextAlign("center").run()}
               />
               <ToolbarIconButton
                 icon={AlignRight}
-                label="R"
+                label="오른쪽 정렬"
                 short
                 active={editorState.alignRight}
                 onClick={() => editor.chain().focus().setTextAlign("right").run()}
               />
               <ToolbarIconButton
                 icon={AlignJustify}
-                label="J"
+                label="양쪽 정렬"
                 short
                 active={editorState.alignJustify}
                 onClick={() => editor.chain().focus().setTextAlign("justify").run()}
               />
               <ToolbarIconButton
                 icon={Link2}
-                label="Link"
+                short
+                label="링크"
                 active={editorState.link}
                 onClick={insertLink}
               />
               <ToolbarIconButton
                 icon={Unlink}
-                label="Unlink"
+                short
+                label="링크 해제"
                 onClick={() => editor.chain().focus().unsetLink().run()}
+              />
+            </ToolbarGroup>
+            <ToolbarGroup title="편집 기록" isDarkMode={isDarkMode}>
+              <ToolbarIconButton
+                icon={Undo2}
+                short
+                label="실행 취소"
+                onClick={() => editor.chain().focus().undo().run()}
+              />
+              <ToolbarIconButton
+                icon={Redo2}
+                short
+                label="다시 실행"
+                onClick={() => editor.chain().focus().redo().run()}
               />
             </ToolbarGroup>
           </div>
 
-          <div className="min-w-0 flex flex-wrap gap-2 items-start xl:justify-end">
-            <ToolbarGroup title="Color" isDarkMode={isDarkMode}>
-              <ColorSwatchGroup title="Text" icon={Palette} isDarkMode={isDarkMode}>
-                <input
-                  type="color"
-                  value={textColor}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTextColor(value);
-                    editor.chain().focus().setColor(value).run();
-                  }}
-                  className="w-8 h-8 rounded-lg overflow-hidden bg-transparent border-0 p-0"
-                  title="Text Color"
-                />
-                <button
-                  onClick={() => editor.chain().focus().unsetColor().run()}
-                  className="h-8 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-[10px] font-black italic bg-white dark:bg-zinc-900"
-                  title="Clear Text Color"
-                  type="button"
-                >
-                  <Eraser size={12} />
-                </button>
-              </ColorSwatchGroup>
-
-              <ColorSwatchGroup title="Hi" icon={Highlighter} isDarkMode={isDarkMode}>
-                <div className="flex items-center gap-1">
-                  {HIGHLIGHT_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => editor.chain().focus().toggleHighlight({ color }).run()}
-                      className={`w-6 h-6 rounded-md border transition ${
-                        editor.isActive("highlight", { color })
-                          ? "ring-2 ring-[#004aad] border-[#004aad]"
-                          : "border-zinc-200 dark:border-zinc-700"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      title={`Highlight ${color}`}
-                      type="button"
-                    />
-                  ))}
-                </div>
-
-                <input
-                  type="color"
-                  value={highlightColor}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setHighlightColor(value);
-                    editor.chain().focus().setHighlight({ color: value }).run();
-                  }}
-                  className="w-8 h-8 rounded-lg overflow-hidden bg-transparent border-0 p-0"
-                  title="Custom Highlight"
-                />
-
-                <button
-                  onClick={() => editor.chain().focus().unsetHighlight().run()}
-                  className="h-8 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-[10px] font-black italic bg-white dark:bg-zinc-900"
-                  title="Clear Highlight"
-                  type="button"
-                >
-                  <Eraser size={12} />
-                </button>
-              </ColorSwatchGroup>
-            </ToolbarGroup>
-
-            <ToolbarGroup title="Insert" isDarkMode={isDarkMode}>
+          <details name="uf-format-options" className="group">
+            <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad]">블록 삽입 · 표</summary>
+            <div className="absolute left-0 right-0 top-full z-10 flex flex-wrap gap-3 max-h-[min(50vh,320px)] overflow-auto border-b border-zinc-200 bg-white p-3 shadow-md dark:border-zinc-800 dark:bg-zinc-950">
+            <ToolbarGroup title="블록 삽입" isDarkMode={isDarkMode}>
               <UploadButton
-                label="Img"
-                title="Upload Image"
+                label="이미지"
+                title="이미지 업로드" aria-label="이미지 업로드"
                 uploading={uploading}
                 progress={progress}
                 onPickFile={uploadInlineImage}
@@ -755,8 +805,8 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               />
 
               <UploadButton
-                label="Para"
-                title="Upload Parallax Image"
+                label="패럴랙스"
+                title="패럴랙스 이미지 업로드" aria-label="패럴랙스 이미지 업로드"
                 uploading={uploading}
                 progress={progress}
                 onPickFile={uploadParallaxImage}
@@ -764,8 +814,8 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               />
 
               <UploadButton
-                label="Sticky"
-                title="Upload Sticky Image"
+                label="스티키 이미지"
+                title="스티키 이미지 업로드" aria-label="스티키 이미지 업로드"
                 uploading={uploading}
                 progress={progress}
                 onPickFile={uploadStickyImage}
@@ -774,25 +824,25 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
               <ToolbarIconButton
                 icon={Music}
-                label="Play"
+                label="플레이리스트"
                 onClick={() => insertEmbed("playlist")}
               />
 
               <ToolbarIconButton
                 icon={Mic}
-                label="Pod"
+                label="팟캐스트"
                 onClick={() => insertEmbed("podcast")}
               />
 
               <ToolbarIconButton
                 icon={Vote}
-                label="Poll"
+                label="투표"
                 onClick={insertPoll}
               />
 
               <ToolbarIconButton
                 icon={TableIcon}
-                label="Table"
+                label="표"
                 active={editorState.table}
                 onClick={() =>
                   editor
@@ -805,20 +855,20 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
             </ToolbarGroup>
 
             <ToolbarGroup
-              title="Table"
+              title="표 편집"
               isDarkMode={isDarkMode}
               active={inTable}
             >
               <ToolbarIconButton
                 icon={PlusSquare}
-                label="R+"
+                label="위에 행 추가"
                 short
                 disabled={!inTable}
                 onClick={() => editor.chain().focus().addRowBefore().run()}
               />
               <ToolbarIconButton
                 icon={PlusSquare}
-                label="R↓"
+                label="아래에 행 추가"
                 short
                 disabled={!inTable}
                 iconClassName="rotate-90"
@@ -826,21 +876,21 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               />
               <ToolbarIconButton
                 icon={MinusSquare}
-                label="R-"
+                label="행 삭제"
                 short
                 disabled={!inTable}
                 onClick={() => editor.chain().focus().deleteRow().run()}
               />
               <ToolbarIconButton
                 icon={Columns2}
-                label="C+"
+                label="왼쪽에 열 추가"
                 short
                 disabled={!inTable}
                 onClick={() => editor.chain().focus().addColumnBefore().run()}
               />
               <ToolbarIconButton
                 icon={Columns2}
-                label="C→"
+                label="오른쪽에 열 추가"
                 short
                 disabled={!inTable}
                 iconClassName="rotate-180"
@@ -848,7 +898,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               />
               <ToolbarIconButton
                 icon={MinusSquare}
-                label="C-"
+                label="열 삭제"
                 short
                 disabled={!inTable}
                 iconClassName="rotate-90"
@@ -856,26 +906,16 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
               />
               <ToolbarIconButton
                 icon={Trash2}
-                label="Del"
+                label="표 삭제"
                 short
                 disabled={!inTable}
                 onClick={() => editor.chain().focus().deleteTable().run()}
               />
             </ToolbarGroup>
 
-            <ToolbarGroup title="History" isDarkMode={isDarkMode}>
-              <ToolbarIconButton
-                icon={Undo2}
-                label="Undo"
-                onClick={() => editor.chain().focus().undo().run()}
-              />
-              <ToolbarIconButton
-                icon={Redo2}
-                label="Redo"
-                onClick={() => editor.chain().focus().redo().run()}
-              />
-            </ToolbarGroup>
-          </div>
+
+            </div>
+          </details>
         </div>
 
         {uploading && (

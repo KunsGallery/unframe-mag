@@ -14,9 +14,33 @@ import {
 } from "firebase/firestore";
 import { DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 import { runPublicationTransaction } from "../lib/publicationTransaction.js";
+import { editorSnapshot, pruneEditorHistory, writeEditorHistory } from "../lib/editorHistory.js";
 import { activeRecoveryDocument, browserRecoveryStorage, draftSnapshot, nextEdition, readRecovery, recoveryKey, removeRecovery, writeRecovery } from "../lib/draftRecovery.js";
 
 const AUTOSAVE_DELAY_MS = 30000;
+
+// Reserve IDs and time once per operation; a retry can discover a different
+// source article but must reuse the same before/after IDs under that source.
+function reserveHistory(db, articleId, userId) {
+  if (!userId) return null;
+  const before = doc(collection(db, "articles", articleId, "history")).id;
+  const after = doc(collection(db, "articles", articleId, "history")).id;
+  const savedAt = Date.now();
+  return (transaction, targetId, ownerEmail, snapshot, label, isBefore = false) => {
+    if (!ownerEmail) throw new Error("Missing history owner");
+    writeEditorHistory(transaction, {
+      ref: doc(db, "articles", targetId, "history", isBefore ? before : after),
+      data: { version: 1, userId, authorUid: userId, ownerEmail, label, savedAt,
+        snapshot: editorSnapshot(snapshot) },
+    });
+  };
+}
+
+async function pruneSavedHistory(db, userId, ...articleIds) {
+  if (!userId) return;
+  // Retention failure must never turn a committed article save into a failure.
+  await Promise.allSettled([...new Set(articleIds.filter(Boolean))].map((id) => pruneEditorHistory(db, id)));
+}
 
 export function useDrafts({
   db,
@@ -26,6 +50,7 @@ export function useDrafts({
   authorEmail = "",
   authorName = "",
   userId = authorEmail,
+  historyUserId = "",
   documentId = null,
   onToast,
   navigate,
@@ -91,7 +116,7 @@ export function useDrafts({
     dirtyRef.current = false;
     setDirtyState(false);
     offerRecovery(documentId);
-  }, [userId, documentId, offerRecovery]);
+  }, [userId, historyUserId, documentId, offerRecovery]);
 
   const captureRecovery = useCallback((meta) => {
     if (!dirtyRef.current || !editor || editor.isDestroyed || recoveryRef.current || !canWrite) return;
@@ -118,6 +143,12 @@ export function useDrafts({
     if (next) revisionRef.current += 1;
     dirtyRef.current = next;
     setDirtyState(next);
+  }, []);
+
+  const holdAutosave = useCallback(() => {
+    revisionRef.current += 1;
+    recoveryHoldRef.current = true;
+    setRecoveryNeedsSave(true);
   }, []);
 
   useEffect(() => () => {
@@ -193,7 +224,7 @@ export function useDrafts({
 
   useEffect(() => {
     refreshDrafts();
-  }, [refreshDrafts]);
+  }, [refreshDrafts, editor]);
 
   const loadDraft = useCallback(
     async (docId, setters) => {
@@ -306,6 +337,7 @@ export function useDrafts({
 
   const finishSave = useCallback((savedRevision, savedSession, oldKey, record, targetId, meta, markClean) => {
     if (sessionRef.current !== savedSession) return false;
+    setLastAutoSavedAt(Date.now());
     draftIdRef.current = targetId;
     setDraftId(targetId);
     const unchanged = revisionRef.current === savedRevision;
@@ -330,8 +362,8 @@ export function useDrafts({
   }, [storage, userId, captureRecovery, setIsDirty]);
 
   const saveDraft = useCallback(
-    async ({ silent = false, markClean = false } = {}, meta) => {
-      if (!editor || editor.isDestroyed || !canWrite || savingRef.current || autosaveRef.current.loading || recoveryRef.current) return false;
+    async ({ silent = false, markClean = false, autosave = false } = {}, meta) => {
+      if (!editor || editor.isDestroyed || !canWrite || savingRef.current || autosaveRef.current.loading || recoveryRef.current || (autosave && recoveryHoldRef.current)) return false;
       savingRef.current = true;
       const savedRevision = revisionRef.current;
       const savedSession = sessionRef.current;
@@ -345,6 +377,7 @@ export function useDrafts({
       try {
         const safeAuthorEmail = String(authorEmail || "");
         if (!safeAuthorEmail) throw new Error("Missing author email");
+        const history = reserveHistory(db, currentId || newRef.id, historyUserId);
         const targetId = await runTransaction(db, async (transaction) => {
           const ref = currentId ? doc(db, "articles", currentId) : newRef;
           const snap = currentId ? await transaction.get(ref) : null;
@@ -370,9 +403,14 @@ export function useDrafts({
           } else {
             transaction.update(target, { ...fields, status: prev.status || "draft" });
           }
+          if (history) {
+            if (prev.status === "published") history(transaction, ref.id, prev.authorEmail, prev, "수정 전 원본", true);
+            history(transaction, target.id, fields.authorEmail, payload, autosave ? "자동 저장" : "초안 저장");
+          }
           return target.id;
         });
         finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, markClean);
+        await pruneSavedHistory(db, historyUserId, currentId, targetId);
         if (!silent) toast("임시 저장 완료");
         await refreshDrafts();
         return true;
@@ -385,7 +423,7 @@ export function useDrafts({
         setIsSaving(false);
       }
     },
-    [db, editor, refreshDrafts, toast, canWrite, authorEmail, authorName, captureRecovery, storage, finishSave]
+    [db, editor, refreshDrafts, toast, canWrite, authorEmail, authorName, historyUserId, captureRecovery, storage, finishSave]
   );
 
   const publish = useCallback(
@@ -407,6 +445,7 @@ export function useDrafts({
       setIsSaving(true);
       try {
         if (!authorEmail) throw new Error("Missing author email");
+        const history = reserveHistory(db, ref.id, historyUserId);
         const targetId = await runPublicationTransaction(db, counterRef, async (transaction, noteCounterRead) => {
           const snap = currentId ? await transaction.get(ref) : null;
           if (currentId && !snap.exists()) throw new Error("Draft no longer exists");
@@ -420,6 +459,10 @@ export function useDrafts({
             transaction.update(sourceRef, {
               ...payload, updatedAt: serverTimestamp(), lastRevisionPublishedAt: serverTimestamp(),
             });
+            if (history) {
+              history(transaction, sourceRef.id, source.data().authorEmail, source.data(), "발행 전 원본", true);
+              history(transaction, sourceRef.id, source.data().authorEmail, payload, "수정본 발행");
+            }
             transaction.delete(ref);
             return sourceRef.id;
           }
@@ -455,12 +498,16 @@ export function useDrafts({
           else transaction.set(ref, {
             ...fields, likes: 0, views: 0, tags: [], createdAt: serverTimestamp(),
           });
+          if (history) {
+            if (prev.status === "published") history(transaction, ref.id, prev.authorEmail, prev, "발행 전 원본", true);
+            history(transaction, ref.id, fields.authorEmail, payload, "발행");
+          }
           return ref.id;
         });
         const unchanged = finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, true);
+        await pruneSavedHistory(db, historyUserId, targetId);
         toast("아티클이 발행되었습니다!");
         await refreshDrafts();
-        setLastAutoSavedAt(null);
         if (unchanged && revisionRef.current === savedRevision && sessionRef.current === savedSession) {
           // Release the write guard before router navigation evaluates its blocker.
           savingRef.current = false;
@@ -479,7 +526,7 @@ export function useDrafts({
         setIsSaving(false);
       }
     },
-    [db, editor, refreshDrafts, toast, navigate, canWrite, authorEmail, authorName, captureRecovery, storage, finishSave]
+    [db, editor, refreshDrafts, toast, navigate, canWrite, authorEmail, authorName, historyUserId, captureRecovery, storage, finishSave]
   );
 
   // One deadline survives every render and keystroke; the callback reads the latest metadata.
@@ -492,10 +539,9 @@ export function useDrafts({
     const tick = async () => {
       if (generation !== autosaveRef.current.generation) return;
       if (dirtyRef.current && !savingRef.current && !autosaveRef.current.loading && !recoveryHoldRef.current && !recoveryRef.current) {
-        const success = await autosaveRef.current.save(
-          { silent: true, markClean: true }, autosaveRef.current.meta
+        await autosaveRef.current.save(
+          { silent: true, markClean: true, autosave: true }, autosaveRef.current.meta
         );
-        if (success && generation === autosaveRef.current.generation) setLastAutoSavedAt(Date.now());
       }
       if (generation === autosaveRef.current.generation) autosaveRef.current.timer = setTimeout(tick, AUTOSAVE_DELAY_MS);
     };
@@ -509,6 +555,7 @@ export function useDrafts({
     isSaving,
     isDirty,
     setIsDirty,
+    holdAutosave,
     lastAutoSavedAt,
     setLastAutoSavedAt,
     refreshDrafts,

@@ -16,12 +16,14 @@ export function useSelectedUfBlock(editor) {
       "parallaxImage",
       "stickyStory",
       "ufImage",
+      "image",
       "gallery",
       "slideGallery",
       "SlideGallery",
       "columns",
       "ufDivider",
       "ufCallout",
+      "table",
     ]);
 
     const findBlock = () => {
@@ -35,6 +37,8 @@ export function useSelectedUfBlock(editor) {
         if (SUPPORTED.has(name)) {
           return {
             type: name,
+            pos: sel.from,
+            node: sel.node,
             attrs: sel.node.attrs,
             content: sel.node.content?.toJSON?.() || [],
           };
@@ -50,6 +54,8 @@ export function useSelectedUfBlock(editor) {
         if (name && SUPPORTED.has(name)) {
           return {
             type: name,
+            pos: $from.before(depth),
+            node,
             attrs: node.attrs,
             content: node.content?.toJSON?.() || [],
           };
@@ -59,7 +65,21 @@ export function useSelectedUfBlock(editor) {
       return null;
     };
 
-    const update = () => setSelected(findBlock());
+    let current = null;
+    const update = ({ transaction } = {}) => {
+      // Keep the input's target through document edits and selection changes.
+      if (current && document.activeElement?.closest('[data-uf-quick-settings]')) {
+        const mapped = transaction?.mapping.mapResult(current.pos, 1);
+        const pos = mapped?.pos ?? current.pos;
+        const node = !mapped?.deleted && editor.state.doc.nodeAt(pos);
+        current = node?.type === current.node.type
+          ? { ...current, pos, node, attrs: node.attrs, content: node.content?.toJSON?.() || [] }
+          : null;
+      } else {
+        current = findBlock();
+      }
+      setSelected(current);
+    };
 
     update();
 

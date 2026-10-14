@@ -6,7 +6,7 @@ import { doc, setDoc, updateDoc, deleteDoc, getDoc, increment, serverTimestamp, 
 import { runPublicationTransaction } from "../src/lib/publicationTransaction.js";
 
 let environment;
-const projectId = "demo-unframe-mag";
+const projectId = "demo-unframe-rules";
 const user = (uid, email = `${uid}@example.com`, verified = true) => environment.authenticatedContext(uid, { email, email_verified: verified }).firestore();
 const published = { status: "published", authorEmail: "editor@example.com", editionNo: "006", sortIndex: 6, title: "Published", contentHTML: "<p>Body</p>", likes: 0, views: 0 };
 
@@ -15,6 +15,7 @@ before(async () => {
   assert.ok(host, "Run this test only against a local Firestore emulator.");
   const [hostname, port] = host.split(":");
   environment = await initializeTestEnvironment({ projectId, firestore: { host: hostname, port: Number(port), rules: await readFile(new URL("../firestore.rules", import.meta.url), "utf8") } });
+  await environment.clearFirestore();
   await environment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await setDoc(doc(db, "users", "editor"), { role: "editor", nickname: "Editor", nicknameChanged: false, xp: 0 });
@@ -78,4 +79,22 @@ test("only verified configured administrators may save website links", async () 
   await assertFails(setDoc(doc(user("reader"), "config", "network"), { newsletterUrl: "https://example.com/signup" }));
   await assertFails(setDoc(doc(user("fake-admin", "gallerykuns@gmail.com", false), "config", "network"), { newsletterUrl: "https://example.com/signup" }));
   await assertSucceeds(setDoc(doc(user("admin", "gallerykuns@gmail.com"), "config", "network"), { newsletterUrl: "https://example.com/signup" }));
+});
+
+test("revision history stays private, immutable and bound to the article owner", async () => {
+  const db = user('editor');
+  const ref = doc(db, 'articles', 'existing', 'history', 'own-version');
+  const record = { version: 1, userId: 'editor', ownerEmail: 'editor@example.com', label: '저장', savedAt: Date.now(), createdAt: serverTimestamp(), snapshot: { title: '기록', subtitle: '', category: 'EXHIBITION', cover: '', coverMedium: '', contentHTML: '<p>기록</p>' } };
+  await assertSucceeds(setDoc(ref, record));
+  await assertSucceeds(getDoc(ref));
+  await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(), 'articles', 'existing', 'history', 'own-version')));
+  await assertFails(getDoc(doc(user('reader'), 'articles', 'existing', 'history', 'own-version')));
+  await assertFails(setDoc(doc(db, 'articles', 'existing', 'history', 'wrong-owner'), { ...record, ownerEmail: 'someone@example.com' }));
+  await assertFails(setDoc(doc(db, 'articles', 'existing', 'history', 'wrong-actor'), { ...record, userId: 'reader' }));
+  await assertFails(updateDoc(ref, { label: 'Overwrite' }));
+  await assertSucceeds(getDoc(doc(user('admin', 'gallerykuns@gmail.com'), 'articles', 'existing', 'history', 'own-version')));
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'articles', 'history-new-draft'), { status: 'draft', authorEmail: 'editor@example.com', title: 'New' });
+  batch.set(doc(db, 'articles', 'history-new-draft', 'history', 'first'), record);
+  await assertSucceeds(batch.commit());
 });

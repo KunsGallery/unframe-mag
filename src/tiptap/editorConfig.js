@@ -40,6 +40,7 @@ import { PasteSanitizer } from "./extensions/PasteSanitizer";
 export function createEditorConfig({ onUploadImage, onToast }) {
   return {
     immediatelyRender: false,
+    shouldRerenderOnTransaction: false,
     extensions: [
       StarterKit.configure({
         link: false,

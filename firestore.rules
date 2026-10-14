@@ -85,6 +85,34 @@ service cloud.firestore {
           && request.resource.data.views >= resource.data.views
           && request.resource.data.views <= resource.data.views + 1
         );
+
+      match /history/{historyId} {
+        function ownsArticle() {
+          return canWrite() && (isAdmin()
+            || get(/databases/$(database)/documents/articles/$(docId)).data.authorEmail == request.auth.token.email);
+        }
+        allow read, delete: if ownsArticle();
+        allow create: if canWrite()
+          && request.resource.data.keys().hasOnly(['version', 'userId', 'authorUid', 'ownerEmail', 'label', 'savedAt', 'snapshot', 'createdAt'])
+          && request.resource.data.version == 1
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.get('authorUid', request.auth.uid) == request.auth.uid
+          && request.resource.data.ownerEmail == getAfter(/databases/$(database)/documents/articles/$(docId)).data.authorEmail
+          && (isAdmin() || request.resource.data.ownerEmail == request.auth.token.email)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.savedAt is int
+          && request.resource.data.label is string && request.resource.data.label.size() <= 120
+          && request.resource.data.snapshot is map
+          && request.resource.data.snapshot.keys().hasOnly(['title', 'subtitle', 'category', 'cover', 'coverMedium', 'contentHTML'])
+          && request.resource.data.snapshot.title is string
+          && request.resource.data.snapshot.subtitle is string
+          && request.resource.data.snapshot.category is string
+          && request.resource.data.snapshot.cover is string
+          && request.resource.data.snapshot.coverMedium is string
+          && request.resource.data.snapshot.contentHTML is string
+          && request.resource.data.snapshot.contentHTML.size() <= 700000;
+        allow update: if false;
+      }
     }
 
     match /counters/articles {

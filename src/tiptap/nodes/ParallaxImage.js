@@ -65,6 +65,7 @@ export const ParallaxImage = Node.create({
 
   addAttributes() {
     return {
+      alt: { default: '' },
       src: {
         default: null,
         parseHTML: (element) =>
@@ -175,7 +176,7 @@ export const ParallaxImage = Node.create({
           {
             src: src || "",
             class: "uf-parallax__img",
-            alt: "",
+            alt: HTMLAttributes.alt || "",
             "data-original-src": src || "",
             "data-caption": caption || "",
             loading: "lazy",

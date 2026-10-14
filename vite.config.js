@@ -31,7 +31,7 @@ export default defineConfig({
         skipWaiting: false,
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/__\//, /^\/api\//],
-        globIgnores: ["**/EditorPage-*.js", "**/AdminPage-*.js", "**/MyPage-*.js", "**/ViewPage-*.js", "**/Columns-*.js", "**/editor-engine-*.js", "**/useSlideGalleryRuntime-*.js"],
+        globIgnores: ["**/EditorPage-*.js", "**/EditorPreview-*.js", "**/EditorHistoryPanel-*.js", "**/EditorTemplatesPanel-*.js", "**/PublicationChecklist-*.js", "**/editorHistory-*.js", "**/AdminPage-*.js", "**/MyPage-*.js", "**/ViewPage-*.js", "**/Columns-*.js", "**/editor-engine-*.js", "**/useSlideGalleryRuntime-*.js"],
         runtimeCaching: [{
           urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/assets/"),
           handler: "CacheFirst",

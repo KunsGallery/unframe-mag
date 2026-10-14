@@ -1,6 +1,6 @@
 // src/components/editor/InspectorPanel.jsx
 import React, { useState } from "react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { useSelectedUfBlock } from "../../hooks/useSelectedUfBlock";
@@ -25,10 +25,11 @@ import {
 } from "../../constants/editorBlocks";
 
 function Row({ label, children }) {
+  const labels = { Caption: '캡션', Size: '크기', Align: '정렬', Height: '높이', Speed: '움직임 속도', 'Caption Align': '캡션 정렬', 'Caption Size': '캡션 크기', 'Motion Preset': '움직임', 'Image Position': '이미지 위치', 'Visual Size': '이미지 크기', 'Story Length': '이야기 길이', Columns: '열 수', Gap: '간격', Rounded: '모서리', Ratio: '비율', Fit: '이미지 맞춤', 'Layout Mode': '배치 방식' };
   return (
     <div className="flex flex-col gap-2">
       <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
-        {label}
+        {labels[label] || label}
       </div>
       {children}
     </div>
@@ -42,7 +43,7 @@ const CALLOUT_LABEL_BY_TONE = {
   quote: "QUOTE",
 };
 
-export default function InspectorPanel({ editor, isDarkMode, onToast }) {
+export default function InspectorPanel({ editor, isDarkMode, onToast, embedded = false }) {
   const selected = useSelectedUfBlock(editor);
   const { upload, uploading, progress } = useUploadImage();
   const toast = (message) => (onToast ? onToast(message) : console.log(message));
@@ -82,7 +83,10 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   if (!editor) return null;
 
   const setAttrs = (type, patch) => {
-    editor.commands.updateAttributes(type, patch);
+    if (!editor.isEditable || selected?.type !== type) return;
+    const node = editor.state.doc.nodeAt(selected.pos);
+    if (node !== selected.node) return;
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(selected.pos, undefined, { ...node.attrs, ...patch }));
   };
 
   const removeImageAt = (type, images, index) => {
@@ -166,7 +170,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
   return (
     <aside
       className={[
-        "hidden xl:block fixed right-0 top-[80px] bottom-0 z-40 w-[320px]",
+        embedded ? "uf-inspector-embedded" : "hidden xl:block fixed right-0 top-[80px] bottom-0 z-40 w-[320px]",
         "overflow-y-auto overscroll-contain",
         "border-l",
         isDarkMode ? "border-zinc-900 bg-zinc-950" : "border-zinc-100 bg-white",
@@ -175,10 +179,10 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
       <div className="p-6 space-y-6">
         <div>
           <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
-            Inspector
+            블록 설정
           </div>
           <div className="mt-2 text-sm font-black">
-            {selected ? selected.type : "Select a block"}
+            {selected ? ({ ufImage: '이미지', image: '이미지', gallery: '사진 갤러리', slideGallery: '슬라이드 갤러리', columns: '다단 구성', parallaxImage: '패럴랙스 이미지', stickyStory: '스크롤 스토리', ufDivider: '구분선', ufCallout: '인용 / 안내', table: '표' }[selected.type] || selected.type) : "선택된 블록 없음"}
           </div>
           <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             블록을 클릭하면 설정이 여기 나타나요.
@@ -197,6 +201,10 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
             예: Parallax / Sticky / Image / Gallery 블록을 클릭해보세요.
           </div>
         )}
+
+        {['image', 'ufImage', 'parallaxImage', 'stickyStory'].includes(selected?.type) && <Row label="이미지 대체 텍스트">
+          <input aria-label="이미지 대체 텍스트" value={selected.attrs.alt || ''} onChange={(event) => setAttrs(selected.type, { alt: event.target.value })} className="w-full rounded border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" />
+        </Row>}
 
         {/* -------- Parallax -------- */}
         {selected?.type === "parallaxImage" && (
@@ -852,7 +860,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                           }}
                           className="px-2 py-1 text-[10px] rounded-lg border"
                         >
-                          ↑
+                          <ArrowUp size={16} aria-label="위로 이동" />
                         </button>
 
                         <button
@@ -865,7 +873,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                           }}
                           className="px-2 py-1 text-[10px] rounded-lg border"
                         >
-                          ↓
+                          <ArrowDown size={16} aria-label="아래로 이동" />
                         </button>
 
                         <button
@@ -885,13 +893,14 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
 
                       <input
                         type="text"
+                        aria-label={`이미지 ${idx + 1} 캡션`}
                         value={img?.caption ?? ""}
                         onChange={(e) => {
                           const next = [...arr];
                           next[idx] = { ...next[idx], caption: e.target.value };
                           setAttrs("gallery", { images: next });
                         }}
-                        placeholder="Caption"
+                        placeholder="이미지 제목 또는 캡션"
                         className={[
                           "w-full px-3 py-2 rounded-xl border text-xs bg-transparent",
                           isDarkMode
@@ -899,6 +908,10 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                             : "border-zinc-200 text-black placeholder:text-zinc-400",
                         ].join(" ")}
                       />
+
+                      <label className="block text-xs">이미지 {idx + 1} 대체 텍스트
+                        <input value={img?.alt || ''} onChange={(event) => { const next = [...arr]; next[idx] = { ...next[idx], alt: event.target.value }; setAttrs('gallery', { images: next }); }} className="mt-2 w-full rounded border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" />
+                      </label>
 
                       <div className="space-y-2">
                         <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
@@ -1252,7 +1265,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                           }}
                           className="px-2 py-1 text-[10px] rounded-lg border"
                         >
-                          ↑
+                          <ArrowUp size={16} aria-label="위로 이동" />
                         </button>
 
                         <button
@@ -1265,7 +1278,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                           }}
                           className="px-2 py-1 text-[10px] rounded-lg border"
                         >
-                          ↓
+                          <ArrowDown size={16} aria-label="아래로 이동" />
                         </button>
 
                         <button
@@ -1289,6 +1302,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                         </div>
                         <textarea
                           rows={2}
+                          aria-label={`슬라이드 ${idx + 1} 캡션`}
                           value={img?.caption ?? ""}
                           onChange={(e) => {
                             const next = [...arr];
@@ -1304,6 +1318,10 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                           ].join(" ")}
                         />
                       </div>
+
+                      <label className="block text-xs">슬라이드 {idx + 1} 대체 텍스트
+                        <input value={img?.alt || ''} onChange={(event) => { const next = [...arr]; next[idx] = { ...next[idx], alt: event.target.value }; setAttrs('slideGallery', { images: next }); }} className="mt-2 w-full rounded border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" />
+                      </label>
 
                       <div className="space-y-2">
                         <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
