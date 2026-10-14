@@ -1,18 +1,46 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import process from "node:process";
 
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_BUILD_VERSION": JSON.stringify(process.env.COMMIT_REF || process.env.VITE_BUILD_VERSION || "local"),
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (/\/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom)\//.test(id)) return "react-vendor";
+          if (id.includes("/node_modules/@firebase/auth/")) return "firebase-auth";
+          if (id.includes("/node_modules/@firebase/firestore/")) return "firebase-firestore";
+          if (id.includes("/node_modules/@firebase/")) return "firebase-shared";
+          if (id.includes("/node_modules/@tiptap/") || id.includes("/node_modules/prosemirror-") || id.includes("/node_modules/orderedmap/")) return "editor-engine";
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       injectRegister: "auto",
       workbox: {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true,
+        skipWaiting: false,
         navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/__\//, /^\/api\//],
+        globIgnores: ["**/EditorPage-*.js", "**/AdminPage-*.js", "**/MyPage-*.js", "**/ViewPage-*.js", "**/Columns-*.js", "**/editor-engine-*.js", "**/useSlideGalleryRuntime-*.js"],
+        runtimeCaching: [{
+          urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/assets/"),
+          handler: "CacheFirst",
+          options: {
+            cacheName: "uf-hashed-assets",
+            expiration: { maxEntries: 80, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            cacheableResponse: { statuses: [200] },
+          },
+        }],
       },
       devOptions: {
         enabled: false,

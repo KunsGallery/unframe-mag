@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  BrowserRouter as Router,
+  createBrowserRouter,
+  RouterProvider,
   Routes,
   Route,
   Link,
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { Edit3, LogOut } from "lucide-react";
+import { Edit3, LogOut, Menu, X } from "lucide-react";
 
 // Firebase
 import { auth, googleProvider, db } from "./firebase/config";
@@ -18,19 +19,19 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, serverTimestamp, runTransaction } from "firebase/firestore";
 
 // PWA
 import InstallPrompt from "./components/pwa/InstallPrompt";
 import { isAdminEmail } from "./constants/admin";
 
 // Pages
-import HomePage from "./Pages/HomePage";
-import AboutPage from "./Pages/AboutPage";
-import EditorPage from "./Pages/EditorPage";
-import MyPage from "./Pages/MyPage";
-import ViewPage from "./Pages/ViewPage";
-import AdminPage from "./Pages/AdminPage";
+const HomePage = lazy(() => import("./Pages/HomePage"));
+const AboutPage = lazy(() => import("./Pages/AboutPage"));
+const EditorPage = lazy(() => import("./Pages/EditorPage"));
+const MyPage = lazy(() => import("./Pages/MyPage"));
+const ViewPage = lazy(() => import("./Pages/ViewPage"));
+const AdminPage = lazy(() => import("./Pages/AdminPage"));
 import ErrorBoundary from "./components/debug/ErrorBoundary";
 import {
   MobileDebugRuntimeOverlay,
@@ -41,6 +42,9 @@ import {
 } from "./components/debug/debugHooks";
 import { useTheme } from "./hooks/useTheme";
 import ThemeToggle from "./components/common/ThemeToggle";
+import { useNetworkConfig } from "./hooks/useNetworkConfig";
+import { getSiteLinks } from "./lib/siteLinks";
+import { reportClientError } from "./lib/runtimeDiagnostics";
 
 function safeNicknameFromDisplayName(displayName) {
   const base = String(displayName || "User")
@@ -50,21 +54,15 @@ function safeNicknameFromDisplayName(displayName) {
   return nick.length ? nick : "User";
 }
 
-function shouldPreferRedirectLogin() {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR/i.test(ua);
-  const isChromeLike = /Chrome|Chromium|CriOS|Edg|OPR|ChatGPT/i.test(ua);
-  return isChromeLike && !isSafari;
-}
-
 // ----------------------------------------------------------------------------
 // Shared Components
 // ----------------------------------------------------------------------------
 const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
   const location = useLocation();
+  const [openPath, setOpenPath] = useState(null);
+  const menuOpen = openPath === location.pathname;
 
-  const isAdmin = !!user && (role === "admin" || isAdminEmail(user.email));
+  const isAdmin = !!user && isAdminEmail(user.email);
   const isEditor = !!user && role === "editor";
   const canWrite = isAdmin || isEditor;
 
@@ -143,7 +141,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-2 sm:gap-6">
         {canWrite && (
           <Link
             to="/write"
@@ -178,12 +176,38 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
             Login
           </button>
         )}
+        <button
+          type="button"
+          className="lg:hidden h-11 w-11 inline-flex items-center justify-center text-[var(--uf-text)]"
+          aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-navigation"
+          title={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+          onClick={() => setOpenPath(menuOpen ? null : location.pathname)}
+        >
+          {menuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
       </div>
+      {menuOpen && (
+        <div id="mobile-navigation" className="lg:hidden absolute top-full left-0 right-0 border-b border-[var(--uf-border)] bg-[var(--uf-surface)] px-6 py-3" onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpenPath(null);
+            document.querySelector('[aria-controls="mobile-navigation"]')?.focus();
+          }
+        }}>
+          {[{ to: "/", label: "Archive" }, { to: "/about", label: "About" }, { to: "/mylibrary", label: "My U#" }, ...(canWrite ? [{ to: "/write", label: "글쓰기" }] : []), ...(isAdmin ? [{ to: "/admin", label: "관리" }] : [])].map((item) => (
+            <Link key={item.to} to={item.to} className="flex items-center min-h-11 text-sm font-bold" aria-current={location.pathname === item.to ? "page" : undefined} onClick={() => setOpenPath(null)}>{item.label}</Link>
+          ))}
+        </div>
+      )}
     </nav>
   );
 };
 
-const GlobalFooter = () => (
+const GlobalFooter = () => {
+  const { config } = useNetworkConfig();
+  const links = getSiteLinks(config);
+  return (
   <footer className="bg-white dark:bg-zinc-950 py-40 px-6 relative transition-colors border-t border-zinc-100 dark:border-zinc-900 font-black italic uppercase tracking-[0.4em] text-[11px]">
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-24 text-center md:text-left pt-20">
       <div className="space-y-6">
@@ -203,24 +227,25 @@ const GlobalFooter = () => (
         </div>
       </div>
 
-      <div className="space-y-6">
+      {(links.terms || links.privacy) && <div className="space-y-6">
         <p className="text-[#004aad] tracking-[1.2em]">/ LEGAL</p>
         <div className="space-y-3 flex flex-col gap-2 opacity-50 dark:text-white">
-          <a href="#" className="hover:text-[#004aad]">
+          {links.terms && <a href={links.terms} className="hover:text-[#004aad]" target="_blank" rel="noopener noreferrer">
             Terms of Service
-          </a>
-          <a href="#" className="hover:text-[#004aad]">
+          </a>}
+          {links.privacy && <a href={links.privacy} className="hover:text-[#004aad]" target="_blank" rel="noopener noreferrer">
             Privacy Policy
-          </a>
+          </a>}
         </div>
-      </div>
+      </div>}
     </div>
 
     <div className="mt-40 text-center opacity-30 text-[9px] tracking-[1.2em] dark:text-white italic uppercase">
       © UNFRAME MAG · Breaking frames, Building resonance.
     </div>
   </footer>
-);
+  );
+};
 
 // ----------------------------------------------------------------------------
 // Router Helpers
@@ -281,12 +306,27 @@ const NotFound = () => (
 // ----------------------------------------------------------------------------
 // App
 // ----------------------------------------------------------------------------
-export default function App() {
+function AppShell() {
   const { resolvedTheme, isDarkMode, toggleTheme } = useTheme();
 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState("");
+  const loginPending = useRef(false);
+  const [toast, setToast] = useState(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const onToast = useCallback((message) => setToast({ message: String(message), at: Date.now() }), []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+  useEffect(() => {
+    const notify = () => setUpdateAvailable(true);
+    window.addEventListener("uf:update-available", notify);
+    return () => window.removeEventListener("uf:update-available", notify);
+  }, []);
 
   const [role, setRole] = useState("user");
   const [roleLoading, setRoleLoading] = useState(false);
@@ -316,18 +356,24 @@ export default function App() {
     if (!user) return;
 
     const ref = doc(db, "users", user.uid);
+    let active = true;
 
     const unsub = onSnapshot(
       ref,
       async (snap) => {
+        if (!active) return;
+        try {
         const email = user.email || "";
         const emailIsAdmin = isAdminEmail(email);
 
         if (!snap.exists()) {
           const nickname = safeNicknameFromDisplayName(user.displayName);
-          const initialRole = emailIsAdmin ? "admin" : "user";
+          const initialRole = "user";
 
-          await setDoc(ref, {
+          await runTransaction(db, async (transaction) => {
+            const existing = await transaction.get(ref);
+            if (existing.exists()) return;
+            transaction.set(ref, {
             uid: user.uid,
             email: email || null,
             photoURL: user.photoURL || null,
@@ -343,8 +389,10 @@ export default function App() {
             tierColor: "#9CA3AF",
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            });
           });
 
+          if (!active) return;
           setRole(initialRole);
           setRoleLoading(false);
           return;
@@ -356,6 +404,7 @@ export default function App() {
         if (!("role" in data)) {
           const nextRole = emailIsAdmin ? "admin" : "user";
           await setDoc(ref, { role: nextRole, updatedAt: serverTimestamp() }, { merge: true });
+          if (!active) return;
           setRole(nextRole);
           setRoleLoading(false);
           return;
@@ -363,6 +412,7 @@ export default function App() {
 
         if (emailIsAdmin && currentRole !== "admin") {
           await setDoc(ref, { role: "admin", updatedAt: serverTimestamp() }, { merge: true });
+          if (!active) return;
           setRole("admin");
           setRoleLoading(false);
           return;
@@ -370,6 +420,14 @@ export default function App() {
 
         setRole(currentRole);
         setRoleLoading(false);
+        } catch (error) {
+          if (!active) return;
+          console.error("[App] profile initialization failed:", error);
+          reportClientError(error, { source: "profile" });
+          setRole("user");
+          setRoleLoading(false);
+          onToast("프로필을 불러오지 못했어요. 잠시 후 다시 로그인해 주세요.");
+        }
       },
       (e) => {
         console.error("[App] role snapshot error:", e);
@@ -378,24 +436,25 @@ export default function App() {
       }
     );
 
-    return () => unsub();
-  }, [user]);
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [user, onToast]);
 
   const isAdmin = useMemo(() => {
     if (!user?.email) return false;
-    return role === "admin" || isAdminEmail(user.email);
-  }, [user?.email, role]);
+    return isAdminEmail(user.email);
+  }, [user?.email]);
 
-  const effectiveRole = isAdmin ? "admin" : role;
+  const effectiveRole = isAdmin ? "admin" : role === "editor" ? "editor" : "user";
 
   const handleLogin = async () => {
+    if (loginPending.current) return;
+    loginPending.current = true;
     setLoginError("");
     try {
       googleProvider.setCustomParameters({ prompt: "select_account" });
-      if (shouldPreferRedirectLogin()) {
-        await signInWithRedirect(auth, googleProvider);
-        return;
-      }
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
       console.error("[App] google popup login error:", e);
@@ -406,7 +465,8 @@ export default function App() {
         code === "auth/web-storage-unsupported" ||
         code === "auth/operation-not-supported-in-this-environment";
 
-      if (shouldUseRedirect) {
+      reportClientError(e, { source: "auth" });
+      if (shouldUseRedirect && import.meta.env.VITE_FIREBASE_AUTH_PROXY === "true") {
         try {
           await signInWithRedirect(auth, googleProvider);
         } catch (redirectError) {
@@ -416,6 +476,8 @@ export default function App() {
       } else {
         setLoginError("구글 로그인에 실패했어요. 일반 브라우저에서 다시 시도해 주세요.");
       }
+    } finally {
+      loginPending.current = false;
     }
   };
 
@@ -428,7 +490,7 @@ export default function App() {
   };
 
   return (
-    <Router>
+    <>
       <ScrollToTop />
 
       <DebugLayer>
@@ -457,14 +519,22 @@ export default function App() {
           />
 
           <InstallPrompt />
+          {updateAvailable && (
+            <div role="status" className="relative flex flex-wrap items-center justify-between gap-3 bg-[var(--uf-surface-strong)] px-6 py-3 text-sm">
+              <p>새 버전이 준비되었습니다. 작성 중인 내용을 저장한 후 업데이트해 주세요.</p>
+              <button type="button" className="min-h-11 px-3 underline" onClick={() => window.dispatchEvent(new Event("uf:apply-update"))}>업데이트</button>
+            </div>
+          )}
 
           {loginError && (
             <div role="alert" className="relative px-6 py-3 text-sm text-red-700 bg-red-50 dark:text-red-200 dark:bg-red-950">
               {loginError}
+              <a href={window.location.origin + window.location.pathname} target="_blank" rel="noopener noreferrer" className="ml-3 underline">브라우저에서 열기</a>
             </div>
           )}
 
           <main className="relative">
+            <Suspense fallback={<RouteLoading />}>
             <Routes>
               <Route
                 path="/"
@@ -473,6 +543,7 @@ export default function App() {
                     isDarkMode={isDarkMode}
                     user={user}
                     authLoading={authLoading}
+                    onToast={onToast}
                   />
                 }
               />
@@ -487,12 +558,13 @@ export default function App() {
                     isDarkMode={isDarkMode}
                     user={user}
                     authLoading={authLoading}
+                    onToast={onToast}
                   />
                 }
               />
               <Route
                 path="/article/:id"
-                element={<ViewPage isDarkMode={isDarkMode} user={user} onLogin={handleLogin} />}
+                element={<ViewPage isDarkMode={isDarkMode} user={user} onLogin={handleLogin} onToast={onToast} />}
               />
 
               <Route
@@ -503,6 +575,7 @@ export default function App() {
                       isDarkMode={isDarkMode}
                       user={user}
                       role={effectiveRole}
+                      onToast={onToast}
                     />
                   </RequireRole>
                 }
@@ -516,6 +589,7 @@ export default function App() {
                       isDarkMode={isDarkMode}
                       user={user}
                       role={effectiveRole}
+                      onToast={onToast}
                     />
                   </RequireRole>
                 }
@@ -528,7 +602,8 @@ export default function App() {
                     <AdminPage
                       user={user}
                       isDarkMode={isDarkMode}
-                      onToast={(m) => console.log("[TOAST]", m)}
+                      role={effectiveRole}
+                      onToast={onToast}
                     />
                   </RequireRole>
                 }
@@ -536,11 +611,24 @@ export default function App() {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </main>
 
           <GlobalFooter />
+          {toast && (
+            <div role="status" aria-live="polite" className="fixed bottom-5 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-[300] flex items-center gap-3 rounded-lg bg-[var(--uf-text)] text-[var(--uf-bg)] p-4 shadow-lg">
+              <p className="min-w-0 flex-1 text-sm break-words">{toast.message}</p>
+              <button type="button" aria-label="알림 닫기" title="알림 닫기" className="h-11 w-11 shrink-0 flex items-center justify-center" onClick={() => setToast(null)}><X size={18} /></button>
+            </div>
+          )}
         </div>
       </DebugLayer>
-    </Router>
+    </>
   );
+}
+
+const router = createBrowserRouter([{ path: "*", element: <AppShell /> }]);
+
+export default function App() {
+  return <RouterProvider router={router} />;
 }

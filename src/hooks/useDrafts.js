@@ -6,17 +6,17 @@ import {
   orderBy,
   limit,
   getDocs,
-  addDoc,
   serverTimestamp,
   doc,
   getDoc,
-  updateDoc,
-  deleteDoc,
+  runTransaction,
   where,
 } from "firebase/firestore";
 import { DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
+import { runPublicationTransaction } from "../lib/publicationTransaction.js";
+import { activeRecoveryDocument, browserRecoveryStorage, draftSnapshot, nextEdition, readRecovery, recoveryKey, removeRecovery, writeRecovery } from "../lib/draftRecovery.js";
 
-const AUTOSAVE_DELAY_MS = 180000; // 3분, 5분 원하면 300000
+const AUTOSAVE_DELAY_MS = 30000;
 
 export function useDrafts({
   db,
@@ -25,6 +25,8 @@ export function useDrafts({
   isAdmin = false,
   authorEmail = "",
   authorName = "",
+  userId = authorEmail,
+  documentId = null,
   onToast,
   navigate,
 }) {
@@ -41,6 +43,75 @@ export function useDrafts({
   const loadTokenRef = useRef(0);
   const savingRef = useRef(false);
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState(null);
+  const [recovery, setRecovery] = useState(null);
+  const [recoveryError, setRecoveryError] = useState(false);
+  const [recoveryNeedsSave, setRecoveryNeedsSave] = useState(false);
+  const recoveryRef = useRef(null);
+  const recoveryDocumentRef = useRef(null);
+  const recoveryHoldRef = useRef(false);
+  const storage = browserRecoveryStorage();
+  const keyRef = useRef(recoveryKey(userId, documentId));
+  const draftIdRef = useRef(null);
+  const sessionRef = useRef(0);
+  const autosaveRef = useRef({ meta: null, save: null, timer: null, generation: 0, loading: false });
+  autosaveRef.current.loading = isDraftLoading;
+
+  const offerRecovery = useCallback((id) => {
+    keyRef.current = recoveryKey(userId, id);
+    let record = readRecovery(storage, keyRef.current);
+    recoveryDocumentRef.current = id;
+    if (!id && !record) {
+      const activeId = activeRecoveryDocument(storage, userId);
+      const activeKey = recoveryKey(userId, activeId);
+      record = activeId ? readRecovery(storage, activeKey) : null;
+      if (record) {
+        keyRef.current = activeKey;
+        recoveryDocumentRef.current = activeId;
+      }
+    }
+    recoveryRef.current = record;
+    recoveryHoldRef.current = !!record;
+    setRecoveryNeedsSave(false);
+    setRecovery(record);
+  }, [storage, userId]);
+
+  useEffect(() => {
+    sessionRef.current += 1;
+    autosaveRef.current.generation += 1;
+    clearTimeout(autosaveRef.current.timer);
+    autosaveRef.current.timer = null;
+    loadTokenRef.current += 1;
+    draftIdRef.current = null;
+    setDraftId(null);
+    setDrafts([]);
+    setIsDraftLoading(false);
+    autosaveRef.current.loading = false;
+    setLastAutoSavedAt(null);
+    setRecoveryError(false);
+    dirtyRef.current = false;
+    setDirtyState(false);
+    offerRecovery(documentId);
+  }, [userId, documentId, offerRecovery]);
+
+  const captureRecovery = useCallback((meta) => {
+    if (!dirtyRef.current || !editor || editor.isDestroyed || recoveryRef.current || !canWrite) return;
+    const record = writeRecovery(storage, keyRef.current, draftSnapshot(meta, editor.getHTML()));
+    const remembered = documentId || !draftIdRef.current || activeRecoveryDocument(storage, userId, draftIdRef.current);
+    setRecoveryError(!record || (!remembered && !!draftIdRef.current));
+    return record;
+  }, [canWrite, editor, storage, documentId, userId]);
+
+  const discardRecovery = useCallback(() => {
+    if (!removeRecovery(storage, keyRef.current, recoveryRef.current?.token)) {
+      offerRecovery(draftIdRef.current || documentId);
+      return false;
+    }
+    recoveryRef.current = null;
+    recoveryHoldRef.current = false;
+    setRecovery(null);
+    keyRef.current = recoveryKey(userId, draftIdRef.current || documentId);
+    return true;
+  }, [storage, offerRecovery, documentId, userId]);
 
   const setIsDirty = useCallback((value) => {
     const next = typeof value === "function" ? value(dirtyRef.current) : value;
@@ -51,9 +122,13 @@ export function useDrafts({
 
   useEffect(() => () => {
     loadTokenRef.current += 1;
+    sessionRef.current += 1;
+    autosaveRef.current.generation += 1;
+    clearTimeout(autosaveRef.current.timer);
+    autosaveRef.current.timer = null;
   }, [editor]);
 
-  const waitForEditorReady = useCallback(async () => {
+  const waitForEditorReady = useCallback(async (loadToken) => {
     if (!editor) return false;
     if (editor.isDestroyed) return false;
     if (editor.isInitialized) return true;
@@ -72,7 +147,7 @@ export function useDrafts({
       };
 
       const tick = () => {
-        if (!editor || editor.isDestroyed) {
+        if (!editor || editor.isDestroyed || loadToken !== loadTokenRef.current) {
           finish(false);
           return;
         }
@@ -91,6 +166,7 @@ export function useDrafts({
 
   const refreshDrafts = useCallback(async () => {
     if (!canWrite) return;
+    const session = sessionRef.current;
 
     try {
       const q = isAdmin
@@ -109,7 +185,7 @@ export function useDrafts({
           );
 
       const snap = await getDocs(q);
-      setDrafts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (session === sessionRef.current) setDrafts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error("Draft list error:", e);
     }
@@ -121,10 +197,13 @@ export function useDrafts({
 
   const loadDraft = useCallback(
     async (docId, setters) => {
+      if (savingRef.current) return false;
       const loadToken = ++loadTokenRef.current;
+      const loadRevision = revisionRef.current;
       if (!editor || editor.isDestroyed) return false;
 
       setIsDraftLoading(true);
+      autosaveRef.current.loading = true;
       try {
         const ref = doc(db, "articles", docId);
         const s = await getDoc(ref);
@@ -142,13 +221,15 @@ export function useDrafts({
           return false;
         }
 
-        const ready = await waitForEditorReady();
-        if (!ready || editor.isDestroyed || loadToken !== loadTokenRef.current) {
+        const ready = await waitForEditorReady(loadToken);
+        if (!ready || editor.isDestroyed || loadToken !== loadTokenRef.current || revisionRef.current !== loadRevision) {
           return false;
         }
 
-        editor.commands.setContent(data.contentHTML || "");
+        editor.commands.setContent(data.contentHTML || "", { emitUpdate: false });
         revisionRef.current += 1;
+        sessionRef.current += 1;
+        draftIdRef.current = docId;
         setDraftId(docId);
         setters.setTitle(data.title || "");
         setters.setSubtitle(data.subtitle || "");
@@ -157,6 +238,7 @@ export function useDrafts({
         setters.setCoverMedium(data.coverMedium || "");
         setIsDirty(false);
         setLastAutoSavedAt(null);
+        offerRecovery(docId);
         return true;
       } catch (e) {
         if (loadToken !== loadTokenRef.current) return false;
@@ -164,336 +246,261 @@ export function useDrafts({
         toast("초안 로딩 중 오류가 발생했습니다.");
         return false;
       } finally {
-        if (loadToken === loadTokenRef.current) setIsDraftLoading(false);
+        if (loadToken === loadTokenRef.current) {
+          autosaveRef.current.loading = false;
+          setIsDraftLoading(false);
+        }
       }
     },
-    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady, setIsDirty]
+    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady, setIsDirty, offerRecovery]
   );
 
   const startNewDraft = useCallback(
     (setters) => {
+      if (savingRef.current) return;
       loadTokenRef.current += 1;
+      sessionRef.current += 1;
       revisionRef.current += 1;
       setIsDraftLoading(false);
+      autosaveRef.current.loading = false;
       setDraftId(null);
+      draftIdRef.current = null;
       setters.setTitle("");
       setters.setSubtitle("");
       setters.setCategory(DEFAULT_ARTICLE_CATEGORY);
       setters.setCover("");
       setters.setCoverMedium("");
-      editor?.commands?.setContent("");
+      editor?.commands?.setContent("", { emitUpdate: false });
       setIsDirty(false);
       setLastAutoSavedAt(null);
+      offerRecovery(null);
       toast("새 초안을 시작합니다.");
     },
-    [editor, toast, setIsDirty]
+    [editor, toast, setIsDirty, offerRecovery]
   );
+
+  const restoreRecovery = useCallback((setters) => {
+    if (!editor || editor.isDestroyed || !editor.isInitialized || savingRef.current || isDraftLoading) return false;
+    const current = readRecovery(storage, keyRef.current);
+    if (!current || current.token !== recoveryRef.current?.token) {
+      offerRecovery(draftIdRef.current || documentId);
+      return false;
+    }
+    const snapshot = current.snapshot;
+    if (recoveryDocumentRef.current) {
+      draftIdRef.current = recoveryDocumentRef.current;
+      setDraftId(recoveryDocumentRef.current);
+    }
+    editor.commands.setContent(snapshot.contentHTML, { emitUpdate: false });
+    for (const name of ["title", "subtitle", "category", "cover", "coverMedium"]) {
+      setters[`set${name[0].toUpperCase()}${name.slice(1)}`](snapshot[name]);
+    }
+    recoveryRef.current = null;
+    setRecovery(null);
+    // Restoring is local only. Explicit Save/Publish opts back into server writes.
+    recoveryHoldRef.current = true;
+    setRecoveryNeedsSave(true);
+    setIsDirty(true);
+    return true;
+  }, [editor, isDraftLoading, storage, offerRecovery, documentId, setIsDirty]);
+
+  const finishSave = useCallback((savedRevision, savedSession, oldKey, record, targetId, meta, markClean) => {
+    if (sessionRef.current !== savedSession) return false;
+    draftIdRef.current = targetId;
+    setDraftId(targetId);
+    const unchanged = revisionRef.current === savedRevision;
+    if (unchanged) {
+      removeRecovery(storage, oldKey, record?.token);
+      if (markClean) setIsDirty(false);
+      recoveryHoldRef.current = false;
+      setRecoveryNeedsSave(false);
+    }
+    keyRef.current = recoveryKey(userId, targetId);
+    if (!unchanged) {
+      const newer = captureRecovery(autosaveRef.current.meta || meta);
+      // Move a new-document snapshot only after its newer copy is durable.
+      if (newer && oldKey !== keyRef.current) {
+        const oldRecord = readRecovery(storage, oldKey);
+        if (oldRecord?.snapshot && JSON.stringify(oldRecord.snapshot) === JSON.stringify(newer.snapshot)) {
+          removeRecovery(storage, oldKey, oldRecord.token);
+        }
+      }
+    }
+    return unchanged;
+  }, [storage, userId, captureRecovery, setIsDirty]);
 
   const saveDraft = useCallback(
     async ({ silent = false, markClean = false } = {}, meta) => {
-      if (!editor || editor.isDestroyed || !canWrite || savingRef.current) return false;
-
+      if (!editor || editor.isDestroyed || !canWrite || savingRef.current || autosaveRef.current.loading || recoveryRef.current) return false;
       savingRef.current = true;
       const savedRevision = revisionRef.current;
+      const savedSession = sessionRef.current;
+      const oldKey = keyRef.current;
+      const record = captureRecovery(meta) || readRecovery(storage, oldKey);
+      const payload = draftSnapshot(meta, editor.getHTML());
+      const currentId = draftIdRef.current;
+      // Allocate refs once, outside retryable callbacks; never create documents during a retry.
+      const newRef = doc(collection(db, "articles"));
       setIsSaving(true);
       try {
-        const contentHTML = editor.getHTML();
-
-        const safeAuthorEmail = String(meta.authorEmail || authorEmail || "");
-        const safeAuthorName = String(meta.author || authorName || "Unknown");
-
-        if (!safeAuthorEmail) {
-          toast("로그인 이메일이 없어 저장할 수 없어요.");
-          return false;
-        }
-
-        if (!draftId) {
-          const docRef = await addDoc(collection(db, "articles"), {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            status: "draft",
-            likes: 0,
-            views: 0,
-            tags: [],
-            author: safeAuthorName,
-            authorEmail: safeAuthorEmail,
-            createdAt: serverTimestamp(),
+        const safeAuthorEmail = String(authorEmail || "");
+        if (!safeAuthorEmail) throw new Error("Missing author email");
+        const targetId = await runTransaction(db, async (transaction) => {
+          const ref = currentId ? doc(db, "articles", currentId) : newRef;
+          const snap = currentId ? await transaction.get(ref) : null;
+          if (currentId && !snap.exists()) throw new Error("Draft no longer exists");
+          const prev = snap?.data() || {};
+          const target = prev.status === "published" ? newRef : ref;
+          const fields = {
+            ...payload,
+            author: prev.author || authorName || "Unknown",
+            authorEmail: prev.authorEmail || safeAuthorEmail,
             updatedAt: serverTimestamp(),
-          });
-
-          setDraftId(docRef.id);
-          if (!silent) toast("임시 저장 완료");
-          await refreshDrafts();
-          if (markClean && revisionRef.current === savedRevision) setIsDirty(false);
-          return true;
-        }
-
-        const ref = doc(db, "articles", draftId);
-        const snap = await getDoc(ref);
-        const prev = snap.exists() ? snap.data() : {};
-
-        // ✅ 발행본을 직접 임시저장으로 덮어쓰지 않음
-        if (prev?.status === "published") {
-          const clonedDraftRef = await addDoc(collection(db, "articles"), {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            status: "draft",
-            likes: 0,
-            views: 0,
-            tags: prev?.tags || [],
-            author: prev?.author || safeAuthorName,
-            authorEmail: prev?.authorEmail || safeAuthorEmail,
-
-            // ✅ 수정용 draft 메타
-            sourceArticleId: draftId,
-            sourceEditionNo: prev?.editionNo || null,
-            sourceSortIndex: prev?.sortIndex || null,
-            editMode: "revision",
-            revisionOf: draftId,
-            revisionLabel: prev?.title || "Untitled",
-
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-
-          setDraftId(clonedDraftRef.id);
-
-          if (!silent) toast("수정용 초안이 생성되었습니다.");
-          await refreshDrafts();
-          if (markClean && revisionRef.current === savedRevision) setIsDirty(false);
-          return true;
-        }
-
-        await updateDoc(ref, {
-          title: meta.title,
-          subtitle: meta.subtitle,
-          contentHTML,
-          category: meta.category,
-          cover: meta.cover,
-          coverMedium: meta.coverMedium,
-          status: prev?.status || "draft",
-          author: prev?.author || safeAuthorName,
-          authorEmail: prev?.authorEmail || safeAuthorEmail,
-          updatedAt: serverTimestamp(),
+          };
+          if (!currentId || prev.status === "published") {
+            transaction.set(target, {
+              ...fields, status: "draft", likes: 0, views: 0, tags: prev.tags || [],
+              createdAt: serverTimestamp(),
+              ...(prev.status === "published" ? {
+                sourceArticleId: currentId, sourceEditionNo: prev.editionNo || null,
+                sourceSortIndex: prev.sortIndex || null, editMode: "revision",
+                revisionOf: currentId, revisionLabel: prev.title || "Untitled",
+              } : {}),
+            });
+          } else {
+            transaction.update(target, { ...fields, status: prev.status || "draft" });
+          }
+          return target.id;
         });
-
+        finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, markClean);
         if (!silent) toast("임시 저장 완료");
         await refreshDrafts();
-        if (markClean && revisionRef.current === savedRevision) setIsDirty(false);
         return true;
       } catch (e) {
         console.error("Save draft error:", e);
-        if (!silent) toast("저장 중 오류가 발생했습니다.");
+        if (!silent) toast("저장에 실패했어요. 변경사항을 유지하고 있으니 다시 저장해 주세요.");
         return false;
       } finally {
         savingRef.current = false;
         setIsSaving(false);
       }
     },
-    [db, editor, draftId, refreshDrafts, toast, canWrite, authorEmail, authorName, setIsDirty]
+    [db, editor, refreshDrafts, toast, canWrite, authorEmail, authorName, captureRecovery, storage, finishSave]
   );
-
-  const getNextEditionInfo = useCallback(async () => {
-    const q = query(
-      collection(db, "articles"),
-      where("status", "==", "published"),
-      orderBy("sortIndex", "desc"),
-      limit(1)
-    );
-
-    const snap = await getDocs(q);
-
-    let nextIndex = 1;
-    if (!snap.empty) {
-      const top = snap.docs[0].data().sortIndex;
-      nextIndex = (typeof top === "number" ? top : 0) + 1;
-    }
-
-    const nextEditionNo = String(nextIndex).padStart(3, "0");
-    return { nextIndex, nextEditionNo };
-  }, [db]);
 
   const publish = useCallback(
     async (meta) => {
-      if (!editor || editor.isDestroyed || !canWrite || savingRef.current) return;
-
+      if (!editor || editor.isDestroyed || !canWrite || savingRef.current || autosaveRef.current.loading || recoveryRef.current) return false;
       if (!meta.title?.trim()) {
         toast("제목을 입력해야 합니다.");
-        return;
+        return false;
       }
-
       savingRef.current = true;
       const savedRevision = revisionRef.current;
+      const savedSession = sessionRef.current;
+      const oldKey = keyRef.current;
+      const record = captureRecovery(meta) || readRecovery(storage, oldKey);
+      const payload = draftSnapshot(meta, editor.getHTML());
+      const currentId = draftIdRef.current;
+      const ref = currentId ? doc(db, "articles", currentId) : doc(collection(db, "articles"));
+      const counterRef = doc(db, "counters", "articles");
       setIsSaving(true);
       try {
-        const contentHTML = editor.getHTML();
-
-        const safeAuthorEmail = String(meta.authorEmail || authorEmail || "");
-        const safeAuthorName = String(meta.author || authorName || "Unknown");
-
-        if (!safeAuthorEmail) {
-          toast("로그인 이메일이 없어 발행할 수 없어요.");
-          return;
-        }
-
-        let targetId = draftId;
-
-        if (!targetId) {
-          const docRef = await addDoc(collection(db, "articles"), {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            status: "draft",
-            likes: 0,
-            views: 0,
-            tags: [],
-            author: safeAuthorName,
-            authorEmail: safeAuthorEmail,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+        if (!authorEmail) throw new Error("Missing author email");
+        const targetId = await runPublicationTransaction(db, counterRef, async (transaction, noteCounterRead) => {
+          const snap = currentId ? await transaction.get(ref) : null;
+          if (currentId && !snap.exists()) throw new Error("Draft no longer exists");
+          const prev = snap?.data() || {};
+          if (prev.sourceArticleId) {
+            const sourceRef = doc(db, "articles", prev.sourceArticleId);
+            const source = await transaction.get(sourceRef);
+            if (!source.exists() || source.data().status !== "published" || sourceRef.id === ref.id) {
+              throw new Error("Revision source no longer exists");
+            }
+            transaction.update(sourceRef, {
+              ...payload, updatedAt: serverTimestamp(), lastRevisionPublishedAt: serverTimestamp(),
+            });
+            transaction.delete(ref);
+            return sourceRef.id;
+          }
+          let edition = {};
+          if (prev.status !== "published") {
+            const counter = await transaction.get(counterRef);
+            noteCounterRead(counter.exists() ? counter.data().lastIndex : undefined);
+            let seed = [];
+            if (!counter.exists()) {
+              // Web SDK transactions accept document refs, not queries. Discover the seed
+              // inside each attempt, then enroll the maximum document in its read set.
+              const maximum = await getDocs(query(
+                collection(db, "articles"), where("status", "==", "published"),
+                orderBy("sortIndex", "desc"), limit(1)
+              ));
+              for (const candidate of maximum.docs) {
+                const verified = await transaction.get(doc(db, "articles", candidate.id));
+                if (verified.exists() && verified.data().status === "published") seed.push(verified.data());
+              }
+            }
+            const { nextIndex, nextEditionNo } = nextEdition(counter.exists() ? counter.data() : null, seed);
+            edition = { sortIndex: nextIndex, editionNo: nextEditionNo };
+            transaction.set(counterRef, {
+              lastIndex: nextIndex, articleId: ref.id, updatedAt: serverTimestamp(),
+            });
+          }
+          const fields = {
+            ...payload, ...edition, status: "published",
+            author: prev.author || authorName || "Unknown",
+            authorEmail: prev.authorEmail || authorEmail, updatedAt: serverTimestamp(),
+          };
+          if (currentId) transaction.update(ref, fields);
+          else transaction.set(ref, {
+            ...fields, likes: 0, views: 0, tags: [], createdAt: serverTimestamp(),
           });
-          targetId = docRef.id;
-          setDraftId(targetId);
-        } else {
-          const ref = doc(db, "articles", targetId);
-          const snap = await getDoc(ref);
-          const prev = snap.exists() ? snap.data() : {};
-
-          await updateDoc(ref, {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            author: prev?.author || safeAuthorName,
-            authorEmail: prev?.authorEmail || safeAuthorEmail,
-            updatedAt: serverTimestamp(),
-          });
-        }
-
-        const ref = doc(db, "articles", targetId);
-        const snap = await getDoc(ref);
-        const prev = snap.data() || {};
-
-        // ✅ 발행본 수정용 draft라면 원본 문서에 반영
-        console.log("[publish] targetId:", targetId);
-        console.log("[publish] has gallery markup:", contentHTML.includes("data-uf-gallery"));
-
-        if (prev?.sourceArticleId) {
-          const sourceRef = doc(db, "articles", prev.sourceArticleId);
-
-          await updateDoc(sourceRef, {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            status: "published",
-            updatedAt: serverTimestamp(),
-            lastRevisionPublishedAt: serverTimestamp(),
-          });
-
-          await deleteDoc(ref);
-          setDraftId(null);
-        } else if (prev.status === "published") {
-          await updateDoc(ref, {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            status: "published",
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          const { nextIndex, nextEditionNo } = await getNextEditionInfo();
-
-          await updateDoc(ref, {
-            title: meta.title,
-            subtitle: meta.subtitle,
-            contentHTML,
-            category: meta.category,
-            cover: meta.cover,
-            coverMedium: meta.coverMedium,
-            status: "published",
-            sortIndex: nextIndex,
-            editionNo: nextEditionNo,
-            updatedAt: serverTimestamp(),
-          });
-        }
-
+          return ref.id;
+        });
+        const unchanged = finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, true);
         toast("아티클이 발행되었습니다!");
         await refreshDrafts();
         setLastAutoSavedAt(null);
-        if (revisionRef.current === savedRevision) {
-          setIsDirty(false);
+        if (unchanged && revisionRef.current === savedRevision && sessionRef.current === savedSession) {
+          // Release the write guard before router navigation evaluates its blocker.
+          savingRef.current = false;
+          setIsSaving(false);
           navigate("/");
-        } else {
+        } else if (sessionRef.current === savedSession) {
           toast("발행 후 추가한 변경사항은 아직 저장되지 않았어요.");
         }
+        return true;
       } catch (e) {
         console.error("Publish error:", e);
-        toast("발행 중 오류가 발생했습니다.");
+        toast("발행에 실패했어요. 변경사항을 유지하고 있으니 다시 시도해 주세요.");
+        return false;
       } finally {
         savingRef.current = false;
         setIsSaving(false);
       }
     },
-    [
-      db,
-      editor,
-      draftId,
-      getNextEditionInfo,
-      refreshDrafts,
-      toast,
-      navigate,
-      canWrite,
-      authorEmail,
-      authorName,
-      setIsDirty,
-    ]
+    [db, editor, refreshDrafts, toast, navigate, canWrite, authorEmail, authorName, captureRecovery, storage, finishSave]
   );
 
-  const runAutosave = useCallback(
-    (meta) => {
-      if (!editor || !canWrite) return;
-      if (!isDirty) return;
-      if (isSaving || isDraftLoading) return;
-
-      const hasAnything =
-        meta.title.trim() ||
-        meta.subtitle.trim() ||
-        meta.cover.trim() ||
-        meta.coverMedium.trim() ||
-        editor.getText().trim() ||
-        editor.isEmpty === false;
-
-      if (!hasAnything) return;
-
-      const t = setTimeout(async () => {
-        if (isSaving || isDraftLoading) return;
-        const success = await saveDraft({ silent: true, markClean: true }, meta);
-        if (success) setLastAutoSavedAt(Date.now());
-      }, AUTOSAVE_DELAY_MS);
-
-      return () => clearTimeout(t);
-    },
-    [editor, canWrite, isDirty, isSaving, isDraftLoading, saveDraft]
-  );
+  // One deadline survives every render and keystroke; the callback reads the latest metadata.
+  autosaveRef.current.save = saveDraft;
+  const runAutosave = useCallback((meta) => {
+    autosaveRef.current.meta = meta;
+    captureRecovery(meta);
+    if (autosaveRef.current.timer !== null || !canWrite || !editor) return;
+    const generation = autosaveRef.current.generation;
+    const tick = async () => {
+      if (generation !== autosaveRef.current.generation) return;
+      if (dirtyRef.current && !savingRef.current && !autosaveRef.current.loading && !recoveryHoldRef.current && !recoveryRef.current) {
+        const success = await autosaveRef.current.save(
+          { silent: true, markClean: true }, autosaveRef.current.meta
+        );
+        if (success && generation === autosaveRef.current.generation) setLastAutoSavedAt(Date.now());
+      }
+      if (generation === autosaveRef.current.generation) autosaveRef.current.timer = setTimeout(tick, AUTOSAVE_DELAY_MS);
+    };
+    autosaveRef.current.timer = setTimeout(tick, AUTOSAVE_DELAY_MS);
+  }, [canWrite, editor, captureRecovery]);
 
   return {
     drafts,
@@ -510,6 +517,13 @@ export function useDrafts({
     saveDraft,
     publish,
     runAutosave,
-    setDraftId,
+    recovery,
+    recoveryError,
+    recoveryNeedsSave,
+    captureRecovery,
+    restoreRecovery,
+    discardRecovery,
+    hasUnsavedChanges: () => dirtyRef.current || savingRef.current,
+    setDraftId: (id) => { draftIdRef.current = id; setDraftId(id); },
   };
 }

@@ -1,0 +1,420 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdminEmail() {
+      return signedIn() && request.auth.token.email_verified == true && request.auth.token.email in [
+        "gallerykuns@gmail.com",
+        "cybog2004@gmail.com",
+        "sylove887@gmail.com"
+      ];
+    }
+
+    function roleOf(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        ? get(/databases/$(database)/documents/users/$(uid)).data.get('role', 'user')
+        : "user";
+    }
+
+    function isAdmin() {
+      return isAdminEmail();
+    }
+
+    function isEditor() {
+      return signedIn() && roleOf(request.auth.uid) == "editor";
+    }
+
+    function canWrite() {
+      return isAdmin() || isEditor();
+    }
+
+    function onlyChanges(allowedKeys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
+
+    function validEditionTransition(docId) {
+      let counter = getAfter(/databases/$(database)/documents/counters/articles).data;
+      let index = request.resource.data.sortIndex;
+      return counter.articleId == docId && counter.lastIndex == index
+        && counter.lastIndex == get(/databases/$(database)/documents/counters/articles).data.lastIndex + 1
+        && index is int && index > 0
+        && request.resource.data.editionNo ==
+          (index < 10 ? '00' : index < 100 ? '0' : '') + string(index);
+    }
+
+    function validArticleIdentity(docId) {
+      return request.resource.data.status in ['draft', 'published']
+        && (resource.data.status == 'published'
+          ? request.resource.data.sortIndex == resource.data.sortIndex
+            && request.resource.data.editionNo == resource.data.editionNo
+          : (request.resource.data.status != 'published' || validEditionTransition(docId)));
+    }
+
+    /* ---------------------------
+       ARTICLES
+    --------------------------- */
+    match /articles/{docId} {
+      allow read: if resource.data.status == "published" || canWrite();
+
+      allow create: if canWrite()
+        && (request.resource.data.status == "draft"
+          || (request.resource.data.status == 'published' && validEditionTransition(docId)))
+        && (isAdmin() || request.resource.data.authorEmail == request.auth.token.email);
+
+      allow delete: if isAdmin() || (isEditor() && resource.data.status == 'draft'
+        && resource.data.authorEmail == request.auth.token.email);
+
+      allow update: if
+        (isAdmin() && validArticleIdentity(docId))
+        || (
+          isEditor()
+          && resource.data.authorEmail == request.auth.token.email
+          && request.resource.data.authorEmail == request.auth.token.email
+          && validArticleIdentity(docId)
+        )
+        || (
+          resource.data.status == "published"
+          && onlyChanges(['likes', 'views'])
+          && request.resource.data.likes is int && request.resource.data.views is int
+          && request.resource.data.likes >= resource.data.likes
+          && request.resource.data.likes <= resource.data.likes + 1
+          && request.resource.data.views >= resource.data.views
+          && request.resource.data.views <= resource.data.views + 1
+        );
+    }
+
+    match /counters/articles {
+      allow read: if canWrite();
+      allow create: if isAdmin() && request.resource.data.keys().hasOnly(['lastIndex', 'articleId', 'updatedAt'])
+        && request.resource.data.lastIndex is int && request.resource.data.lastIndex >= 0;
+      allow update: if canWrite()
+        && request.resource.data.keys().hasOnly(['lastIndex', 'articleId', 'updatedAt'])
+        && request.resource.data.lastIndex is int
+        && request.resource.data.lastIndex == resource.data.lastIndex + 1
+        && request.resource.data.articleId is string
+        && request.resource.data.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/articles/$(request.resource.data.articleId)).data.status == 'published'
+        && getAfter(/databases/$(database)/documents/articles/$(request.resource.data.articleId)).data.sortIndex == request.resource.data.lastIndex
+        && (isAdmin() || getAfter(/databases/$(database)/documents/articles/$(request.resource.data.articleId)).data.authorEmail == request.auth.token.email);
+      allow delete: if false;
+    }
+
+    /* ---------------------------
+       CONFIG
+    --------------------------- */
+    match /config/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------
+       COMMENTS
+    --------------------------- */
+    match /comments/{commentId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+        && request.resource.data.editionNo is string
+        && request.resource.data.editionNo.size() > 0
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() > 0
+        && request.resource.data.nickname.size() <= 20
+        && request.resource.data.author is string
+        && request.resource.data.author.size() > 0
+        && (
+          !("authorUid" in request.resource.data)
+          || request.resource.data.authorUid == request.auth.uid
+        );
+
+      allow update: if false;
+
+      allow delete: if signedIn() && (
+        isAdmin()
+        || (
+          ("authorUid" in resource.data)
+          && resource.data.authorUid == request.auth.uid
+        )
+      );
+    }
+
+    /* ---------------------------
+       POLLS
+    --------------------------- */
+    match /polls/{pollId} {
+      allow read: if true;
+
+      allow create, update: if isAdmin()
+        && (
+          !("closed" in request.resource.data)
+          || request.resource.data.closed is bool
+        );
+
+      allow delete: if false;
+
+      match /votes/{uid} {
+        allow read: if true;
+
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && !exists(/databases/$(database)/documents/polls/$(pollId)/votes/$(uid))
+          && request.resource.data.optionId is string
+          && request.resource.data.optionId.size() > 0
+          && (
+            !exists(/databases/$(database)/documents/polls/$(pollId))
+            || get(/databases/$(database)/documents/polls/$(pollId)).data.closed != true
+          );
+
+        allow update, delete: if false;
+      }
+    }
+
+    /* ---------------------------
+       MASTER STICKERS / ACHIEVEMENTS
+    --------------------------- */
+    match /stickers/{stickerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /achievements/{achId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------
+       USERS
+    --------------------------- */
+    match /users/{uid} {
+      allow read: if true;
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() > 0
+        && request.resource.data.nickname.size() <= 20
+        && request.resource.data.nicknameChanged == false
+        && (
+          !("role" in request.resource.data)
+          || request.resource.data.role == "user"
+        );
+
+      allow update: if
+        isAdmin()
+        || (
+          signedIn()
+          && request.auth.uid == uid
+          && (
+            (
+              onlyChanges(['nickname', 'nicknameChanged', 'displayName', 'name', 'updatedAt'])
+              &&
+              resource.data.nicknameChanged == false
+              && request.resource.data.nicknameChanged == true
+              && request.resource.data.nickname is string
+              && request.resource.data.nickname.size() > 0
+              && request.resource.data.nickname.size() <= 20
+            )
+            || (
+              onlyChanges(['photoURL', 'updatedAt'])
+              && request.resource.data.photoURL is string
+              && request.resource.data.photoURL.size() <= 2048
+              && request.resource.data.photoURL.matches('^https://.*$')
+            )
+            || (
+              !('role' in resource.data) && onlyChanges(['role', 'updatedAt'])
+              && request.resource.data.role == 'user'
+            )
+            || (
+              onlyChanges([
+                "lastActiveAt",
+                "lastVisitDate",
+                "streakCount",
+                "streakUpdatedAt",
+                "xp",
+                "level",
+                "tier",
+                "tierLabel",
+                "tierColor",
+                "saveUniqueCount",
+                "visitDayCount",
+                "commentCount",
+                "shareCount",
+                "updatedAt"
+              ])
+              && (
+                !("role" in request.resource.data)
+                || request.resource.data.role == resource.data.role
+              )
+              && (
+                !("xp" in resource.data)
+                || request.resource.data.xp >= resource.data.xp
+              )
+            )
+          )
+        );
+
+      allow delete: if false;
+
+      match /xpFlags/{flagId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.type is string
+          && request.resource.data.type.size() > 0;
+
+        allow update, delete: if false;
+      }
+
+      match /saved/{editionNo} {
+        allow read: if signedIn() && request.auth.uid == uid;
+
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.editionNo is string
+          && request.resource.data.editionNo.size() > 0;
+
+        allow delete: if signedIn() && request.auth.uid == uid;
+
+        allow update: if false;
+      }
+
+      match /daily/{dayId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && (!("views" in request.resource.data) || request.resource.data.views is number)
+          && (!("likes" in request.resource.data) || request.resource.data.likes is number)
+          && (!("comments" in request.resource.data) || request.resource.data.comments is number)
+          && (!("votes" in request.resource.data) || request.resource.data.votes is number)
+          && (!("saves" in request.resource.data) || request.resource.data.saves is number)
+          && (!("shares" in request.resource.data) || request.resource.data.shares is number);
+
+        allow delete: if false;
+      }
+
+      match /events/{eventId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.type is string
+          && request.resource.data.type.size() > 0;
+
+        allow update, delete: if false;
+      }
+
+      match /stickers/{stickerId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+        allow create: if
+          isAdmin()
+          || (
+            signedIn()
+            && request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/users/$(uid)/stickers/$(stickerId))
+            && stickerId in ["first_save", "first_comment", "first_share", "poll_voter"]
+          );
+
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+
+      match /followers/{fanUid} {
+        allow read: if true;
+        allow create: if signedIn() && request.auth.uid == fanUid;
+        allow delete: if signedIn() && (request.auth.uid == fanUid || isAdmin());
+        allow update: if false;
+      }
+
+      match /followingEditors/{editorUid} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+        allow create: if signedIn() && request.auth.uid == uid;
+        allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+        allow update: if false;
+      }
+
+      match /achievements/{achId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+        allow create: if
+          isAdmin()
+          || (
+            signedIn()
+            && request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/users/$(uid)/achievements/$(achId))
+            && achId in [
+              "save_10",
+              "save_50",
+              "save_100",
+              "ach_first_comment",
+              "ach_first_share",
+              "ach_first_visit",
+              "ach_poll_vote",
+              "comments_10",
+              "comments_30",
+              "comments_100",
+              "shares_5",
+              "shares_20",
+              "visit_7",
+              "visit_30"
+            ]
+          );
+
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+
+    /* ---------------------------
+       UP / UNFRAME PLAYLIST (artifacts)
+    --------------------------- */
+    match /artifacts/{appId}/users/{uid}/profile/stats {
+      allow read: if true;
+      allow create, update: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow delete: if isAdmin();
+    }
+
+    match /artifacts/{appId}/users/{uid}/likes/{trackId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create, update, delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+    }
+
+    match /artifacts/{appId}/public_stats/{uid} {
+      allow read: if true;
+      allow create, update: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow delete: if isAdmin();
+    }
+
+    match /artifacts/{appId}/public/data/tracks/{trackId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /artifacts/{appId}/public/data/playlists/{playlistId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /artifacts/{appId}/public/data/site_config/{docId}/{subDocId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /artifacts/{appId}/public/data/site_config/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /artifacts/{appId}/{document=**} {
+      allow read: if true;
+    }
+  }
+}

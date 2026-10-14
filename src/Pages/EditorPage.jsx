@@ -1,7 +1,7 @@
 // src/Pages/EditorPage.jsx
-import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Save, Send, Plus, ChevronDown, ChevronUp, CircleHelp } from "lucide-react";
+import React, { useContext, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import { UNSAFE_DataRouterContext, useBlocker, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Save, Send, Plus, ChevronDown, ChevronUp, CircleHelp, RotateCcw, Trash2 } from "lucide-react";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import { doc, getDoc } from "firebase/firestore";
@@ -19,6 +19,7 @@ import { uploadImageWithProgress } from "../lib/uploadWithProgress";
 
 import { createEditorConfig } from "../tiptap/editorConfig";
 import { useDrafts } from "../hooks/useDrafts";
+import { useSlideGalleryRuntime } from "../hooks/useSlideGalleryRuntime";
 import { useSlashMenu } from "../hooks/useSlashMenu";
 import EditorOnboardingModal from "../components/editor/EditorOnboardingModal";
 import {
@@ -51,13 +52,42 @@ function useIsDesktopEditor() {
   return isDesktopEditor;
 }
 
+function EditorLeaveGuard({ draftsApi, meta }) {
+  const blocker = useBlocker(() => draftsApi.hasUnsavedChanges());
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (blocker.state === "blocked") dialog?.showModal();
+    else if (dialog?.open) dialog.close();
+  }, [blocker.state]);
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="editor-leave-title"
+      onCancel={(event) => { event.preventDefault(); blocker.reset?.(); }}
+      className="m-auto w-[calc(100%_-_32px)] max-w-md rounded-lg bg-[var(--uf-bg)] p-6 text-[var(--uf-text)] backdrop:bg-black/50"
+    >
+      <h2 id="editor-leave-title" className="text-lg font-bold">저장하지 않은 변경사항이 있어요</h2>
+      <p className="mt-3 text-sm">페이지를 떠나기 전에 변경사항을 저장할까요?</p>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <button type="button" autoFocus onClick={() => blocker.reset?.()} className="min-h-11 rounded px-3 py-2 border border-[var(--uf-muted)]">계속 편집</button>
+        <button type="button" disabled={draftsApi.isSaving || !!draftsApi.recovery} onClick={async () => {
+          const saved = await draftsApi.saveDraft({ markClean: true }, meta);
+          if (saved && !draftsApi.hasUnsavedChanges()) blocker.proceed?.();
+        }} className="inline-flex min-h-11 items-center gap-2 rounded px-3 py-2 bg-[#004aad] text-white disabled:opacity-50"><Save size={16} />저장 후 나가기</button>
+        <button type="button" disabled={draftsApi.isSaving} onClick={() => { draftsApi.captureRecovery(meta); blocker.proceed?.(); }} className="min-h-11 rounded px-3 py-2 underline disabled:opacity-50">저장 없이 나가기</button>
+      </div>
+    </dialog>
+  );
+}
+
 export default function EditorPage({ isDarkMode, onToast, user, role = "user" }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const dataRouter = useContext(UNSAFE_DataRouterContext);
   const { articleId } = useParams();
   const preloadedDraftId = location.state?.draftId || null;
   const loadedDraftRef = useRef(null);
-  const isHydratingRef = useRef(false);
   const toast = (msg) => (onToast ? onToast(msg) : console.log(msg));
 
   const isAdmin = useMemo(() => {
@@ -104,6 +134,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   );
 
   const editor = useEditor(editorConfig);
+  const galleryContainerRef = useRef(null);
+  useSlideGalleryRuntime(galleryContainerRef, editor);
 
   const [editorDocMeta, setEditorDocMeta] = useState(null);
   const [loadingEditorMeta, setLoadingEditorMeta] = useState(false);
@@ -132,7 +164,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     if (!editor) return;
     const handler = (e) => {
       const url = e.detail?.url;
-      if (url) editor.chain().focus().setImage({ src: url }).run();
+      if (url && editor.isEditable) editor.chain().focus().setImage({ src: url }).run();
     };
     window.addEventListener("uf:insert-image", handler);
     return () => window.removeEventListener("uf:insert-image", handler);
@@ -145,6 +177,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     isAdmin,
     authorName: user?.displayName || "",
     authorEmail: user?.email || "",
+    userId: user?.email || "",
+    documentId: preloadedDraftId || articleId || null,
     onToast,
     navigate,
   });
@@ -154,18 +188,41 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     lastAutoSavedAt,
     loadDraft,
     runAutosave,
+    captureRecovery,
+    recovery: recoveryCandidate,
     setIsDirty: setDraftDirty,
   } = draftsApi;
+  const currentMeta = { title, subtitle, category, cover, coverMedium, author: authorName, authorEmail };
+  const currentMetaRef = useRef(currentMeta);
+  currentMetaRef.current = currentMeta;
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.setEditable(canWrite && !recoveryCandidate);
+  }, [editor, canWrite, recoveryCandidate]);
 
   useEffect(() => {
     if (!isDirty) return;
     const warnBeforeLeaving = (event) => {
+      captureRecovery(currentMetaRef.current);
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [isDirty]);
+  }, [isDirty, captureRecovery]);
+
+  useEffect(() => {
+    const preserve = () => captureRecovery(currentMetaRef.current);
+    const onVisibility = () => { if (document.visibilityState === "hidden") preserve(); };
+    window.addEventListener("pagehide", preserve);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      preserve();
+      window.removeEventListener("pagehide", preserve);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [captureRecovery]);
 
   const saveStatusText = useMemo(() => {
     if (!lastAutoSavedAt) return isDirty ? "Unsaved changes" : "Not saved yet";
@@ -203,16 +260,14 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     if (!editor) return;
 
     const onUpdate = () => {
-      if (isHydratingRef.current) return;
       if (editor.isDestroyed) return;
-      if (editor.view.composing) return;
-
       setDraftDirty((prev) => (prev ? prev : true));
+      captureRecovery(currentMetaRef.current);
     };
 
     editor.on("update", onUpdate);
     return () => editor.off("update", onUpdate);
-  }, [editor, setDraftDirty]);
+  }, [editor, setDraftDirty, captureRecovery]);
 
   useEffect(() => {
     if (!editor) {
@@ -244,7 +299,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, [editor]);
 
   useEffect(() => {
-    const cleanup = runAutosave({
+    runAutosave({
       title,
       subtitle,
       category,
@@ -253,7 +308,6 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       author: authorName,
       authorEmail,
     });
-    return typeof cleanup === "function" ? cleanup : undefined;
   }, [runAutosave, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
 
   useEffect(() => {
@@ -267,8 +321,6 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
     (async () => {
       try {
-        isHydratingRef.current = true;
-
         const success = await loadDraft(targetId, {
           setTitle,
           setSubtitle,
@@ -281,10 +333,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           loadedDraftRef.current = targetId;
           setDraftDirty(false);
         }
-      } finally {
-        setTimeout(() => {
-          if (!cancelled) isHydratingRef.current = false;
-        }, 0);
+      } catch (error) {
+        console.error("[EditorPage] draft load failed:", error);
       }
     })();
 
@@ -360,7 +410,28 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     <div
       className="min-h-[calc(100vh-80px)] grid grid-cols-1 xl:grid-cols-12 gap-px animate-in fade-in duration-500 overflow-x-hidden bg-[var(--uf-bg)] text-[var(--uf-text)]"
     >
+      {dataRouter && <EditorLeaveGuard draftsApi={draftsApi} meta={currentMeta} />}
+      {draftsApi.recovery && (
+        <section aria-label="초안 복구" className="col-span-full flex flex-wrap items-center justify-between gap-4 border-b border-[var(--uf-muted)] px-6 py-4">
+          <div className="min-w-0 text-sm" role="status">
+            <p className="font-bold">이 기기에 저장하지 않은 초안이 있어요.</p>
+            <p className="mt-1 break-words">{draftsApi.recovery.snapshot.title || "제목 없는 초안"}</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" disabled={!editorReady || draftsApi.isDraftLoading || draftsApi.isSaving} onClick={() => {
+              if (isDirty && !window.confirm("현재 변경사항을 복구할 초안으로 바꿀까요?")) return;
+              draftsApi.restoreRecovery({ setTitle, setSubtitle, setCategory, setCover, setCoverMedium });
+            }} className="inline-flex min-h-11 items-center gap-2 rounded px-3 py-2 bg-[#004aad] text-white disabled:opacity-50"><RotateCcw size={16} />복구</button>
+            <button type="button" disabled={draftsApi.isSaving} onClick={() => {
+              if (window.confirm("이 기기의 복구 초안을 삭제할까요?")) draftsApi.discardRecovery();
+            }} className="inline-flex min-h-11 items-center gap-2 rounded px-3 py-2 border border-[var(--uf-muted)] disabled:opacity-50"><Trash2 size={16} />삭제</button>
+          </div>
+        </section>
+      )}
+      {draftsApi.recoveryError && <p role="alert" className="col-span-full border-b border-[var(--uf-muted)] px-6 py-3 text-sm">기기 저장 공간에 초안을 보관하지 못했어요. 페이지를 닫기 전에 저장해 주세요.</p>}
+      {draftsApi.recoveryNeedsSave && <p role="status" className="col-span-full border-b border-[var(--uf-muted)] px-6 py-3 text-sm">초안을 복구했어요. 저장 버튼을 누르면 서버에 반영됩니다.</p>}
       <aside
+        inert={!!draftsApi.recovery}
         className={`hidden xl:flex min-w-0 xl:col-span-3 p-6 xl:p-10 flex-col gap-10 xl:sticky xl:top-[80px] xl:h-[calc(100vh-80px)] overflow-y-auto transition-colors ${
           isDarkMode
             ? "bg-zinc-900 border-zinc-800 shadow-2xl"
@@ -534,7 +605,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                 }
               )
             }
-            disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+            disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
             className={`w-full py-5 font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 transition-all hover:opacity-70 rounded-2xl ${
               isDarkMode ? "bg-zinc-800 text-zinc-300" : "bg-zinc-50 text-zinc-500"
             }`}
@@ -555,7 +626,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                 authorEmail,
               })
             }
-            disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+            disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
             className="w-full py-5 bg-[#004aad] text-white font-black uppercase tracking-[0.5em] text-[10px] flex items-center justify-center gap-3 hover:bg-black shadow-xl transition-all rounded-2xl italic"
             type="button"
           >
@@ -565,6 +636,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       </aside>
 
       <main
+        inert={!!draftsApi.recovery}
         className="min-w-0 xl:col-span-9 xl:pr-[320px] flex items-start transition-colors duration-500 bg-[var(--uf-bg)] text-[var(--uf-text)]"
       >
         <div className="min-w-0 flex-1 flex flex-col">
@@ -590,7 +662,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     }
                   )
                 }
-                disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+                disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
                 className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-[0.35em] italic transition ${
                   isDarkMode
                     ? "bg-zinc-800 text-zinc-100"
@@ -613,7 +685,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                     authorEmail,
                   })
                 }
-                disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+                disabled={draftsApi.isSaving || draftsApi.isDraftLoading || !!draftsApi.recovery}
                 className="h-10 px-4 rounded-xl bg-[#004aad] text-white text-[10px] font-black uppercase tracking-[0.35em] italic transition"
               >
                 {draftsApi.isSaving ? "Publishing..." : "Publish"}
@@ -773,17 +845,19 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
                 )}
 
-                <EditorContent
-                  editor={editor}
-                  onKeyDown={(e) => {
-                    const native = e.nativeEvent;
-                    if (native?.isComposing || native?.keyCode === 229) return;
-                    if (isDesktopEditor) {
-                      onEditorKeyDown(editor, e);
-                    }
-                  }}
-                  onClick={() => closeSlashMenu()}
-                />
+                <div ref={galleryContainerRef}>
+                  <EditorContent
+                    editor={editor}
+                    onKeyDown={(e) => {
+                      const native = e.nativeEvent;
+                      if (native?.isComposing || native?.keyCode === 229) return;
+                      if (isDesktopEditor) {
+                        onEditorKeyDown(editor, e);
+                      }
+                    }}
+                    onClick={() => closeSlashMenu()}
+                  />
+                </div>
               </div>
 
               <div className="text-[10px] font-black uppercase tracking-[0.4em] italic text-zinc-400">

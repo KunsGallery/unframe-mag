@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collection, getDocs, limit, orderBy, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 
@@ -31,6 +31,7 @@ export function usePopularRollup({
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(Boolean(enabled));
   const [error, setError] = useState("");
+  const requestId = useRef(0);
 
   // ✅ metric 결정 (metric이 있으면 그걸 최우선으로 사용)
   const metricUsed = useMemo(() => {
@@ -44,7 +45,13 @@ export function usePopularRollup({
   }, [metric, mode, sortBy]);
 
   const run = useCallback(async () => {
-    if (!enabled) return;
+    const id = ++requestId.current;
+    if (!enabled) {
+      setItems([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -58,32 +65,30 @@ export function usePopularRollup({
       );
 
       const snap = await getDocs(q);
+      if (id !== requestId.current) return;
       const list = snap.docs.map((d) => ({ docId: d.id, ...d.data() }));
       setItems(list);
     } catch (e) {
+      if (id !== requestId.current) return;
       console.error("[usePopularRollup] error:", e);
       setError(String(e?.message || e));
       setItems([]);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [enabled, metricUsed, top]);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!alive) return;
-      await run();
-    })();
+    run();
     return () => {
-      alive = false;
+      requestId.current += 1;
     };
   }, [run]);
 
   return {
-    items,
-    loading,
-    error,
+    items: enabled ? items : [],
+    loading: enabled && loading,
+    error: enabled ? error : "",
     metricUsed,
     refetch: run,
   };

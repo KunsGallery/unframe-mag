@@ -4,8 +4,10 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.jsx";
 import ErrorBoundary from "./components/debug/ErrorBoundary.jsx";
 import "./styles/index.css";
+import { reportClientError } from "./lib/runtimeDiagnostics";
 
 let updateSW = () => {};
+window.addEventListener("uf:apply-update", () => updateSW(true));
 
 const RECOVERY_RELOAD_KEY = "uf_app_shell_recovery_reload_v1";
 const CACHE_CLEANUP_KEY = "uf_cache_cleanup_20260820_nav2";
@@ -55,12 +57,14 @@ function isRecoverableAppShellError(value) {
 }
 
 window.addEventListener("error", (event) => {
+  reportClientError(event.error || event.message, { source: "window" });
   if (isRecoverableAppShellError(event.error || event.message)) {
     reloadAppShellOnce("window-error");
   }
 });
 
 window.addEventListener("unhandledrejection", (event) => {
+  reportClientError(event.reason, { source: "promise" });
   if (isRecoverableAppShellError(event.reason)) {
     reloadAppShellOnce("unhandled-rejection");
   }
@@ -83,8 +87,7 @@ updateSW = registerSW({
     console.log("App ready for offline use");
   },
   onNeedRefresh() {
-    console.log("New content available, refreshing app shell");
-    updateSW(true);
+    window.dispatchEvent(new Event("uf:update-available"));
   },
 });
 

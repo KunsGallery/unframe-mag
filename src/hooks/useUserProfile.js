@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   doc,
-  getDoc,
+  runTransaction,
   onSnapshot,
   serverTimestamp,
-  setDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged, getAuth } from "firebase/auth";
 import { db } from "../firebase/config";
@@ -24,8 +23,10 @@ export function useUserProfile() {
 
   useEffect(() => {
     let unsubscribeProfile = null;
+    let generation = 0;
 
     const unsub = onAuthStateChanged(auth, async (u) => {
+      const current = ++generation;
       if (unsubscribeProfile) {
         unsubscribeProfile();
         unsubscribeProfile = null;
@@ -42,11 +43,11 @@ export function useUserProfile() {
       setLoading(true);
       try {
         const ref = doc(db, "users", u.uid);
-        const snap = await getDoc(ref);
-
-        if (!snap.exists()) {
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(ref);
+          if (snap.exists() || current !== generation) return;
           const displayName =
-            resolveProfileDisplayName(u) || fallbackNickname(u);
+            (resolveProfileDisplayName(u) || fallbackNickname(u)).slice(0, 20);
 
           const initial = {
             uid: u.uid,
@@ -56,25 +57,14 @@ export function useUserProfile() {
             name: displayName,
             nickname: displayName,
             nicknameChanged: false,
+            role: "user",
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
 
-          await setDoc(ref, initial);
-          setProfile(initial);
-        } else {
-          const resolvedDisplayName =
-            resolveProfileDisplayName(snap.data(), u) ||
-            fallbackNickname(u);
-          setProfile({
-            id: snap.id,
-            ...snap.data(),
-            photoURL: resolveProfilePhotoURL(snap.data(), u),
-            displayName: resolvedDisplayName,
-            name: resolvedDisplayName,
-            nickname: resolvedDisplayName,
-          });
-        }
+          transaction.set(ref, initial);
+        });
+        if (current !== generation) return;
 
         unsubscribeProfile = onSnapshot(
           ref,
@@ -99,14 +89,16 @@ export function useUserProfile() {
           }
         );
       } catch (e) {
+        if (current !== generation) return;
         console.error("[useUserProfile] error:", e);
         setProfile(null);
       } finally {
-        setLoading(false);
+        if (current === generation) setLoading(false);
       }
     });
 
     return () => {
+      generation += 1;
       if (unsubscribeProfile) {
         unsubscribeProfile();
       }

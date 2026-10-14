@@ -107,6 +107,10 @@ export const SlideGallery = Node.create({
         "data-image-height": String(imageHeight),
         "data-rounded": String(rounded),
         class: `uf-slide-gallery fit-${fitMode}`,
+        role: "region",
+        "aria-roledescription": "carousel",
+        "aria-label": "Slide gallery",
+        contenteditable: "false",
         style: `--uf-slide-radius:${rounded}px; --uf-slide-image-height:${imageHeight}px;`,
       }),
       [
@@ -119,6 +123,8 @@ export const SlideGallery = Node.create({
             class: "uf-slide-gallery__counter",
             "data-current": totalSlides ? "1" : "0",
             "data-total": String(totalSlides),
+            "aria-live": "polite",
+            "aria-atomic": "true",
           },
           initialCounter,
         ],
@@ -151,6 +157,9 @@ export const SlideGallery = Node.create({
             {
               class: "uf-slide-gallery__slide",
               "data-index": String(idx),
+              role: "group",
+              "aria-roledescription": "slide",
+              "aria-label": `${idx + 1} of ${totalSlides}`,
             },
             [
               "img",
@@ -192,6 +201,7 @@ export const SlideGallery = Node.create({
             class: "uf-slide-gallery__dot",
             "data-index": String(idx),
             "data-active": idx === 0 ? "true" : "false",
+            "aria-current": idx === 0 ? "true" : "false",
             "data-lightbox-ignore": "true",
             "aria-label": `Go to slide ${idx + 1}`,
           },

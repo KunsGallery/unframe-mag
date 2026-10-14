@@ -13,6 +13,8 @@ import {
 import { db } from "../firebase/config";
 import UserRewardsPanel from "../components/admin/UserRewardsPanel";
 import { isAdminEmail } from "../constants/admin";
+import { Save } from "lucide-react";
+import { normalizeNetworkConfig, normalizeSiteUrl, SITE_LINK_FIELDS } from "../lib/siteLinks";
 
 export default function AdminPage({ user, isDarkMode, onToast }) {
   const toast = useCallback((m) => (onToast ? onToast(m) : console.log(m)), [onToast]);
@@ -25,6 +27,39 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
   const [editorPicks, setEditorPicks] = useState([]);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [networkDraft, setNetworkDraft] = useState(() => normalizeNetworkConfig(null));
+  const [networkLoading, setNetworkLoading] = useState(true);
+  const [networkLoadError, setNetworkLoadError] = useState(false);
+  const [networkSaving, setNetworkSaving] = useState(false);
+  const [linkErrors, setLinkErrors] = useState({});
+
+  const loadNetwork = useCallback(async () => {
+    setNetworkLoading(true);
+    setNetworkLoadError(false);
+    try {
+      const snap = await getDoc(doc(db, "config", "network"));
+      const data = snap.exists() ? snap.data() : {};
+      // Keep invalid existing input visible so an administrator can repair it.
+      const draft = normalizeNetworkConfig(data);
+      for (const field of SITE_LINK_FIELDS) {
+        const value = field.network ? data.links?.[field.key] : data[field.key];
+        const input = value == null ? "" : String(value);
+        if (field.network) draft.links[field.key] = input;
+        else draft[field.key] = input;
+      }
+      setNetworkDraft(draft);
+    } catch (e) {
+      console.error(e);
+      setNetworkLoadError(true);
+      toast("네트워크 설정을 불러오지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setNetworkLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (isAdmin) loadNetwork();
+  }, [isAdmin, loadNetwork]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -40,9 +75,42 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
         }
       } catch (e) {
         console.error(e);
+        toast("홈 설정을 불러오지 못했어요. 다시 시도해 주세요.");
       }
     })();
-  }, [isAdmin]);
+  }, [isAdmin, toast]);
+
+  const saveNetwork = async (event) => {
+    event.preventDefault();
+    if (!isAdmin || networkLoading || networkLoadError || networkSaving) return;
+    const errors = {};
+    const values = { links: {} };
+    for (const field of SITE_LINK_FIELDS) {
+      try {
+        const normalized = normalizeSiteUrl(field.network ? networkDraft.links[field.key] : networkDraft[field.key]);
+        if (field.network) values.links[field.key] = normalized;
+        else values[field.key] = normalized;
+      } catch {
+        errors[field.key] = "공백이나 로그인 정보가 없는 올바른 HTTPS URL을 입력해 주세요.";
+      }
+    }
+    setLinkErrors(errors);
+    if (Object.keys(errors).length) {
+      toast("링크를 저장하지 못했어요. 표시된 URL을 확인해 주세요.");
+      return;
+    }
+    setNetworkSaving(true);
+    try {
+      await setDoc(doc(db, "config", "network"), { ...values, updatedAt: new Date(), updatedBy: user?.email || user?.uid || null }, { merge: true });
+      setNetworkDraft((prev) => ({ ...prev, ...values }));
+      toast("네트워크 링크 저장 완료!");
+    } catch (e) {
+      console.error(e);
+      toast("네트워크 링크를 저장하지 못했어요. 권한과 연결을 확인해 주세요.");
+    } finally {
+      setNetworkSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -174,6 +242,47 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
             {saving ? "SAVING…" : "SAVE"}
           </button>
         </div>
+
+        <section className="mt-12 border-t border-[var(--uf-border)] pt-8">
+          <h2 className="text-2xl font-black italic uppercase">Network & Site Links</h2>
+          {networkLoadError ? (
+            <div className="mt-4" role="alert">
+              <p>네트워크 설정을 불러오지 못했어요.</p>
+              <button type="button" onClick={loadNetwork} className="mt-3 underline underline-offset-4">다시 시도</button>
+            </div>
+          ) : (
+            <form onSubmit={saveNetwork} noValidate className="mt-6">
+              <fieldset disabled={networkLoading || networkSaving} className="grid gap-5 md:grid-cols-2 min-w-0">
+                {SITE_LINK_FIELDS.map((field) => (
+                  <div key={field.key} className="min-w-0">
+                    <label htmlFor={`site-link-${field.key}`} className="block text-sm font-bold mb-2">{field.label}</label>
+                    <input
+                      id={`site-link-${field.key}`}
+                      type="url"
+                      inputMode="url"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={field.network ? networkDraft.links[field.key] : networkDraft[field.key]}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setNetworkDraft((prev) => field.network ? { ...prev, links: { ...prev.links, [field.key]: value } } : { ...prev, [field.key]: value });
+                        setLinkErrors((prev) => ({ ...prev, [field.key]: "" }));
+                      }}
+                      aria-invalid={!!linkErrors[field.key]}
+                      aria-describedby={linkErrors[field.key] ? `site-error-${field.key}` : undefined}
+                      className="w-full min-w-0 rounded-lg border border-[var(--uf-border)] bg-[var(--uf-bg)] px-3 py-3 text-base focus-visible:outline-2 focus-visible:outline-[#004aad] disabled:opacity-50"
+                    />
+                    {linkErrors[field.key] && <p id={`site-error-${field.key}`} className="mt-2 text-sm" role="alert">{linkErrors[field.key]}</p>}
+                  </div>
+                ))}
+              </fieldset>
+              <button type="submit" disabled={networkLoading || networkSaving} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#004aad] text-white px-5 py-3 font-bold disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4">
+                <Save size={18} aria-hidden="true" />
+                {networkLoading ? "Loading…" : networkSaving ? "Saving…" : "Save Links"}
+              </button>
+            </form>
+          )}
+        </section>
 
         <UserRewardsPanel
           isAdmin={isAdmin}

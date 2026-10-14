@@ -1,5 +1,6 @@
 import React from "react";
 import { MobileDebugOverlay } from "./MobileDebugOverlay";
+import { getRuntimeDiagnostics, reportClientError } from "../../lib/runtimeDiagnostics";
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -7,6 +8,7 @@ export default class ErrorBoundary extends React.Component {
     this.state = {
       error: null,
       errorInfo: null,
+      copied: false,
     };
   }
 
@@ -17,7 +19,7 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error("[ErrorBoundary]", error, errorInfo);
-
+    reportClientError(error, { source: "render" });
   }
 
   componentDidUpdate(prevProps) {
@@ -32,6 +34,15 @@ export default class ErrorBoundary extends React.Component {
 
   handleReload = () => {
     window.location.reload();
+  };
+
+  handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(getRuntimeDiagnostics(), null, 2));
+      this.setState({ copied: true });
+    } catch {
+      this.setState({ copied: false });
+    }
   };
 
   render() {
@@ -56,6 +67,9 @@ export default class ErrorBoundary extends React.Component {
                 className="mt-5 w-full rounded-xl bg-white px-4 py-3 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-950"
               >
                 Reload
+              </button>
+              <button type="button" className="mt-3 min-h-11 w-full text-sm underline" onClick={this.handleCopy}>
+                {this.state.copied ? "오류 정보를 복사했어요" : "오류 정보 복사"}
               </button>
             </div>
           </div>

@@ -21,12 +21,13 @@ function coverUrlOf(article, options = {}) {
 }
 
 // ✅ XP Top10 (3.3.2)
-function useTopUsersXP({ top = 10 } = {}) {
+function useTopUsersXP({ top = 10, enabled = true } = {}) {
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [err, setErr] = useState("");
 
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     (async () => {
       setLoading(true);
@@ -49,25 +50,25 @@ function useTopUsersXP({ top = 10 } = {}) {
     return () => {
       alive = false;
     };
-  }, [top]);
+  }, [top, enabled]);
 
-  return { users, loading, err };
+  return { users: enabled ? users : [], loading: enabled && loading, err: enabled ? err : "" };
 }
 
 // ✅ 3.1.2 세션 랜덤(탭이 살아있는 동안 고정) 위젯 선택
 function pickSessionWidgets(count = 3) {
   const key = "uf_rank_widgets_v1";
+  const pool = ["xpTop", "weeklyLikes", "monthlyLikes", "weeklyViews", "monthlyViews"];
   try {
     const cached = sessionStorage.getItem(key);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length === count) return parsed;
+      if (Array.isArray(parsed) && parsed.length === count && new Set(parsed).size === count && parsed.every((key) => pool.includes(key))) return parsed;
     }
   } catch {
     // sessionStorage can be unavailable in restricted browser contexts.
   }
 
-  const pool = ["xpTop", "weeklyLikes", "monthlyLikes", "weeklyViews", "monthlyViews"];
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   const picked = shuffled.slice(0, count);
 
@@ -79,7 +80,7 @@ function pickSessionWidgets(count = 3) {
   return picked;
 }
 
-export default function HomePage({ isDarkMode }) {
+export default function HomePage({ isDarkMode, onToast }) {
   // archive 전환
   const [activeCat, setActiveCat] = useState("All");
   const [displayCat, setDisplayCat] = useState("All");
@@ -91,16 +92,14 @@ export default function HomePage({ isDarkMode }) {
   const [loadErr, setLoadErr] = useState("");
 
   // ✅ 주/월 top 위젯용(3.3.3)
-  const weeklyLikes = usePopularRollup({ mode: "weekly", sortBy: "likes", top: 5 });
-  const monthlyLikes = usePopularRollup({ mode: "monthly", sortBy: "likes", top: 5 });
-  const weeklyViews = usePopularRollup({ mode: "weekly", sortBy: "views", top: 5 });
-  const monthlyViews = usePopularRollup({ mode: "monthly", sortBy: "views", top: 5 });
+  const [rankWidgets] = useState(() => pickSessionWidgets(3));
+  const weeklyLikes = usePopularRollup({ mode: "weekly", sortBy: "likes", top: 5, enabled: rankWidgets.includes("weeklyLikes") });
+  const monthlyLikes = usePopularRollup({ mode: "monthly", sortBy: "likes", top: 5, enabled: rankWidgets.includes("monthlyLikes") });
+  const weeklyViews = usePopularRollup({ mode: "weekly", sortBy: "views", top: 5, enabled: rankWidgets.includes("weeklyViews") });
+  const monthlyViews = usePopularRollup({ mode: "monthly", sortBy: "views", top: 5, enabled: rankWidgets.includes("monthlyViews") });
 
   // ✅ 유저 XP Top10 (3.3.2)
-  const xpTop = useTopUsersXP({ top: 10 });
-
-  // ✅ 세션 랜덤 위젯 3개(3.1.2 + 3.2.2)
-  const [rankWidgets] = useState(() => pickSessionWidgets(3));
+  const xpTop = useTopUsersXP({ top: 10, enabled: rankWidgets.includes("xpTop") });
 
   // ✅ home config (hero/editorPicks)
   const { config } = useHomeConfig();
@@ -111,8 +110,19 @@ export default function HomePage({ isDarkMode }) {
   );
 
   // ✅ network config (links + picks)
-  const { config: networkConfig } = useNetworkConfig();
+  const { config: networkConfig, error: networkError } = useNetworkConfig();
+  const rankingError = weeklyLikes.error || monthlyLikes.error || weeklyViews.error || monthlyViews.error || xpTop.err;
+  useEffect(() => {
+    if (loadErr) onToast?.(loadErr);
+  }, [loadErr, onToast]);
+  useEffect(() => {
+    if (networkError) onToast?.("네트워크 설정을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }, [networkError, onToast]);
+  useEffect(() => {
+    if (rankingError) onToast?.("랭킹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }, [rankingError, onToast]);
   const links = networkConfig?.links || {};
+  const hasNetworkLinks = Object.values(links).some(Boolean);
   const featuredEditionNos = useMemo(
     () =>
       Array.isArray(networkConfig?.featuredEditionNos)
@@ -434,6 +444,7 @@ export default function HomePage({ isDarkMode }) {
       </section>
 
       {/* ✅ UNFRAME NETWORK (Popular 섹션 대신) */}
+      {(hasNetworkLinks || networkArticles.length > 0) && (
       <section className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} py-24 mag-grid`}>
         <div className="max-w-7xl mx-auto">
           <div className="flex items-end justify-between gap-6">
@@ -448,7 +459,8 @@ export default function HomePage({ isDarkMode }) {
 
           <div className="mt-12 grid lg:grid-cols-12 gap-6">
             {/* Left: Network cards */}
-            <div className="lg:col-span-7 grid md:grid-cols-2 gap-6">
+            {hasNetworkLinks && (
+            <div className={`${networkArticles.length > 0 ? "lg:col-span-7" : "lg:col-span-12"} grid md:grid-cols-2 gap-6`}>
               <NetworkCard
                 isDarkMode={isDarkMode}
                 title="Unframe Playlist"
@@ -478,9 +490,11 @@ export default function HomePage({ isDarkMode }) {
                 href={links.music || ""}
               />
             </div>
+            )}
 
             {/* Right: Related articles */}
-            <div className="lg:col-span-5">
+            {networkArticles.length > 0 && (
+            <div className={hasNetworkLinks ? "lg:col-span-5" : "lg:col-span-12"}>
               <div className={`rounded-3xl border p-6 ${isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"}`}>
                 <div className="flex items-end justify-between">
                   <div>
@@ -490,9 +504,6 @@ export default function HomePage({ isDarkMode }) {
                     <div className="mt-3 text-2xl font-black italic tracking-tighter uppercase">
                       Network Picks
                     </div>
-                    <div className="mt-2 text-xs opacity-60">
-                      (Admin → Network에서 추천 글을 지정할 수 있어요)
-                    </div>
                   </div>
                   <div className="text-[10px] tracking-[0.5em] uppercase italic opacity-60">
                     {networkArticles.length} items
@@ -500,12 +511,7 @@ export default function HomePage({ isDarkMode }) {
                 </div>
 
                 <div className="mt-6 space-y-3">
-                  {networkArticles.length === 0 ? (
-                    <div className="text-sm text-zinc-500">
-                      아직 Network 추천 글이 없어요.
-                    </div>
-                  ) : (
-                    networkArticles.map((a) => (
+                  {networkArticles.map((a) => (
                       <Link
                         key={a.docId || a.editionNo}
                         to={`/article/${a.editionNo}`}
@@ -522,16 +528,17 @@ export default function HomePage({ isDarkMode }) {
                         </div>
                         <div className="mt-2 text-xs opacity-60">{a.author || "—"}</div>
                       </Link>
-                    ))
-                  )}
+                  ))}
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
       </section>
+      )}
 
-      <SubscribeBand variant="bold" />
+      <SubscribeBand href={networkConfig.newsletterUrl} variant="bold" />
 
       {/* Editor's Letter */}
       <section className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} mag-section mag-grid`}>
@@ -615,7 +622,6 @@ export default function HomePage({ isDarkMode }) {
         </div>
       </section>
 
-      <SubscribeBand variant="minimal" />
     </div>
   );
 }
@@ -676,17 +682,16 @@ function RankingWidget({ data, isDarkMode }) {
 }
 
 function NetworkCard({ title, kicker, desc, href, isDarkMode }) {
-  const disabled = !href;
+  if (!href) return null;
   return (
     <a
-      href={href || "#"}
-      target={disabled ? undefined : "_blank"}
-      rel={disabled ? undefined : "noreferrer"}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
       className={[
         "rounded-[2.2rem] border p-8 transition shadow-lg",
         "hover:translate-y-[-4px]",
         isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-100 bg-white",
-        disabled ? "opacity-60 pointer-events-none" : "",
       ].join(" ")}
     >
       <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">/ {kicker}</div>
@@ -811,7 +816,8 @@ function ArchiveCard({ item, isDarkMode }) {
   );
 }
 
-function SubscribeBand({ variant = "bold" }) {
+function SubscribeBand({ href, variant = "bold" }) {
+  if (!href) return null;
   const isBold = variant === "bold";
   return (
     <section className={isBold ? "bg-[#fdfd75] text-black" : "bg-black text-white"}>
@@ -828,26 +834,18 @@ function SubscribeBand({ variant = "bold" }) {
               </p>
             </div>
 
-            <div className={`w-full lg:max-w-xl ${isBold ? "border-b-4 border-black" : "border-b border-white/30"} pb-5 flex flex-col sm:flex-row gap-4`}>
-              <input
-                type="email"
-                placeholder="Your favorite email address"
-                className={`flex-1 bg-transparent py-4 px-2 focus:outline-none placeholder:opacity-60 ${
-                  isBold ? "text-black placeholder:text-zinc-700" : "text-white placeholder:text-white/60"
-                } text-xl font-bold italic`}
-              />
-              <button
-                className={`${isBold ? "bg-black text-white hover:bg-zinc-800" : "bg-white text-black hover:opacity-90"} px-10 py-5 font-black text-xs tracking-[0.4em] uppercase italic transition`}
-                type="button"
+            <div className="flex shrink-0">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${isBold ? "bg-black text-white hover:bg-zinc-800" : "bg-white text-black hover:opacity-90"} inline-flex items-center justify-center gap-3 px-8 py-5 font-black text-sm uppercase italic transition focus-visible:outline-2 focus-visible:outline-offset-4`}
               >
-                Join
-              </button>
+                Subscribe <ArrowUpRight size={18} />
+              </a>
             </div>
           </div>
 
-          <div className={`mt-8 text-[10px] tracking-[0.5em] uppercase italic ${isBold ? "opacity-60" : "opacity-50"}`}>
-            No spam. Only letters. Unsubscribe anytime.
-          </div>
         </div>
       </div>
     </section>
