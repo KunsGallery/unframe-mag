@@ -38,10 +38,14 @@ export default function InstallPrompt() {
     return isInStandaloneMode();
   }, []);
 
-  if (installed || dismissed) return null;
+  if (installed || dismissed || (!isIOS() && !deferredPrompt)) return null;
 
   const dismiss = () => {
-    localStorage.setItem("uf_pwa_prompt_dismissed", "1");
+    try {
+      localStorage.setItem("uf_pwa_prompt_dismissed", "1");
+    } catch {
+      // Dismissal still works when browser storage is restricted.
+    }
     setDismissed(true);
     setShowIOSGuide(false);
   };

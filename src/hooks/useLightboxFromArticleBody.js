@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export function useLightboxFromArticleBody(bodyRef) {
+export function useLightboxFromArticleBody(bodyRef, articleId) {
   const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function useLightboxFromArticleBody(bodyRef) {
 
     root.addEventListener("click", onClickCapture, true);
     return () => root.removeEventListener("click", onClickCapture, true);
-  }, [bodyRef]);
+  }, [bodyRef, articleId]);
 
   return { lightbox, setLightbox };
 }

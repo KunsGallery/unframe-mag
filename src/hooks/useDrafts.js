@@ -1,5 +1,5 @@
 // src/hooks/useDrafts.js
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   collection,
   query,
@@ -35,8 +35,23 @@ export function useDrafts({
   const [isDraftLoading, setIsDraftLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [isDirty, setIsDirty] = useState(false);
+  const [isDirty, setDirtyState] = useState(false);
+  const dirtyRef = useRef(false);
+  const revisionRef = useRef(0);
+  const loadTokenRef = useRef(0);
+  const savingRef = useRef(false);
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState(null);
+
+  const setIsDirty = useCallback((value) => {
+    const next = typeof value === "function" ? value(dirtyRef.current) : value;
+    if (next) revisionRef.current += 1;
+    dirtyRef.current = next;
+    setDirtyState(next);
+  }, []);
+
+  useEffect(() => () => {
+    loadTokenRef.current += 1;
+  }, [editor]);
 
   const waitForEditorReady = useCallback(async () => {
     if (!editor) return false;
@@ -106,55 +121,60 @@ export function useDrafts({
 
   const loadDraft = useCallback(
     async (docId, setters) => {
-      if (!editor) return;
+      const loadToken = ++loadTokenRef.current;
+      if (!editor || editor.isDestroyed) return false;
 
       setIsDraftLoading(true);
       try {
         const ref = doc(db, "articles", docId);
         const s = await getDoc(ref);
+        if (loadToken !== loadTokenRef.current) return false;
 
         if (!s.exists()) {
           toast("초안을 찾을 수 없습니다.");
-          return;
+          return false;
         }
 
         const data = s.data() || {};
 
         if (!isAdmin && String(data.authorEmail || "") !== String(authorEmail || "")) {
           toast("이 초안에 접근할 권한이 없어요.");
-          return;
+          return false;
         }
 
-        setDraftId(docId);
+        const ready = await waitForEditorReady();
+        if (!ready || editor.isDestroyed || loadToken !== loadTokenRef.current) {
+          return false;
+        }
 
+        editor.commands.setContent(data.contentHTML || "");
+        revisionRef.current += 1;
+        setDraftId(docId);
         setters.setTitle(data.title || "");
         setters.setSubtitle(data.subtitle || "");
         setters.setCategory(data.category || DEFAULT_ARTICLE_CATEGORY);
         setters.setCover(data.cover || "");
         setters.setCoverMedium(data.coverMedium || "");
-
-        const ready = await waitForEditorReady();
-        if (!ready || editor.isDestroyed) {
-          return false;
-        }
-
-        editor.commands.setContent(data.contentHTML || "");
         setIsDirty(false);
         setLastAutoSavedAt(null);
         return true;
       } catch (e) {
+        if (loadToken !== loadTokenRef.current) return false;
         console.error("Load draft error:", e);
         toast("초안 로딩 중 오류가 발생했습니다.");
         return false;
       } finally {
-        setIsDraftLoading(false);
+        if (loadToken === loadTokenRef.current) setIsDraftLoading(false);
       }
     },
-    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady]
+    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady, setIsDirty]
   );
 
   const startNewDraft = useCallback(
     (setters) => {
+      loadTokenRef.current += 1;
+      revisionRef.current += 1;
+      setIsDraftLoading(false);
       setDraftId(null);
       setters.setTitle("");
       setters.setSubtitle("");
@@ -166,13 +186,15 @@ export function useDrafts({
       setLastAutoSavedAt(null);
       toast("새 초안을 시작합니다.");
     },
-    [editor, toast]
+    [editor, toast, setIsDirty]
   );
 
   const saveDraft = useCallback(
     async ({ silent = false, markClean = false } = {}, meta) => {
-      if (!editor || !canWrite) return;
+      if (!editor || editor.isDestroyed || !canWrite || savingRef.current) return false;
 
+      savingRef.current = true;
+      const savedRevision = revisionRef.current;
       setIsSaving(true);
       try {
         const contentHTML = editor.getHTML();
@@ -182,7 +204,7 @@ export function useDrafts({
 
         if (!safeAuthorEmail) {
           toast("로그인 이메일이 없어 저장할 수 없어요.");
-          return;
+          return false;
         }
 
         if (!draftId) {
@@ -206,8 +228,8 @@ export function useDrafts({
           setDraftId(docRef.id);
           if (!silent) toast("임시 저장 완료");
           await refreshDrafts();
-          if (markClean) setIsDirty(false);
-          return;
+          if (markClean && revisionRef.current === savedRevision) setIsDirty(false);
+          return true;
         }
 
         const ref = doc(db, "articles", draftId);
@@ -246,8 +268,8 @@ export function useDrafts({
 
           if (!silent) toast("수정용 초안이 생성되었습니다.");
           await refreshDrafts();
-          if (markClean) setIsDirty(false);
-          return;
+          if (markClean && revisionRef.current === savedRevision) setIsDirty(false);
+          return true;
         }
 
         await updateDoc(ref, {
@@ -265,15 +287,18 @@ export function useDrafts({
 
         if (!silent) toast("임시 저장 완료");
         await refreshDrafts();
-        if (markClean) setIsDirty(false);
+        if (markClean && revisionRef.current === savedRevision) setIsDirty(false);
+        return true;
       } catch (e) {
         console.error("Save draft error:", e);
         if (!silent) toast("저장 중 오류가 발생했습니다.");
+        return false;
       } finally {
+        savingRef.current = false;
         setIsSaving(false);
       }
     },
-    [db, editor, draftId, refreshDrafts, toast, canWrite, authorEmail, authorName]
+    [db, editor, draftId, refreshDrafts, toast, canWrite, authorEmail, authorName, setIsDirty]
   );
 
   const getNextEditionInfo = useCallback(async () => {
@@ -298,13 +323,15 @@ export function useDrafts({
 
   const publish = useCallback(
     async (meta) => {
-      if (!editor || !canWrite) return;
+      if (!editor || editor.isDestroyed || !canWrite || savingRef.current) return;
 
       if (!meta.title?.trim()) {
         toast("제목을 입력해야 합니다.");
         return;
       }
 
+      savingRef.current = true;
+      const savedRevision = revisionRef.current;
       setIsSaving(true);
       try {
         const contentHTML = editor.getHTML();
@@ -411,13 +438,18 @@ export function useDrafts({
 
         toast("아티클이 발행되었습니다!");
         await refreshDrafts();
-        setIsDirty(false);
         setLastAutoSavedAt(null);
-        navigate("/");
+        if (revisionRef.current === savedRevision) {
+          setIsDirty(false);
+          navigate("/");
+        } else {
+          toast("발행 후 추가한 변경사항은 아직 저장되지 않았어요.");
+        }
       } catch (e) {
         console.error("Publish error:", e);
         toast("발행 중 오류가 발생했습니다.");
       } finally {
+        savingRef.current = false;
         setIsSaving(false);
       }
     },
@@ -432,6 +464,7 @@ export function useDrafts({
       canWrite,
       authorEmail,
       authorName,
+      setIsDirty,
     ]
   );
 
@@ -446,14 +479,15 @@ export function useDrafts({
         meta.subtitle.trim() ||
         meta.cover.trim() ||
         meta.coverMedium.trim() ||
-        editor.getText().trim();
+        editor.getText().trim() ||
+        editor.isEmpty === false;
 
       if (!hasAnything) return;
 
       const t = setTimeout(async () => {
         if (isSaving || isDraftLoading) return;
-        await saveDraft({ silent: true, markClean: true }, meta);
-        setLastAutoSavedAt(Date.now());
+        const success = await saveDraft({ silent: true, markClean: true }, meta);
+        if (success) setLastAutoSavedAt(Date.now());
       }, AUTOSAVE_DELAY_MS);
 
       return () => clearTimeout(t);

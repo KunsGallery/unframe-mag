@@ -115,6 +115,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     ? previewBodyText.slice(0, 220) + (previewBodyText.length > 220 ? "..." : "")
     : "본문 미리보기가 여기에 표시됩니다.";
   const handleStartNewDraft = () => {
+    if (draftsApi.isSaving || draftsApi.isDraftLoading) return;
+    if (draftsApi.isDirty && !window.confirm("저장하지 않은 변경사항이 있어요. 변경사항을 버리고 새 초안을 시작할까요?")) return;
     loadedDraftRef.current = null;
     draftsApi.startNewDraft({
       setTitle,
@@ -154,6 +156,16 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     runAutosave,
     setIsDirty: setDraftDirty,
   } = draftsApi;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warnBeforeLeaving = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [isDirty]);
 
   const saveStatusText = useMemo(() => {
     if (!lastAutoSavedAt) return isDirty ? "Unsaved changes" : "Not saved yet";
@@ -387,6 +399,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                   <button
                     key={d.id}
                     onClick={async () => {
+                      if (draftsApi.isSaving || draftsApi.isDraftLoading) return;
+                      if (draftsApi.isDirty && !window.confirm("저장하지 않은 변경사항이 있어요. 변경사항을 버리고 다른 초안을 열까요?")) return;
                       loadedDraftRef.current = null;
                       const success = await draftsApi.loadDraft(d.id, {
                         setTitle,

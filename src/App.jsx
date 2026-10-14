@@ -163,6 +163,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
         {user ? (
           <button
             onClick={onLogout}
+            aria-label="로그아웃"
             className="flex items-center gap-2 p-2 rounded-xl text-zinc-400 hover:text-red-500 transition-all"
             type="button"
           >
@@ -226,7 +227,10 @@ const GlobalFooter = () => (
 // ----------------------------------------------------------------------------
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    // Some browsers return a Promise from scrollTo; effects must not return it.
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 
@@ -282,6 +286,7 @@ export default function App() {
 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [loginError, setLoginError] = useState("");
 
   const [role, setRole] = useState("user");
   const [roleLoading, setRoleLoading] = useState(false);
@@ -303,6 +308,7 @@ export default function App() {
   useEffect(() => {
     getRedirectResult(auth).catch((e) => {
       console.error("[App] google redirect login error:", e);
+      setLoginError("구글 로그인에 실패했어요. 일반 브라우저에서 다시 시도해 주세요.");
     });
   }, []);
 
@@ -383,6 +389,7 @@ export default function App() {
   const effectiveRole = isAdmin ? "admin" : role;
 
   const handleLogin = async () => {
+    setLoginError("");
     try {
       googleProvider.setCustomParameters({ prompt: "select_account" });
       if (shouldPreferRedirectLogin()) {
@@ -393,10 +400,9 @@ export default function App() {
     } catch (e) {
       console.error("[App] google popup login error:", e);
       const code = String(e?.code || "");
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return;
       const shouldUseRedirect =
         code === "auth/popup-blocked" ||
-        code === "auth/popup-closed-by-user" ||
-        code === "auth/cancelled-popup-request" ||
         code === "auth/web-storage-unsupported" ||
         code === "auth/operation-not-supported-in-this-environment";
 
@@ -405,7 +411,10 @@ export default function App() {
           await signInWithRedirect(auth, googleProvider);
         } catch (redirectError) {
           console.error("[App] google redirect login error:", redirectError);
+          setLoginError("구글 로그인에 실패했어요. 일반 브라우저에서 다시 시도해 주세요.");
         }
+      } else {
+        setLoginError("구글 로그인에 실패했어요. 일반 브라우저에서 다시 시도해 주세요.");
       }
     }
   };
@@ -449,6 +458,12 @@ export default function App() {
 
           <InstallPrompt />
 
+          {loginError && (
+            <div role="alert" className="relative px-6 py-3 text-sm text-red-700 bg-red-50 dark:text-red-200 dark:bg-red-950">
+              {loginError}
+            </div>
+          )}
+
           <main className="relative">
             <Routes>
               <Route
@@ -477,7 +492,7 @@ export default function App() {
               />
               <Route
                 path="/article/:id"
-                element={<ViewPage isDarkMode={isDarkMode} user={user} />}
+                element={<ViewPage isDarkMode={isDarkMode} user={user} onLogin={handleLogin} />}
               />
 
               <Route

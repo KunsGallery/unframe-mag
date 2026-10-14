@@ -6,8 +6,9 @@ export function useArticleByEditionNo({ db, editionNo, editor }) {
   const [article, setArticle] = useState(null);
 
   useEffect(() => {
+    let active = true;
     const run = async () => {
-      if (!editor) return;
+      if (!editor || editor.isDestroyed) return;
 
       setLoading(true);
       setArticle(null);
@@ -21,6 +22,7 @@ export function useArticleByEditionNo({ db, editionNo, editor }) {
         );
 
         const snap = await getDocs(q);
+        if (!active || editor.isDestroyed) return;
         if (snap.empty) {
           setArticle(null);
           editor.commands.setContent("");
@@ -38,13 +40,16 @@ export function useArticleByEditionNo({ db, editionNo, editor }) {
         editor.commands.setContent(data?.contentHTML || "");
       } catch (e) {
         console.error("Fetch Error:", e);
-        setArticle(null);
+        if (active) setArticle(null);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     run();
+    return () => {
+      active = false;
+    };
   }, [db, editionNo, editor]);
 
   return { loading, article };

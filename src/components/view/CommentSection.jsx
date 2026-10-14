@@ -42,7 +42,7 @@ function lsKey(uid, editionNo, suffix) {
   return `uf_comment_${suffix}_${uid}_${editionNo}`;
 }
 
-export default function CommentSection({ article }) {
+export default function CommentSection({ article, onLogin }) {
   const editionNo = article?.editionNo ? String(article.editionNo) : null;
 
   const auth = useMemo(() => getAuth(), []);
@@ -124,6 +124,7 @@ export default function CommentSection({ article }) {
   }, [user, editionNo]);
 
   const login = async () => {
+    if (onLogin) return onLogin();
     setError("");
     try {
       const provider = new GoogleAuthProvider();

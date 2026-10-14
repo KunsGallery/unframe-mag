@@ -540,6 +540,14 @@ export default function InspectorPanel({ editor, isDarkMode, onToast }) {
                     ];
                   } else if (nextCols < current.length) {
                     nextContent = current.slice(0, nextCols);
+                    const last = nextContent[nextCols - 1];
+                    nextContent[nextCols - 1] = {
+                      ...last,
+                      content: [
+                        ...(last.content || []),
+                        ...current.slice(nextCols).flatMap((column) => column.content || []),
+                      ],
+                    };
                   }
 
                   editor

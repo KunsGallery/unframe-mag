@@ -105,7 +105,7 @@ function readLikedFromStorage(likeKey) {
   }
 }
 
-export default function ViewPage({ isDarkMode, onToast }) {
+export default function ViewPage({ isDarkMode, onToast, onLogin }) {
   const { id } = useParams();
   const nav = useNavigate();
 
@@ -878,7 +878,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
   const [articleAuthorProfile, setArticleAuthorProfile] = useState(null);
 
   const { progress, scrollToProgress } = useScrollProgress();
-  const { lightbox, setLightbox } = useLightboxFromArticleBody(bodyRef);
+  const { lightbox, setLightbox } = useLightboxFromArticleBody(bodyRef, article?.id);
 
   useRevealOnce(bodyRef, [article]);
   useParallaxRuntime([article]);
@@ -969,7 +969,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
       let nearestDistance = Number.POSITIVE_INFINITY;
 
       slides.forEach((slide, index) => {
-        const distance = Math.abs(slide.offsetLeft - currentLeft);
+        const distance = Math.abs(slide.offsetLeft - slides[0].offsetLeft - currentLeft);
         if (distance < nearestDistance) {
           nearestDistance = distance;
           nearestIndex = index;
@@ -988,7 +988,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
       if (!nextSlide) return;
 
       track.scrollTo({
-        left: nextSlide.offsetLeft,
+        left: nextSlide.offsetLeft - slides[0].offsetLeft,
         behavior,
       });
     };
@@ -1095,10 +1095,16 @@ export default function ViewPage({ isDarkMode, onToast }) {
     const editionNo = String(article.editionNo);
     const viewKey = `uf_viewed_${editionNo}`;
 
-    if (sessionStorage.getItem(viewKey)) return;
-    sessionStorage.setItem(viewKey, "1");
+    try {
+      if (sessionStorage.getItem(viewKey)) return;
+      sessionStorage.setItem(viewKey, "1");
+    } catch {
+      // Reading an article must remain possible without browser storage.
+    }
 
-    trackEventOnce("view", `view_${editionNo}`, { editionNo });
+    trackEventOnce("view", `view_${editionNo}`, { editionNo }).catch((error) => {
+      console.warn("[ViewPage] view tracking failed:", error);
+    });
 
     const docId = article?.docId || article?.firestoreId || article?.id;
     if (!docId) return;
@@ -1222,10 +1228,16 @@ export default function ViewPage({ isDarkMode, onToast }) {
     const already = readLikedFromStorage(likeKey);
 
     if (!already) {
-      localStorage.setItem(likeKey, "1");
+      try {
+        localStorage.setItem(likeKey, "1");
+      } catch {
+        // Keep interaction available even when persistent storage is blocked.
+      }
       setLikedState({ key: likeKey, value: true });
 
-      trackEvent("like", { editionNo });
+      trackEvent("like", { editionNo }).catch((error) => {
+        console.warn("[ViewPage] like tracking failed:", error);
+      });
 
       const docId = article?.docId || article?.firestoreId || article?.id;
       if (docId) {
@@ -1355,7 +1367,7 @@ export default function ViewPage({ isDarkMode, onToast }) {
           isDarkMode={isDarkMode}
         />
 
-        <CommentSection article={article} />
+        <CommentSection article={article} onLogin={onLogin} />
 
         <PrevNextCards currentArticle={article} />
 
