@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { getOptimizedImageUrl, getImageSrcSet } from "../../lib/imageUrl";
@@ -6,7 +6,7 @@ import ImageDeliveryLayer from "./ImageDeliveryLayer";
 
 export default function ImageLightbox({ image, onClose }) {
   const dialogRef = useRef(null);
-  const imageRef = useRef(null);
+  const [imageRoot, setImageRoot] = useState(null);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
   const open = !!image?.src;
@@ -96,7 +96,7 @@ export default function ImageLightbox({ image, onClose }) {
       </button>
 
       <figure
-        ref={imageRef}
+        ref={setImageRoot}
         className="relative max-w-[min(96vw,1600px)] max-h-[92vh] flex flex-col items-center"
         onClick={(event) => event.stopPropagation()}
       >
@@ -109,7 +109,7 @@ export default function ImageLightbox({ image, onClose }) {
           className="max-w-[min(96vw,1600px)] max-h-[86vh] object-contain rounded-md shadow-2xl"
           decoding="async"
         />
-        <ImageDeliveryLayer rootRef={imageRef} revision={image.src} />
+        <ImageDeliveryLayer root={imageRoot} revision={image.src} />
         {caption ? (
           <figcaption className="mt-4 max-w-[min(92vw,900px)] text-center text-xs sm:text-sm leading-6 text-white/70">
             {caption}

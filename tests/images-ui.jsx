@@ -23,4 +23,4 @@ export function Fixture() {
   return <main style={{ maxWidth: 900, margin: 'auto', padding: 24 }}><ArticleBody ref={ref} editor={editor} article={{ title: '검수' }} /></main>;
 }
 if (!import.meta.env.DEV) throw new Error('Development fixture only');
-createRoot(document.getElementById('root')).render(<Fixture />);
+createRoot(document.getElementById('root')).render(<React.StrictMode><Fixture /></React.StrictMode>);

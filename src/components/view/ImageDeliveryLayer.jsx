@@ -3,10 +3,9 @@ import { ImageOff, RotateCw } from 'lucide-react';
 import health from '../../data/imageHealth.json';
 import { reportClientError } from '../../lib/runtimeDiagnostics';
 
-export default function ImageDeliveryLayer({ rootRef, revision }) {
+export default function ImageDeliveryLayer({ root, revision }) {
   const [failures, setFailures] = useState([]);
   useEffect(() => {
-    const root = rootRef.current;
     if (!root) return;
     const view = root.ownerDocument.defaultView;
     const records = new Map();
@@ -26,7 +25,7 @@ export default function ImageDeliveryLayer({ rootRef, revision }) {
         if (!root.contains(image)) { view.clearTimeout(record.timer); visibility.unobserve(image); records.delete(image); continue; }
         if (!record.failed) continue;
         const slide = image.closest('.uf-slide-gallery__slide');
-        const target = image.closest('.uf-parallax__wrapper,.uf-sticky-story__visual') || image;
+        const target = image.closest('.uf-gallery__item,.uf-parallax__wrapper,.uf-sticky-story__visual') || image;
         const imageRect = target.getBoundingClientRect();
         const slideRect = slide?.getBoundingClientRect();
         const rect = slideRect ? { ...imageRect.toJSON(), left: slideRect.left, right: slideRect.right, width: slideRect.width } : imageRect;
@@ -117,8 +116,8 @@ export default function ImageDeliveryLayer({ rootRef, revision }) {
       view.removeEventListener('scroll', schedule, true);
       records.forEach((record, image) => { view.clearTimeout(record.timer); image.classList.remove('uf-image-load-failed'); delete image.dataset.ufImageState; });
     };
-  }, [rootRef, revision]);
-  return failures.map((failure) => <div key={failure.key} data-lightbox-ignore="true" className="uf-image-failure" style={{ left: failure.left, top: failure.top, width: failure.width, height: failure.height }} role="status">
+  }, [root, revision]);
+  return failures.map((failure) => <div key={failure.key} data-lightbox-ignore="true" className={`uf-image-failure${failure.height < 160 ? ' uf-image-failure--compact' : ''}`} style={{ left: failure.left, top: failure.top, width: failure.width, height: failure.height }} role="status">
     <ImageOff size={24} aria-hidden="true" /><span>사진을 불러오지 못했어요.</span>
     <button type="button" disabled={failure.retrying} onClick={(event) => { event.stopPropagation(); failure.retry(); }}><RotateCw size={16} aria-hidden="true" />{failure.retrying ? '다시 불러오는 중...' : '다시 시도'}</button>
   </div>);
