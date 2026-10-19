@@ -165,7 +165,7 @@ export const SlideGallery = Node.create({
             [
               "img",
               {
-                ...articleImageAttributes(img.src, { width: 1600, sizes: "(max-width: 768px) 100vw, 1200px" }),
+                ...articleImageAttributes(img.src, { width: 1600, sizes: "(max-width: 768px) calc(100vw - 32px), 1152px", deferred: idx > 0 }),
                 alt: img.alt || "",
                 "data-original-src": img.src || "",
                 "data-caption": img.caption || "",

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { warmSlideImages } from "../lib/slideImageLoading.js";
 
 export function slideOffsets(track) {
   const slides = Array.from(track.querySelectorAll(".uf-slide-gallery__slide"));
@@ -26,6 +27,7 @@ export function useSlideGalleryRuntime(containerRef, readiness) {
     const view = root.ownerDocument.defaultView;
     const motion = view.matchMedia("(prefers-reduced-motion: reduce)");
     const tracks = new Map();
+    const nearby = new Set();
     let frame = 0;
     let disposed = false;
 
@@ -33,6 +35,7 @@ export function useSlideGalleryRuntime(containerRef, readiness) {
       const offsets = slideOffsets(track);
       const index = nearestSlideIndex(offsets, track.scrollLeft);
       tracks.set(track, index);
+      if (nearby.has(track)) warmSlideImages(track, index);
       const gallery = track.closest(".uf-slide-gallery");
       gallery.querySelectorAll(".uf-slide-gallery__dot").forEach((dot, i) => {
         dot.setAttribute("data-active", String(i === index));
@@ -51,8 +54,15 @@ export function useSlideGalleryRuntime(containerRef, readiness) {
       });
     };
     const go = (track, index, behavior = motion.matches ? "instant" : "smooth") => {
+      if (nearby.has(track)) warmSlideImages(track, index);
       track.scrollTo({ left: slideTargetOffset(slideOffsets(track), index), behavior });
     };
+    const visibility = typeof IntersectionObserver === 'function' ? new IntersectionObserver((entries) => {
+      entries.forEach(({ target, isIntersecting }) => {
+        if (isIntersecting) { nearby.add(target); warmSlideImages(target, tracks.get(target) || 0); }
+        else nearby.delete(target);
+      });
+    }, { rootMargin: '300px 0px' }) : null;
     const resize = new ResizeObserver((entries) => {
       entries.forEach(({ target }) => {
         if (tracks.has(target)) go(target, tracks.get(target), "instant");
@@ -64,10 +74,13 @@ export function useSlideGalleryRuntime(containerRef, readiness) {
       if (disposed) return;
       const present = new Set(root.querySelectorAll(".uf-slide-gallery__track"));
       tracks.forEach((_, track) => {
-        if (!present.has(track)) { resize.unobserve(track); tracks.delete(track); }
+        if (!present.has(track)) { resize.unobserve(track); visibility?.unobserve(track); nearby.delete(track); tracks.delete(track); }
       });
       present.forEach((track) => {
-        if (!tracks.has(track)) resize.observe(track);
+        if (!tracks.has(track)) {
+          resize.observe(track);
+          if (visibility) visibility.observe(track); else nearby.add(track);
+        }
         update(track);
       });
     };
@@ -107,6 +120,7 @@ export function useSlideGalleryRuntime(containerRef, readiness) {
       disposed = true;
       view.cancelAnimationFrame(frame);
       resize.disconnect();
+      visibility?.disconnect();
       mutation.disconnect();
       root.removeEventListener("click", click, true);
       root.removeEventListener("scroll", scroll, true);

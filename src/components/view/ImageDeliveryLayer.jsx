@@ -57,6 +57,7 @@ export default function ImageDeliveryLayer({ root, revision }) {
     };
     const scan = () => {
       for (const image of root.querySelectorAll('img')) {
+        if (image.hasAttribute('data-uf-src')) continue;
         const original = image.dataset.originalSrc || image.getAttribute('src');
         if (!original) continue;
         let record = records.get(image);
