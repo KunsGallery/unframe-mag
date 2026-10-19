@@ -31,16 +31,8 @@ export default defineConfig({
         skipWaiting: false,
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/__\//, /^\/api\//],
-        globIgnores: ["**/EditorPage-*.js", "**/EditorPreview-*.js", "**/EditorHistoryPanel-*.js", "**/EditorTemplatesPanel-*.js", "**/PublicationChecklist-*.js", "**/editorHistory-*.js", "**/AdminPage-*.js", "**/MyPage-*.js", "**/ViewPage-*.js", "**/Columns-*.js", "**/editor-engine-*.js", "**/useSlideGalleryRuntime-*.js"],
-        runtimeCaching: [{
-          urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/assets/"),
-          handler: "CacheFirst",
-          options: {
-            cacheName: "uf-hashed-assets",
-            expiration: { maxEntries: 80, maxAgeSeconds: 30 * 24 * 60 * 60 },
-            cacheableResponse: { statuses: [200] },
-          },
-        }],
+        // Keep the shell and every route chunk from the same deployment together.
+        // Do not runtime-cache SPA HTML responses returned for missing JS files.
       },
       devOptions: {
         enabled: false,

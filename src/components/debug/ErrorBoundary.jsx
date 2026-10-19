@@ -1,6 +1,7 @@
 import React from "react";
 import { MobileDebugOverlay } from "./MobileDebugOverlay";
 import { getRuntimeDiagnostics, reportClientError } from "../../lib/runtimeDiagnostics";
+import { isAppShellError, recoverAppShell } from "../../lib/appShellRecovery";
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -20,6 +21,7 @@ export default class ErrorBoundary extends React.Component {
     this.setState({ errorInfo });
     console.error("[ErrorBoundary]", error, errorInfo);
     reportClientError(error, { source: "render" });
+    if (isAppShellError(error)) void recoverAppShell({ reason: "render-chunk-load" });
   }
 
   componentDidUpdate(prevProps) {
@@ -33,7 +35,8 @@ export default class ErrorBoundary extends React.Component {
   };
 
   handleReload = () => {
-    window.location.reload();
+    if (isAppShellError(this.state.error)) void recoverAppShell({ manual: true });
+    else window.location.reload();
   };
 
   handleCopy = async () => {

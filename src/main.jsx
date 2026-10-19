@@ -5,11 +5,11 @@ import App from "./App.jsx";
 import ErrorBoundary from "./components/debug/ErrorBoundary.jsx";
 import "./styles/index.css";
 import { reportClientError } from "./lib/runtimeDiagnostics";
+import { isAppShellError, recoverAppShell } from "./lib/appShellRecovery";
 
 let updateSW = () => {};
 window.addEventListener("uf:apply-update", () => updateSW(true));
 
-const RECOVERY_RELOAD_KEY = "uf_app_shell_recovery_reload_v1";
 const CACHE_CLEANUP_KEY = "uf_cache_cleanup_20260820_nav2";
 
 async function clearLegacyAppCachesOnce() {
@@ -29,50 +29,23 @@ async function clearLegacyAppCachesOnce() {
   }
 }
 
-function reloadAppShellOnce(reason) {
-  if (typeof window === "undefined") return;
-
-  try {
-    const last = JSON.parse(sessionStorage.getItem(RECOVERY_RELOAD_KEY) || "null");
-    const samePath = last?.path === window.location.pathname;
-    const recent = Date.now() - Number(last?.at || 0) < 15000;
-    if (samePath && recent) return;
-
-    sessionStorage.setItem(
-      RECOVERY_RELOAD_KEY,
-      JSON.stringify({ at: Date.now(), path: window.location.pathname, reason })
-    );
-  } catch {
-    // If storage is unavailable, still try one browser-level recovery.
-  }
-
-  window.location.reload();
-}
-
-function isRecoverableAppShellError(value) {
-  const message = String(value?.message || value?.reason?.message || value || "");
-  return /failed to fetch dynamically imported module|importing a module script failed|loading chunk|module script|stale service worker|mime type/i.test(
-    message
-  );
-}
-
 window.addEventListener("error", (event) => {
   reportClientError(event.error || event.message, { source: "window" });
-  if (isRecoverableAppShellError(event.error || event.message)) {
-    reloadAppShellOnce("window-error");
+  if (isAppShellError(event.error || event.message)) {
+    void recoverAppShell({ reason: "window-error" });
   }
 });
 
 window.addEventListener("unhandledrejection", (event) => {
   reportClientError(event.reason, { source: "promise" });
-  if (isRecoverableAppShellError(event.reason)) {
-    reloadAppShellOnce("unhandled-rejection");
+  if (isAppShellError(event.reason)) {
+    void recoverAppShell({ reason: "unhandled-rejection" });
   }
 });
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    reloadAppShellOnce("service-worker-controller-change");
+    if (!/^\/(write|edit)(\/|$)/.test(window.location.pathname)) window.location.reload();
   });
 }
 
