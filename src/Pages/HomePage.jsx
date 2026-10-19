@@ -1,859 +1,714 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUpRight } from "lucide-react";
-import { collection, getDocs, limit, orderBy, query, where } from "firebase/firestore";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  Headphones,
+  Pause,
+  Play,
+  Search,
+} from "lucide-react";
+import {
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useHomeConfig } from "../hooks/useHomeConfig";
-import { usePopularRollup } from "../hooks/usePopularRollup";
 import { useNetworkConfig } from "../hooks/useNetworkConfig";
-import { ARCHIVE_CATEGORIES as CATEGORIES } from "../constants/categories";
-import { estimateReadMinutes, timeEmoji } from "../lib/readingMeta";
+import { usePopularRollup } from "../hooks/usePopularRollup";
+import { ARCHIVE_CATEGORIES } from "../constants/categories";
+import { estimateReadMinutes } from "../lib/readingMeta";
 import { getCoverImageUrl, getImageSrcSet } from "../lib/imageUrl";
+import {
+  buildHomeSelection,
+  filterHomeArchive,
+  positiveRankingItems,
+} from "../lib/homeEditorial";
+import "../styles/home-editorial.css";
 
-function padEdition(editionNo) {
-  if (!editionNo) return "---";
-  const s = String(editionNo);
-  return s.length >= 3 ? s : s.padStart(3, "0");
-}
+const edition = (article) => String(article.editionNo || "").padStart(3, "0");
+const articlePath = (article) => `/article/${article.editionNo}`;
 
-function coverUrlOf(article, options = {}) {
-  return getCoverImageUrl(article, options);
-}
-
-// ✅ XP Top10 (3.3.2)
-function useTopUsersXP({ top = 10, enabled = true } = {}) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(enabled);
-  const [err, setErr] = useState("");
-
-  useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      setErr("");
-      try {
-        const q = query(collection(db, "users"), orderBy("xp", "desc"), limit(top));
-        const snap = await getDocs(q);
-        const list = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
-        if (!alive) return;
-        setUsers(list);
-      } catch (e) {
-        console.error("[useTopUsersXP] error:", e);
-        if (!alive) return;
-        setErr(String(e?.message || e));
-        setUsers([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [top, enabled]);
-
-  return { users: enabled ? users : [], loading: enabled && loading, err: enabled ? err : "" };
-}
-
-// ✅ 3.1.2 세션 랜덤(탭이 살아있는 동안 고정) 위젯 선택
-function pickSessionWidgets(count = 3) {
-  const key = "uf_rank_widgets_v1";
-  const pool = ["xpTop", "weeklyLikes", "monthlyLikes", "weeklyViews", "monthlyViews"];
-  try {
-    const cached = sessionStorage.getItem(key);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length === count && new Set(parsed).size === count && parsed.every((key) => pool.includes(key))) return parsed;
-    }
-  } catch {
-    // sessionStorage can be unavailable in restricted browser contexts.
-  }
-
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  const picked = shuffled.slice(0, count);
-
-  try {
-    sessionStorage.setItem(key, JSON.stringify(picked));
-  } catch {
-    // Keep widget selection non-blocking when storage writes fail.
-  }
-  return picked;
-}
-
-export default function HomePage({ isDarkMode, onToast }) {
-  // archive 전환
-  const [activeCat, setActiveCat] = useState("All");
-  const [displayCat, setDisplayCat] = useState("All");
-  const [fade, setFade] = useState("in");
-
-  // firestore
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadErr, setLoadErr] = useState("");
-
-  // ✅ 주/월 top 위젯용(3.3.3)
-  const [rankWidgets] = useState(() => pickSessionWidgets(3));
-  const weeklyLikes = usePopularRollup({ mode: "weekly", sortBy: "likes", top: 5, enabled: rankWidgets.includes("weeklyLikes") });
-  const monthlyLikes = usePopularRollup({ mode: "monthly", sortBy: "likes", top: 5, enabled: rankWidgets.includes("monthlyLikes") });
-  const weeklyViews = usePopularRollup({ mode: "weekly", sortBy: "views", top: 5, enabled: rankWidgets.includes("weeklyViews") });
-  const monthlyViews = usePopularRollup({ mode: "monthly", sortBy: "views", top: 5, enabled: rankWidgets.includes("monthlyViews") });
-
-  // ✅ 유저 XP Top10 (3.3.2)
-  const xpTop = useTopUsersXP({ top: 10, enabled: rankWidgets.includes("xpTop") });
-
-  // ✅ home config (hero/editorPicks)
-  const { config } = useHomeConfig();
-  const heroEditionNo = config?.heroEditionNo ? String(config.heroEditionNo) : null;
-  const editorPicks = useMemo(
-    () => (Array.isArray(config?.editorPicks) ? config.editorPicks.map(String) : []),
-    [config?.editorPicks]
+function ArticleImage({
+  article,
+  priority = false,
+  sizes = "(max-width: 520px) calc(100vw - 32px), (max-width: 800px) calc((100vw - 76px) / 2), (max-width: 1280px) 32vw, 450px",
+}) {
+  const [failedSource, setFailedSource] = useState(null);
+  const src = getCoverImageUrl(article, { width: priority ? 1200 : 800 });
+  return src && failedSource !== src ? (
+    <img
+      src={src}
+      srcSet={getImageSrcSet(article.cover || src, [480, 800, 1200])}
+      sizes={sizes}
+      alt={article.title || ""}
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : "auto"}
+      decoding="async"
+      onError={() => setFailedSource(src)}
+    />
+  ) : (
+    <div
+      className="home-image-placeholder"
+      role="img"
+      aria-label={`${article.title || "기사"} 표지 이미지 없음`}
+    >
+      U# / {edition(article)}
+    </div>
   );
+}
 
-  // ✅ network config (links + picks)
-  const { config: networkConfig, error: networkError } = useNetworkConfig();
-  const rankingError = weeklyLikes.error || monthlyLikes.error || weeklyViews.error || monthlyViews.error || xpTop.err;
-  useEffect(() => {
-    if (loadErr) onToast?.(loadErr);
-  }, [loadErr, onToast]);
-  useEffect(() => {
-    if (networkError) onToast?.("네트워크 설정을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
-  }, [networkError, onToast]);
-  useEffect(() => {
-    if (rankingError) onToast?.("랭킹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
-  }, [rankingError, onToast]);
-  const links = networkConfig?.links || {};
-  const hasNetworkLinks = Object.values(links).some(Boolean);
-  const featuredEditionNos = useMemo(
-    () =>
-      Array.isArray(networkConfig?.featuredEditionNos)
-        ? networkConfig.featuredEditionNos.map(String)
-        : [],
-    [networkConfig?.featuredEditionNos]
+function ArticleMeta({ article }) {
+  return (
+    <div className="home-meta">
+      <span>{article.category}</span>
+      <span>NO.{edition(article)}</span>
+      <span>{estimateReadMinutes(article, { min: 2 })}분 읽기</span>
+    </div>
   );
+}
 
+function Story({ article }) {
+  return (
+    <article className="home-story">
+      <Link to={articlePath(article)} className="home-story-image">
+        <ArticleImage article={article} />
+      </Link>
+      <ArticleMeta article={article} />
+      <h3>
+        <Link to={articlePath(article)}>{article.title}</Link>
+      </h3>
+      {(article.excerpt || article.subtitle) && (
+        <p>{article.excerpt || article.subtitle}</p>
+      )}
+      <Link className="home-text-link" to={articlePath(article)}>
+        기사 읽기 <ArrowUpRight size={16} />
+      </Link>
+    </article>
+  );
+}
+
+function CoverStage({ stories }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [reduced, setReduced] = useState(true);
+  const [visible, setVisible] = useState(false);
+  const stage = useRef(null);
+  const storyKey = stories.map((article) => article.editionNo).join("|");
+  const current = stories[index % stories.length];
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.25 },
+    );
+    observer.observe(stage.current);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (
+      paused ||
+      hovered ||
+      focused ||
+      reduced ||
+      !visible ||
+      stories.length < 2
+    )
+      return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) setIndex((value) => (value + 1) % stories.length);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [paused, hovered, focused, reduced, visible, stories.length, storyKey]);
+  const select = (next) => {
+    setPaused(true);
+    setIndex((next + stories.length) % stories.length);
+  };
+  return (
+    <section
+      ref={stage}
+      className="home-cover home-container"
+      aria-label="대표 기사"
+      aria-roledescription="carousel"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setFocused(false);
+      }}
+    >
+      <div className="home-cover-grid" key={current.editionNo}>
+        <Link className="home-cover-image" to={articlePath(current)}>
+          <ArticleImage
+            article={current}
+            priority
+            sizes="(max-width: 800px) 100vw, 58vw"
+          />
+        </Link>
+        <div className="home-cover-copy">
+          <p className="home-kicker">
+            COVER STORY /{" "}
+            {String((index % stories.length) + 1).padStart(2, "0")}
+          </p>
+          <ArticleMeta article={current} />
+          <h1>
+            <Link to={articlePath(current)}>{current.title}</Link>
+          </h1>
+          <p className="home-deck">
+            {current.excerpt || current.subtitle || ""}
+          </p>
+          {current.author && (
+            <p className="home-byline">글 · {current.author}</p>
+          )}
+          <Link className="home-text-link" to={articlePath(current)}>
+            이야기 읽기 <ArrowUpRight size={18} />
+          </Link>
+        </div>
+      </div>
+      {stories.length > 1 && (
+        <div className="home-cover-bottom">
+          <div className="home-cover-tabs" aria-label="대표 기사 선택">
+            {stories.map((article, position) => (
+              <button
+                type="button"
+                key={article.editionNo}
+                aria-pressed={index % stories.length === position}
+                onClick={() => select(position)}
+              >
+                <span>NO.{edition(article)}</span>
+                {article.title}
+              </button>
+            ))}
+          </div>
+          <div className="home-controls">
+            <button
+              type="button"
+              aria-label="이전 대표 기사"
+              title="이전 대표 기사"
+              onClick={() => select(index - 1)}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            {!reduced && (
+              <button
+                type="button"
+                aria-label={paused ? "자동 전환 재생" : "자동 전환 일시정지"}
+                title={paused ? "자동 전환 재생" : "자동 전환 일시정지"}
+                onClick={() => setPaused(!paused)}
+              >
+                {paused ? <Play size={16} /> : <Pause size={16} />}
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="다음 대표 기사"
+              title="다음 대표 기사"
+              onClick={() => select(index + 1)}
+            >
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RankingBoard({ title, rollup }) {
+  const items = positiveRankingItems(rollup.items, rollup.metricUsed);
+  return (
+    <div className="home-board">
+      <h3>{title}</h3>
+      <p className="home-small">
+        {rollup.metricUsed.includes("30d") ? "최근 30일" : "최근 7일"}
+      </p>
+      {rollup.loading ? (
+        <p role="status">집계 불러오는 중…</p>
+      ) : rollup.error ? (
+        <p>
+          집계를 불러오지 못했어요.{" "}
+          <button
+            type="button"
+            className="home-text-link"
+            onClick={rollup.refetch}
+          >
+            다시 시도
+          </button>
+        </p>
+      ) : items.length ? (
+        <ol>
+          {items.map((article) => (
+            <li key={article.docId || article.editionNo}>
+              <Link to={articlePath(article)}>{article.title}</Link>
+              <span>{Number(article[rollup.metricUsed]).toLocaleString()}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p>아직 집계된 반응이 없어요. 첫 번째 반응을 남겨주세요.</p>
+      )}
+    </div>
+  );
+}
+
+function ReaderBoard() {
+  const [state, setState] = useState({
+    loading: true,
+    users: [],
+    error: false,
+  });
   useEffect(() => {
     let alive = true;
-
-    (async () => {
-      setLoading(true);
-      setLoadErr("");
-
-      try {
-        const q = query(
-          collection(db, "articles"),
-          where("status", "==", "published"),
-          orderBy("sortIndex", "desc"),
-          limit(60)
-        );
-
-        const snap = await getDocs(q);
-        const list = snap.docs.map((d) => ({ docId: d.id, ...d.data() }));
-
-        if (!alive) return;
-        setArticles(list);
-      } catch (e) {
-        console.error("[HomePage] load articles error:", e);
-        if (!alive) return;
-        setLoadErr("아카이브를 불러오지 못했어요.");
-        setArticles([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-
+    getDocs(query(collection(db, "users"), orderBy("xp", "desc"), limit(10)))
+      .then((snap) => {
+        if (alive)
+          setState({
+            loading: false,
+            users: snap.docs
+              .map((entry) => ({ uid: entry.id, ...entry.data() }))
+              .filter((user) => Number(user.xp) > 0),
+            error: false,
+          });
+      })
+      .catch(() => {
+        if (alive) setState({ loading: false, users: [], error: true });
+      });
     return () => {
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (activeCat === displayCat) return;
-    setFade("out");
-    const t = setTimeout(() => {
-      setDisplayCat(activeCat);
-      setFade("in");
-    }, 180);
-    return () => clearTimeout(t);
-  }, [activeCat, displayCat]);
-
-  // ✅ hero 선택
-  const cover = useMemo(() => {
-    if (heroEditionNo) {
-      const found = articles.find((a) => String(a.editionNo) === heroEditionNo);
-      if (found) return found;
-    }
-    return articles[0] || null;
-  }, [articles, heroEditionNo]);
-
-  // ✅ featured(editor picks 우선 + 부족하면 채움)
-  const featured = useMemo(() => {
-    if (editorPicks.length > 0) {
-      const map = new Map(articles.map((a) => [String(a.editionNo), a]));
-      const picked = editorPicks.map((id) => map.get(id)).filter(Boolean);
-      const used = new Set(picked.map((a) => String(a.editionNo)));
-      const fill = articles.filter((a) => !used.has(String(a.editionNo)));
-      return [...picked, ...fill].slice(0, 6);
-    }
-    return articles.slice(0, 6);
-  }, [articles, editorPicks]);
-
-  // ✅ archive displayItems(카테고리 필터)
-  const displayItems = useMemo(() => {
-    return displayCat === "All" ? articles : articles.filter((x) => x.category === displayCat);
-  }, [articles, displayCat]);
-
-  // ✅ Network Picks(운영자가 선택한 editionNo) → articles 매칭
-  const networkArticles = useMemo(() => {
-    if (!featuredEditionNos.length) return [];
-    const map = new Map(articles.map((a) => [String(a.editionNo), a]));
-    return featuredEditionNos.map((id) => map.get(id)).filter(Boolean).slice(0, 8);
-  }, [articles, featuredEditionNos]);
-
-  if (loading) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center text-[var(--uf-muted)] font-black italic tracking-widest uppercase">
-        Loading Archive...
-      </div>
-    );
-  }
-
-  if (loadErr) {
-    return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center gap-3">
-        <div className="text-[var(--uf-muted)] font-black italic tracking-widest uppercase">{loadErr}</div>
-        <div className="text-xs text-[var(--uf-muted)]">Firestore 연결/규칙(status=published read)을 확인해줘.</div>
-      </div>
-    );
-  }
-
-  if (!cover) {
-    return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center gap-3">
-        <div className="text-[var(--uf-muted)] font-black italic tracking-widest uppercase">No Published Articles</div>
-        <div className="text-xs text-[var(--uf-muted)]">에디터에서 글을 발행(status=published)하면 홈에 나타나요.</div>
-      </div>
-    );
-  }
-
-  const coverEdition = padEdition(cover.editionNo);
-  const coverImg = coverUrlOf(cover, { width: 1800 });
-  const coverMin = estimateReadMinutes(cover, { min: 2 });
-  const coverEmoji = timeEmoji(coverMin);
-
-  // ✅ 랭킹 위젯 데이터 매핑(3개)
-  const widgetData = {
-    xpTop: {
-      title: "Top XP",
-      kicker: "/ RANKING",
-      hint: "users.xp 기준 Top10",
-      loading: xpTop.loading,
-      rows: xpTop.users.slice(0, 10).map((u, i) => ({
-        left: `${i + 1}. ${u.nickname || u.email || u.uid || "User"}`,
-        right: `${u.xp || 0} XP`,
-      })),
-      empty: "유저 데이터가 아직 없어요.",
-    },
-    weeklyLikes: {
-      title: "Weekly Likes",
-      kicker: "/ RANKING",
-      hint: "likes7d 기준 Top5",
-      loading: weeklyLikes.loading,
-      rows: weeklyLikes.items.map((a, i) => ({
-        left: `${i + 1}. #${padEdition(a.editionNo)} ${a.title || "Untitled"}`,
-        right: `❤️ ${a.likes7d || 0}`,
-        to: `/article/${a.editionNo}`,
-      })),
-      empty: "주간 집계가 아직 없어요.",
-    },
-    monthlyLikes: {
-      title: "Monthly Likes",
-      kicker: "/ RANKING",
-      hint: "likes30d 기준 Top5",
-      loading: monthlyLikes.loading,
-      rows: monthlyLikes.items.map((a, i) => ({
-        left: `${i + 1}. #${padEdition(a.editionNo)} ${a.title || "Untitled"}`,
-        right: `❤️ ${a.likes30d || 0}`,
-        to: `/article/${a.editionNo}`,
-      })),
-      empty: "월간 집계가 아직 없어요.",
-    },
-    weeklyViews: {
-      title: "Weekly Views",
-      kicker: "/ RANKING",
-      hint: "views7d 기준 Top5",
-      loading: weeklyViews.loading,
-      rows: weeklyViews.items.map((a, i) => ({
-        left: `${i + 1}. #${padEdition(a.editionNo)} ${a.title || "Untitled"}`,
-        right: `👁 ${a.views7d || 0}`,
-        to: `/article/${a.editionNo}`,
-      })),
-      empty: "주간 집계가 아직 없어요.",
-    },
-    monthlyViews: {
-      title: "Monthly Views",
-      kicker: "/ RANKING",
-      hint: "views30d 기준 Top5",
-      loading: monthlyViews.loading,
-      rows: monthlyViews.items.map((a, i) => ({
-        left: `${i + 1}. #${padEdition(a.editionNo)} ${a.title || "Untitled"}`,
-        right: `👁 ${a.views30d || 0}`,
-        to: `/article/${a.editionNo}`,
-      })),
-      empty: "월간 집계가 아직 없어요.",
-    },
-  };
-
   return (
-    <div className="animate-in fade-in duration-700 bg-[var(--uf-bg)] text-[var(--uf-text)]">
-      {/* Hero */}
-      <section className="relative h-[92vh] overflow-hidden bg-black text-white">
-        {coverImg ? (
-          <img
-            src={coverImg}
-            srcSet={getImageSrcSet(cover.cover || coverImg, [640, 960, 1600, 2400])}
-            sizes="100vw"
-            className="absolute inset-0 h-full w-full object-cover opacity-65 scale-105"
-            alt="Cover"
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-zinc-900" />
-        )}
+    <div className="home-board">
+      <h3>함께 읽는 사람들</h3>
+      <p className="home-small">독자 활동 · XP</p>
+      {state.loading ? (
+        <p role="status">불러오는 중…</p>
+      ) : state.error ? (
+        <p>독자 활동을 불러오지 못했어요.</p>
+      ) : state.users.length ? (
+        <ol>
+          {state.users.map((user) => (
+            <li key={user.uid}>
+              <span>{user.nickname || "U# 독자"}</span>
+              <span>{Number(user.xp).toLocaleString()} XP</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p>읽고, 공감하며 함께 기록을 쌓아가요.</p>
+      )}
+    </div>
+  );
+}
 
-        <div className="absolute inset-0 bg-linear-to-t from-black via-black/25 to-black/10" />
-        <div
-          className="absolute inset-0 pointer-events-none opacity-[0.07]"
-          style={{
-            backgroundImage: "radial-gradient(#fff 1px, transparent 1px)",
-            backgroundSize: "6px 6px",
+export default function HomePage({ isDarkMode, onToast }) {
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [category, setCategory] = useState("All");
+  const [search, setSearch] = useState("");
+  const [period, setPeriod] = useState("weekly");
+  const { config } = useHomeConfig();
+  const { config: network } = useNetworkConfig();
+  const likes = usePopularRollup({ mode: period, sortBy: "likes", top: 5 });
+  const views = usePopularRollup({ mode: period, sortBy: "views", top: 5 });
+  useEffect(() => {
+    let alive = true;
+    getDocs(
+      query(
+        collection(db, "articles"),
+        where("status", "==", "published"),
+        orderBy("sortIndex", "desc"),
+        limit(60),
+      ),
+    )
+      .then((snap) => {
+        if (alive)
+          setArticles(
+            snap.docs.map((entry) => ({ docId: entry.id, ...entry.data() })),
+          );
+      })
+      .catch(() => {
+        if (alive)
+          setError("아카이브를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [attempt]);
+  useEffect(() => {
+    if (error) onToast?.(error);
+  }, [error, onToast]);
+  const { covers, picks, reading } = useMemo(
+    () => buildHomeSelection(articles, config),
+    [articles, config],
+  );
+  const filtered = useMemo(
+    () => filterHomeArchive(articles, category, search),
+    [articles, category, search],
+  );
+  const themeStories = useMemo(() => {
+    const selected = (network.featuredEditionNos || [])
+      .map((id) =>
+        articles.find((article) => String(article.editionNo) === String(id)),
+      )
+      .filter(Boolean);
+    return (
+      selected.length
+        ? [
+            ...new Map(
+              selected.map((article) => [article.editionNo, article]),
+            ).values(),
+          ]
+        : reading
+    ).slice(0, 2);
+  }, [articles, network.featuredEditionNos, reading]);
+  const links = network.links || {};
+  const projects = [
+    { key: "playlist", title: "UP", copy: "전시를 듣는 또 하나의 방식" },
+    {
+      key: "podcast",
+      title: "Umm..",
+      copy: "창작자의 생각이 목소리로 남는 곳",
+    },
+    { key: "gallery", title: "Gallery", copy: "언프레임의 전시와 프로그램" },
+    { key: "music", title: "Music", copy: "언프레임의 음악 프로젝트" },
+  ].filter((project) => links[project.key]);
+  if (loading)
+    return (
+      <div className="home-status" role="status">
+        이야기를 불러오고 있어요…
+      </div>
+    );
+  if (error)
+    return (
+      <div className="home-status" role="alert">
+        <p>{error}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setError("");
+            setAttempt((value) => value + 1);
           }}
-        />
-
-        <div className="absolute -right-10 -bottom-28 pointer-events-none select-none">
-          <div className="text-[220px] md:text-[360px] font-black italic tracking-tighter text-white/10 leading-none">
-            #{coverEdition}
+        >
+          다시 시도
+        </button>
+      </div>
+    );
+  if (!articles.length)
+    return (
+      <div className="home-status">
+        <h1>첫 번째 이야기를 준비하고 있습니다.</h1>
+        <Link to="/about">U# 알아보기</Link>
+      </div>
+    );
+  return (
+    <div
+      className="home-editorial"
+      data-home-theme={isDarkMode ? "dark" : "light"}
+    >
+      <div className="home-section-nav home-container">
+        <span>UNFRAME MAG / ART & CULTURE</span>
+        <a href="#archive">
+          전체 아카이브 <ArrowUpRight size={14} />
+        </a>
+      </div>
+      <CoverStage stories={covers} />
+      <section
+        className="home-section home-container"
+        aria-labelledby="home-picks"
+      >
+        <div className="home-section-heading">
+          <div>
+            <p className="home-kicker">EDITOR’S PICKS</p>
+            <h2 id="home-picks">지금 읽고 싶은 이야기</h2>
           </div>
+          <a className="home-text-link" href="#archive">
+            모든 글 <ArrowUpRight size={16} />
+          </a>
         </div>
-
-        <div className="relative z-10 h-full mag-grid pt-28 pb-16 flex items-end">
-          <div className="max-w-6xl w-full">
-            <div className="flex flex-wrap items-center gap-4 mag-meta">
-              <span className="px-4 py-2 bg-white/10 rounded-full border border-white/10">
-                Issue #{coverEdition}
-              </span>
-              <span className="px-4 py-2 bg-white/10 rounded-full border border-white/10">
-                {cover.category || "—"}
-              </span>
-              <span className="px-4 py-2 bg-white/10 rounded-full border border-white/10">
-                {coverEmoji} {coverMin} min read
-              </span>
-            </div>
-
-            <h1 className="mt-8 mag-h1 whitespace-pre-line break-keep leading-[0.88] sm:leading-[0.9]">
-              {cover.title || "Untitled"}
-            </h1>
-
-            <p className="mt-8 max-w-2xl mag-deck text-white">
-              {cover.excerpt || cover.subtitle || "—"}
-            </p>
-
-            <div className="mt-10 flex flex-col sm:flex-row gap-4">
-              <Link
-                to={`/article/${cover.editionNo}`}
-                className="px-8 py-5 rounded-2xl bg-white text-black font-black text-xs tracking-[0.4em] uppercase italic inline-flex items-center justify-center gap-2 hover:opacity-90 transition"
-              >
-                Read Cover <ArrowUpRight size={16} />
-              </Link>
-              <a
-                href="#archive"
-                className="px-8 py-5 rounded-2xl bg-transparent border border-white/20 text-white font-black text-xs tracking-[0.4em] uppercase italic inline-flex items-center justify-center gap-2 hover:bg-white/10 transition"
-              >
-                Browse Archive <ArrowDown size={16} />
-              </a>
-            </div>
-
-            <div className="mt-12 flex flex-wrap gap-x-8 gap-y-2 text-[10px] tracking-[0.5em] uppercase italic opacity-70">
-              <span>Caption: {cover.title || "—"}</span>
-              <span>Category: {cover.category || "—"}</span>
-              <span>Author: {cover.author || "—"}</span>
-            </div>
+        <div className="home-editorial-grid">
+          <div className="home-picks">
+            {picks.map((article) => (
+              <Story key={article.editionNo} article={article} />
+            ))}
           </div>
+          <aside className="home-reading">
+            <h3>처음이라면, 이 글부터</h3>
+            <p className="home-small">에디터가 제안하는 읽기 순서</p>
+            <ol>
+              {reading.map((article, index) => (
+                <li key={article.editionNo}>
+                  <span className="home-reading-number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <Link to={articlePath(article)}>
+                    <span className="home-kicker">{article.category}</span>
+                    <h4>{article.title}</h4>
+                    <span className="home-small">
+                      NO.{edition(article)} ·{" "}
+                      {estimateReadMinutes(article, { min: 2 })}분
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </aside>
         </div>
       </section>
-
-      {/* Featured */}
-      <section className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} mag-section mag-grid`}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between gap-6">
+      <section
+        className="home-letter home-container"
+        aria-labelledby="home-letter"
+      >
+        <div>
+          <p className="home-kicker">EDITOR’S LETTER</p>
+          <h2 id="home-letter">
+            Archive is
+            <br />
+            not a feed.
+          </h2>
+        </div>
+        <div className="home-letter-copy">
+          <p>
+            U#은 전시의 결과만이 아니라, 그 과정에 남는 질문과 감각을
+            기록합니다.
+          </p>
+          <p>
+            빠르게 소비되지 않는 문장과 이미지를 위해, 우리는 “번호”로 역사를
+            쌓습니다.
+          </p>
+          <p className="home-small">UNFRAME MAG / Editor</p>
+          <Link to="/about" className="home-text-link">
+            U#에 대하여 <ArrowUpRight size={16} />
+          </Link>
+        </div>
+      </section>
+      {themeStories.length > 0 && (
+        <section
+          className="home-section home-container"
+          aria-labelledby="home-topic"
+        >
+          <div className="home-section-heading">
             <div>
-              <p className="mag-kicker">/ EDITOR'S PICKS</p>
-              <h2 className="mt-4 mag-h2">Featured</h2>
+              <p className="home-kicker">READING NOTES</p>
+              <h2 id="home-topic">다른 이야기, 이어지는 시선</h2>
             </div>
-            <a
-              href="#archive"
-              className="text-[10px] font-black tracking-[0.5em] uppercase italic opacity-60 hover:opacity-100 transition"
-            >
-              View all →
-            </a>
           </div>
-
-          {featured.length < 3 ? (
-            <div className="mt-12 text-sm text-zinc-500">발행된 글이 더 쌓이면 Featured가 채워져요.</div>
+          <div className="home-topic-grid">
+            <div className="home-topic-intro">
+              <h3>
+                하나의 전시가
+                <br />
+                남기는 여러 질문.
+              </h3>
+              <p>
+                작품을 바라보는 일에서 창작을 이어가는 마음까지. 서로 다른 글을
+                오가며 나만의 연결을 찾아보세요.
+              </p>
+              <a className="home-text-link" href="#archive">
+                다른 주제 찾아보기 <ArrowRight size={16} />
+              </a>
+            </div>
+            <div className="home-topic-stories">
+              {themeStories.map((article) => (
+                <article key={article.editionNo}>
+                  <ArticleMeta article={article} />
+                  <h3>
+                    <Link to={articlePath(article)}>{article.title}</Link>
+                  </h3>
+                  <p>{article.excerpt || article.subtitle}</p>
+                  <Link to={articlePath(article)} className="home-text-link">
+                    이어서 읽기 <ArrowUpRight size={16} />
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+      {projects.length > 0 && (
+        <section
+          className="home-project-strip home-container"
+          aria-label="언프레임 프로젝트"
+        >
+          <Headphones size={20} />
+          <div>
+            <strong>{projects[0].title}</strong>
+            <span>{projects[0].copy}</span>
+          </div>
+          <a
+            href={links[projects[0].key]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="home-text-link"
+          >
+            프로젝트 살펴보기 <ArrowUpRight size={16} />
+          </a>
+        </section>
+      )}
+      <section
+        id="archive"
+        className="home-section home-container home-archive"
+        aria-labelledby="home-archive-title"
+      >
+        <aside className="home-archive-aside">
+          <p className="home-kicker">ARCHIVE</p>
+          <h2 id="home-archive-title">
+            Gate to <br />
+            Letters
+          </h2>
+          <div className="home-categories" aria-label="아카이브 카테고리">
+            {ARCHIVE_CATEGORIES.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-pressed={category === item.key}
+                onClick={() => setCategory(item.key)}
+              >
+                <span>{item.key === "All" ? "전체 아카이브" : item.label}</span>
+                <span>
+                  {item.key === "All"
+                    ? articles.length
+                    : articles.filter(
+                        (article) => article.category === item.key,
+                      ).length}
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
+        <div className="home-archive-results">
+          <label className="home-search">
+            <Search size={18} />
+            <span className="sr-only">아카이브 검색</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="제목, 주제, 작가로 찾아보기"
+            />
+          </label>
+          <p className="home-small" role="status">
+            {filtered.length}개의 이야기
+          </p>
+          {filtered.length ? (
+            <div className="home-archive-grid">
+              {filtered.map((article) => (
+                <Story key={article.editionNo} article={article} />
+              ))}
+            </div>
           ) : (
-            <div className="mt-14 grid lg:grid-cols-12 gap-6">
-              <FeatureCard item={featured[0]} className="lg:col-span-7 h-[420px]" isDarkMode={isDarkMode} />
-              <div className="lg:col-span-5 grid gap-6">
-                <FeatureCard item={featured[1]} className="h-[200px]" isDarkMode={isDarkMode} compact />
-                <FeatureCard item={featured[2]} className="h-[200px]" isDarkMode={isDarkMode} compact />
-              </div>
-              <div className="lg:col-span-12 grid md:grid-cols-3 gap-6">
-                {featured.slice(3, 6).map((it) => (
-                  <FeatureCard
-                    key={it.docId || it.editionNo}
-                    item={it}
-                    className="h-[220px]"
-                    isDarkMode={isDarkMode}
-                    compact
-                  />
-                ))}
-              </div>
+            <div className="home-empty">
+              <p>조건에 맞는 이야기가 아직 없어요.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("All");
+                  setSearch("");
+                }}
+              >
+                전체 글 보기
+              </button>
             </div>
           )}
         </div>
       </section>
-
-      {/* ✅ RANKING WIDGETS (3개 세션 랜덤) */}
-      <section className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} py-24 mag-grid`}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between gap-6">
-            <div>
-              <p className="mag-kicker">/ RANKINGS</p>
-              <h2 className="mt-4 mag-h2">Rotating Boards</h2>
-            </div>
-            <div className="text-[10px] font-black tracking-[0.5em] uppercase italic opacity-60">
-              session shuffle · {rankWidgets.join(" / ")}
-            </div>
+      <section
+        className="home-section home-container"
+        aria-labelledby="home-boards"
+      >
+        <div className="home-section-heading">
+          <div>
+            <p className="home-kicker">READERS & STORIES</p>
+            <h2 id="home-boards">함께 만드는 읽기의 기록</h2>
           </div>
-
-          <div className="mt-10 grid md:grid-cols-3 gap-6">
-            {rankWidgets.map((key) => (
-              <RankingWidget key={key} isDarkMode={isDarkMode} data={widgetData[key]} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ✅ UNFRAME NETWORK (Popular 섹션 대신) */}
-      {(hasNetworkLinks || networkArticles.length > 0) && (
-      <section className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} py-24 mag-grid`}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between gap-6">
-            <div>
-              <p className="mag-kicker">/ UNFRAME NETWORK</p>
-              <h2 className="mt-4 mag-h2">Signals & Programs</h2>
-            </div>
-            <div className="text-[10px] font-black tracking-[0.5em] uppercase italic opacity-60">
-              gallery · playlist · podcast · platform
-            </div>
-          </div>
-
-          <div className="mt-12 grid lg:grid-cols-12 gap-6">
-            {/* Left: Network cards */}
-            {hasNetworkLinks && (
-            <div className={`${networkArticles.length > 0 ? "lg:col-span-7" : "lg:col-span-12"} grid md:grid-cols-2 gap-6`}>
-              <NetworkCard
-                isDarkMode={isDarkMode}
-                title="Unframe Playlist"
-                kicker="LISTEN"
-                desc="이번 주 전시의 공기를 플레이리스트로."
-                href={links.playlist || ""}
-              />
-              <NetworkCard
-                isDarkMode={isDarkMode}
-                title="Unframe Podcast"
-                kicker="TALK"
-                desc="작가/큐레이터/콜렉터의 목소리."
-                href={links.podcast || ""}
-              />
-              <NetworkCard
-                isDarkMode={isDarkMode}
-                title="Gallery Program"
-                kicker="VISIT"
-                desc="전시/행사/프로그램 공지."
-                href={links.gallery || ""}
-              />
-              <NetworkCard
-                isDarkMode={isDarkMode}
-                title="Music Platform"
-                kicker="PLAY"
-                desc="언프레임의 다른 실험들."
-                href={links.music || ""}
-              />
-            </div>
-            )}
-
-            {/* Right: Related articles */}
-            {networkArticles.length > 0 && (
-            <div className={hasNetworkLinks ? "lg:col-span-5" : "lg:col-span-12"}>
-              <div className={`rounded-3xl border p-6 ${isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"}`}>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">
-                      / RELATED ARTICLES
-                    </div>
-                    <div className="mt-3 text-2xl font-black italic tracking-tighter uppercase">
-                      Network Picks
-                    </div>
-                  </div>
-                  <div className="text-[10px] tracking-[0.5em] uppercase italic opacity-60">
-                    {networkArticles.length} items
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  {networkArticles.map((a) => (
-                      <Link
-                        key={a.docId || a.editionNo}
-                        to={`/article/${a.editionNo}`}
-                        className={`block rounded-2xl border px-4 py-4 transition ${
-                          isDarkMode ? "border-zinc-800 hover:border-zinc-600" : "border-zinc-200 hover:border-zinc-400"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-[10px] font-black italic tracking-[0.35em] uppercase opacity-60">
-                          <span>#{String(a.editionNo).padStart(3, "0")}</span>
-                          <span className="text-[#004aad]">{a.category || "—"}</span>
-                        </div>
-                        <div className="mt-2 text-lg font-black italic tracking-tight line-clamp-2">
-                          {a.title || "Untitled"}
-                        </div>
-                        <div className="mt-2 text-xs opacity-60">{a.author || "—"}</div>
-                      </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
-            )}
-          </div>
-        </div>
-      </section>
-      )}
-
-      <SubscribeBand href={networkConfig.newsletterUrl} variant="bold" />
-
-      {/* Editor's Letter */}
-      <section className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} mag-section mag-grid`}>
-        <div className="max-w-5xl mx-auto">
-          <p className="mag-kicker">/ EDITOR'S LETTER</p>
-          <h3 className="mt-6 mag-h3">Archive is not a feed.</h3>
-          <div className="mt-10 space-y-8 mag-body">
-            <p>U#은 전시의 결과만이 아니라, 그 과정에 남는 질문과 감각을 기록합니다.</p>
-            <p>빠르게 소비되지 않는 문장과 이미지를 위해, 우리는 “번호”로 역사를 쌓습니다.</p>
-            <p className={`${isDarkMode ? "text-white/80" : "text-black/70"} font-black`}>— UNFRAME MAG / Editor</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Archive */}
-      <section id="archive" className={`${isDarkMode ? "bg-black text-white" : "bg-white text-black"} py-28 mag-grid`}>
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-14">
-          <aside className="lg:col-span-4">
-            <div className="sticky top-28">
-              <p className="mag-kicker">/ ARCHIVE</p>
-              <h3 className="mt-6 text-5xl md:text-6xl font-black italic tracking-tighter uppercase leading-[0.9]">
-                Gate<br />to Letters
-              </h3>
-
-              <ul className={`mt-10 space-y-4 border-t pt-8 ${isDarkMode ? "border-zinc-800" : "border-zinc-100"}`}>
-                {CATEGORIES.map((c) => (
-                  <li key={c.key}>
-                    <button
-                      onClick={() => setActiveCat(c.key)}
-                      className={[
-                        "w-full text-left py-3 transition",
-                        "font-black italic uppercase tracking-tight",
-                        activeCat === c.key ? "text-[#004aad]" : "opacity-30 hover:opacity-100 hover:text-[#004aad]",
-                      ].join(" ")}
-                      type="button"
-                    >
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl md:text-3xl">{c.label}</span>
-                        <span className="text-[10px] tracking-[0.5em] opacity-60">{c.sub}</span>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </aside>
-
-          <div className="lg:col-span-8">
-            <div className={`transition-all duration-300 ${fade === "out" ? "opacity-0 translate-y-1" : "opacity-100 translate-y-0"}`}>
-              {displayItems.length === 0 ? (
-                <div className="p-8 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 text-sm text-zinc-500">
-                  이 카테고리에 발행된 글이 아직 없어요.
-                </div>
-              ) : (
-                <div className="grid md:grid-cols-2 gap-6">
-                  {displayItems.map((it) => (
-                    <ArchiveCard key={it.docId || it.editionNo} item={it} isDarkMode={isDarkMode} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative h-[70vh] overflow-hidden bg-black text-white">
-        <div className="absolute inset-0 bg-linear-to-r from-black via-black/45 to-transparent" />
-        <div className="relative z-10 h-full mag-grid flex items-center">
-          <div className="max-w-4xl">
-            <p className="mag-kicker opacity-70">/ ONE LAST THING</p>
-            <h3 className="mt-6 text-5xl md:text-7xl font-black italic tracking-tighter uppercase leading-[0.9]">
-              Break frames,<br />build resonance.
-            </h3>
-            <a
-              href="#archive"
-              className="mt-10 inline-flex items-center gap-2 px-7 py-4 rounded-2xl bg-white text-black font-black text-xs tracking-[0.4em] uppercase italic hover:opacity-90 transition"
+          <div className="home-period" role="group" aria-label="집계 기간">
+            <button
+              type="button"
+              aria-pressed={period === "weekly"}
+              onClick={() => setPeriod("weekly")}
             >
-              Back to Archive <ArrowUpRight size={16} />
+              주간
+            </button>
+            <button
+              type="button"
+              aria-pressed={period === "monthly"}
+              onClick={() => setPeriod("monthly")}
+            >
+              월간
+            </button>
+          </div>
+        </div>
+        <div className="home-boards">
+          <RankingBoard title="공감한 이야기" rollup={likes} />
+          <RankingBoard title="많이 읽은 이야기" rollup={views} />
+          <ReaderBoard />
+        </div>
+      </section>
+      {network.newsletterUrl && (
+        <section className="home-newsletter">
+          <div className="home-container">
+            <div>
+              <p className="home-kicker">UNFRAME LETTER</p>
+              <h2>
+                다음 이야기는,
+                <br />
+                당신의 메일함으로.
+              </h2>
+              <p>전시 뒤편의 생각, 프로젝트의 과정, 그리고 조용한 뉴스.</p>
+            </div>
+            <a
+              href={network.newsletterUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              뉴스레터 구독하기 <ArrowUpRight size={18} />
             </a>
           </div>
-        </div>
-      </section>
-
-    </div>
-  );
-}
-
-function RankingWidget({ data, isDarkMode }) {
-  if (!data) {
-    return (
-      <div className={`rounded-3xl border p-6 ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
-        <div className="text-sm text-zinc-500">Widget not found</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`rounded-3xl border p-6 ${isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-200 bg-white"}`}>
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">{data.kicker}</div>
-          <div className="mt-3 text-2xl font-black italic tracking-tighter uppercase">{data.title}</div>
-          <div className="mt-2 text-xs opacity-60">{data.hint}</div>
-        </div>
-      </div>
-
-      <div className="mt-5 space-y-2">
-        {data.loading ? (
-          <div className="text-sm text-zinc-500">loading…</div>
-        ) : !data.rows || data.rows.length === 0 ? (
-          <div className="text-sm text-zinc-500">{data.empty || "no data"}</div>
-        ) : (
-          data.rows.slice(0, 10).map((r, idx) => {
-            const Row = (
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-sm font-black italic line-clamp-1">{r.left}</div>
-                <div className="text-xs font-black opacity-70 shrink-0">{r.right}</div>
-              </div>
-            );
-
-            return r.to ? (
-              <Link
-                key={idx}
-                to={r.to}
-                className={`block rounded-2xl px-4 py-3 border transition ${
-                  isDarkMode ? "border-zinc-800 hover:border-zinc-600" : "border-zinc-200 hover:border-zinc-400"
-                }`}
-              >
-                {Row}
-              </Link>
-            ) : (
-              <div key={idx} className={`rounded-2xl px-4 py-3 border ${isDarkMode ? "border-zinc-800" : "border-zinc-200"}`}>
-                {Row}
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NetworkCard({ title, kicker, desc, href, isDarkMode }) {
-  if (!href) return null;
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={[
-        "rounded-[2.2rem] border p-8 transition shadow-lg",
-        "hover:translate-y-[-4px]",
-        isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-100 bg-white",
-      ].join(" ")}
-    >
-      <div className="text-[10px] tracking-[0.5em] uppercase italic font-black opacity-60">/ {kicker}</div>
-      <div className="mt-4 text-2xl font-black italic tracking-tighter uppercase">{title}</div>
-      <div className="mt-3 text-sm text-zinc-500 dark:text-zinc-400 italic">{desc}</div>
-      <div className="mt-6 text-[10px] tracking-[0.5em] uppercase italic font-black text-[#004aad]">OPEN →</div>
-    </a>
-  );
-}
-
-function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
-  const edition = padEdition(item?.editionNo);
-  const img = coverUrlOf(item, { width: compact ? 800 : 1200 });
-  const excerpt = item?.excerpt || item?.subtitle || "";
-
-  const min = estimateReadMinutes(item, { min: 2 });
-  const emoji = timeEmoji(min);
-
-  return (
-    <Link
-      to={`/article/${item.editionNo}`}
-      className={[
-        "group relative rounded-[2.5rem] overflow-hidden border shadow-xl transition hover:translate-y-[-6px]",
-        isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-100 bg-white",
-        className,
-      ].join(" ")}
-    >
-      {img ? (
-        <img
-          src={img}
-          srcSet={getImageSrcSet(item.cover || img, [480, 800, 1200])}
-          sizes="(max-width: 768px) 100vw, 800px"
-          alt={item.title}
-          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-85 transition"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-zinc-900" />
+        </section>
       )}
-
-      <div className="absolute inset-0 bg-linear-to-t from-black via-black/35 to-transparent" />
-      <div
-        className={[
-          "relative z-10 h-full flex flex-col justify-end",
-          compact ? "px-6 sm:px-8 pt-6 sm:pt-8 pb-7 sm:pb-8" : "px-8 sm:px-10 pt-8 sm:pt-10 pb-8 sm:pb-10",
-        ].join(" ")}
-      >
-        <div className="flex items-center gap-3 text-[10px] tracking-[0.5em] uppercase font-black italic text-white/80">
-          <span className="px-3 py-1 rounded-full bg-white/10 border border-white/10">#{edition}</span>
-          <span className="opacity-80 inline-flex items-center gap-2">
-            <span>{item.category || "—"}</span>
-            <span className="tracking-normal opacity-90">
-              {emoji} {min}m
-            </span>
-          </span>
-        </div>
-
-        <h3
-          className={`mt-4 font-black italic tracking-tighter uppercase ${
-            compact ? "text-2xl md:text-3xl" : "text-4xl md:text-5xl"
-          } leading-none text-white`}
-        >
-          {item.title || "Untitled"}
-        </h3>
-        <p
-          className={[
-            "mt-3 text-white/75 italic leading-6",
-            compact ? "line-clamp-1 sm:line-clamp-2 text-[13px] sm:text-sm" : "line-clamp-2 text-sm sm:text-[15px]",
-          ].join(" ")}
-        >
-          {excerpt || "—"}
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-function ArchiveCard({ item, isDarkMode }) {
-  const edition = padEdition(item?.editionNo);
-  const img = coverUrlOf(item, { width: 800 });
-
-  const min = estimateReadMinutes(item, { min: 2 });
-  const emoji = timeEmoji(min);
-
-  return (
-    <Link
-      to={`/article/${item.editionNo}`}
-      className={[
-        "group rounded-[2rem] overflow-hidden border transition hover:translate-y-[-4px] shadow-lg",
-        isDarkMode ? "border-zinc-800 bg-zinc-950" : "border-zinc-100 bg-white",
-      ].join(" ")}
-    >
-      <div className="h-44 overflow-hidden">
-        {img ? (
-          <img
-            src={img}
-            srcSet={getImageSrcSet(item.cover || img, [480, 800])}
-            sizes="(max-width: 768px) 100vw, 480px"
-            alt={item.title}
-            className="h-full w-full object-cover group-hover:scale-[1.02] transition"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <div className="h-full w-full bg-zinc-900" />
-        )}
-      </div>
-
-      <div className="p-7">
-        <div className="flex items-center justify-between text-[10px] font-black italic tracking-[0.4em] uppercase opacity-60">
-          <span>#{edition}</span>
-
-          <span className="text-right">
-            <div className="text-[#004aad]">{item.category || "—"}</div>
-            <div className="tracking-normal opacity-80">
-              {emoji} {min}m
-            </div>
-          </span>
-        </div>
-
-        <h4 className="mt-3 text-2xl font-black italic tracking-tighter uppercase leading-[1.1]">{item.title || "Untitled"}</h4>
-        <p className="mt-3 text-zinc-500 italic line-clamp-2">{item.excerpt || item.subtitle || "—"}</p>
-      </div>
-    </Link>
-  );
-}
-
-function SubscribeBand({ href, variant = "bold" }) {
-  if (!href) return null;
-  const isBold = variant === "bold";
-  return (
-    <section className={isBold ? "bg-[#fdfd75] text-black" : "bg-black text-white"}>
-      <div className="mag-grid py-20">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-10">
-            <div>
-              <p className={`mag-kicker ${isBold ? "opacity-70" : "opacity-60"}`}>/ WEDNESDAY LETTER</p>
-              <h3 className={`mt-4 ${isBold ? "mag-h2" : "mag-h3"} leading-[0.95]`}>
-                Get a letter<br />every Wednesday.
-              </h3>
-              <p className={`mt-6 italic ${isBold ? "text-lg opacity-80" : "opacity-70"}`}>
-                전시 뒤편의 생각, 프로젝트의 과정, 그리고 조용한 뉴스.
-              </p>
-            </div>
-
-            <div className="flex shrink-0">
+      <section className="home-closing home-container">
+        <p>전시를 넘어, 오래 남는 이야기.</p>
+        <a href="#archive" className="home-text-link">
+          아카이브로 돌아가기 <ArrowUpRight size={16} />
+        </a>
+        {projects.length > 1 && (
+          <div
+            className="home-project-links"
+            aria-label="더 많은 언프레임 프로젝트"
+          >
+            {projects.slice(1).map((project) => (
               <a
-                href={href}
+                key={project.key}
+                href={links[project.key]}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`${isBold ? "bg-black text-white hover:bg-zinc-800" : "bg-white text-black hover:opacity-90"} inline-flex items-center justify-center gap-3 px-8 py-5 font-black text-sm uppercase italic transition focus-visible:outline-2 focus-visible:outline-offset-4`}
               >
-                Subscribe <ArrowUpRight size={18} />
+                {project.title} <ArrowUpRight size={14} />
               </a>
-            </div>
+            ))}
           </div>
-
-        </div>
-      </div>
-    </section>
+        )}
+      </section>
+    </div>
   );
 }
