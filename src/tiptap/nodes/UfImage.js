@@ -1,3 +1,4 @@
+import { articleImageAttributes } from "../../lib/imageUrl";
 import { Node, mergeAttributes } from "@tiptap/core";
 
 export const UfImage = Node.create({
@@ -50,7 +51,7 @@ export const UfImage = Node.create({
       [
         "img",
         {
-          src: String(src),
+          ...articleImageAttributes(String(src)),
           alt: alt ? String(alt) : "",
           "data-original-src": String(src),
           loading: "lazy",

@@ -1,3 +1,4 @@
+import { articleImageAttributes } from "../../lib/imageUrl";
 import { Node, mergeAttributes } from "@tiptap/core";
 import {
   getParallaxPresetBySpeed,
@@ -174,7 +175,7 @@ export const ParallaxImage = Node.create({
         [
           "img",
           {
-            src: src || "",
+            ...articleImageAttributes(src),
             class: "uf-parallax__img",
             alt: HTMLAttributes.alt || "",
             "data-original-src": src || "",

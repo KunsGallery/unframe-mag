@@ -38,6 +38,7 @@ import { resolveProfileDisplayName } from "../lib/profileImage";
 
 import { Scene } from "../tiptap/nodes/Scene";
 import { UfImage } from "../tiptap/nodes/UfImage";
+import { ResponsiveImage } from "../tiptap/nodes/ResponsiveImage";
 import { ParallaxImage } from "../tiptap/nodes/ParallaxImage";
 import { StickyStory } from "../tiptap/nodes/StickyStory";
 import { UfTable } from "../tiptap/nodes/UfTable";
@@ -149,6 +150,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       Columns,
       Column,
       UfImage,
+      ResponsiveImage,
       ParallaxImage,
       StickyStory,
       Gallery,

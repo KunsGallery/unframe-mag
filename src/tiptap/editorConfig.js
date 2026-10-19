@@ -1,7 +1,7 @@
 // src/tiptap/editorConfig.js
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import Image from "@tiptap/extension-image";
+import { ResponsiveImage as Image } from "./nodes/ResponsiveImage";
 import Link from "@tiptap/extension-link";
 import Strike from "@tiptap/extension-strike";
 import TextAlign from "@tiptap/extension-text-align";
@@ -117,7 +117,7 @@ export function createEditorConfig({ onUploadImage, onToast }) {
             window.dispatchEvent(new CustomEvent("uf:insert-image", { detail: { url } }));
           } catch (e) {
             console.error(e);
-            onToast?.("이미지 업로드 실패");
+            onToast?.(e?.userMessage || "이미지 업로드 실패");
           }
         })();
 
@@ -136,7 +136,7 @@ export function createEditorConfig({ onUploadImage, onToast }) {
             window.dispatchEvent(new CustomEvent("uf:insert-image", { detail: { url } }));
           } catch (e) {
             console.error(e);
-            onToast?.("이미지 업로드 실패");
+            onToast?.(e?.userMessage || "이미지 업로드 실패");
           }
         })();
 

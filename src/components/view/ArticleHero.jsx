@@ -1,5 +1,5 @@
 import React from "react";
-import { getCoverImageUrl } from "../../lib/imageUrl";
+import { getCoverImageUrl, getImageSrcSet } from "../../lib/imageUrl";
 
 export default function ArticleHero({
   article,
@@ -22,6 +22,8 @@ export default function ArticleHero({
         {heroSrc ? (
           <img
             src={heroSrc}
+            srcSet={getImageSrcSet(article.cover || heroSrc, [640, 960, 1600, 2400])}
+            sizes="100vw"
             data-original-src={originalHeroSrc || undefined}
             data-caption={heroCaption || undefined}
             className="w-full h-full object-cover opacity-40 dark:opacity-20 blur-[2px] cursor-zoom-in"

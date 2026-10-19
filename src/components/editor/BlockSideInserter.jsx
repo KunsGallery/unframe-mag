@@ -255,7 +255,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
       toast("이미지 삽입 완료");
     } catch (e) {
       console.error(e);
-      toast("이미지 업로드 실패");
+      toast(e?.userMessage || "이미지 업로드 실패");
     } finally {
       setMenuOpen(null);
     }
@@ -288,7 +288,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
       toast("갤러리 삽입 완료");
     } catch (e) {
       console.error(e);
-      toast("갤러리 업로드 실패");
+      toast(e?.userMessage || "갤러리 업로드 실패");
     } finally {
       setMenuOpen(null);
     }
@@ -321,7 +321,7 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
       toast("슬라이드 갤러리 삽입 완료");
     } catch (e) {
       console.error(e);
-      toast("슬라이드 갤러리 업로드 실패");
+      toast(e?.userMessage || "슬라이드 갤러리 업로드 실패");
     } finally {
       setMenuOpen(null);
     }

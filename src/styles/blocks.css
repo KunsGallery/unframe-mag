@@ -341,6 +341,7 @@
 }
 
 .uf-gallery__caption {
+  z-index: 3;
   position: absolute;
   left: 0;
   right: 0;
@@ -736,3 +737,9 @@
     right: 8px;
   }
 }
+/* Image failure controls live outside TipTap's document tree. */
+.uf-image-load-failed { visibility: hidden !important; min-height: 180px; min-width: 140px; }
+.uf-image-failure { position: absolute; z-index: 2; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--uf-editor-border, #d4d4d8); border-radius: 6px; background: var(--uf-bg, #fafafa); color: var(--uf-text, #27272a); font: 400 13px/1.5 "Pretendard", system-ui, sans-serif; text-align: center; letter-spacing: 0; }
+.uf-image-failure button { pointer-events: auto; display: inline-flex; gap: 6px; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px; border: 1px solid currentColor; border-radius: 4px; font: inherit; cursor: pointer; }
+.uf-image-failure button:disabled { opacity: .6; cursor: wait; }
+.uf-image-failure button:focus-visible { outline: 2px solid #004aad; outline-offset: 3px; }

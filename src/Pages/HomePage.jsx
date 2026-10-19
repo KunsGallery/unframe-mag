@@ -8,7 +8,7 @@ import { usePopularRollup } from "../hooks/usePopularRollup";
 import { useNetworkConfig } from "../hooks/useNetworkConfig";
 import { ARCHIVE_CATEGORIES as CATEGORIES } from "../constants/categories";
 import { estimateReadMinutes, timeEmoji } from "../lib/readingMeta";
-import { getCoverImageUrl } from "../lib/imageUrl";
+import { getCoverImageUrl, getImageSrcSet } from "../lib/imageUrl";
 
 function padEdition(editionNo) {
   if (!editionNo) return "---";
@@ -310,6 +310,8 @@ export default function HomePage({ isDarkMode, onToast }) {
         {coverImg ? (
           <img
             src={coverImg}
+            srcSet={getImageSrcSet(cover.cover || coverImg, [640, 960, 1600, 2400])}
+            sizes="100vw"
             className="absolute inset-0 h-full w-full object-cover opacity-65 scale-105"
             alt="Cover"
             loading="eager"
@@ -722,6 +724,8 @@ function FeatureCard({ item, className = "", compact = false, isDarkMode }) {
       {img ? (
         <img
           src={img}
+          srcSet={getImageSrcSet(item.cover || img, [480, 800, 1200])}
+          sizes="(max-width: 768px) 100vw, 800px"
           alt={item.title}
           className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-85 transition"
           loading="lazy"
@@ -787,6 +791,8 @@ function ArchiveCard({ item, isDarkMode }) {
         {img ? (
           <img
             src={img}
+            srcSet={getImageSrcSet(item.cover || img, [480, 800])}
+            sizes="(max-width: 768px) 100vw, 480px"
             alt={item.title}
             className="h-full w-full object-cover group-hover:scale-[1.02] transition"
             loading="lazy"

@@ -1,3 +1,4 @@
+import { articleImageAttributes } from "../../lib/imageUrl";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { GALLERY_DEFAULTS } from "../../constants/editorBlocks";
 
@@ -150,7 +151,7 @@ export const Gallery = Node.create({
           [
             "img",
             {
-              src: img.src || "",
+              ...articleImageAttributes(img.src, { width: 1600, sizes: "(max-width: 768px) 100vw, 1200px" }),
               alt: img.alt || "",
               "data-original-src": img.src || "",
               "data-caption": img.caption || "",

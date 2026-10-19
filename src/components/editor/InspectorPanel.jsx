@@ -89,6 +89,21 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
     editor.view.dispatch(editor.state.tr.setNodeMarkup(selected.pos, undefined, { ...node.attrs, ...patch }));
   };
 
+  const replaceImageFile = async (file, index = null) => {
+    const target = selected;
+    if (!target || uploading || !editor.isEditable) return;
+    try {
+      const { url } = await upload(file);
+      const node = editor.state.doc.nodeAt(target.pos);
+      if (node !== target.node) { toast("블록이 바뀌었어요. 이미지를 다시 선택해 주세요."); return; }
+      const patch = index === null
+        ? { [target.type === 'stickyStory' ? 'imageSrc' : 'src']: url }
+        : { images: node.attrs.images.map((image, imageIndex) => imageIndex === index ? { ...image, src: url } : image) };
+      editor.view.dispatch(editor.state.tr.setNodeMarkup(target.pos, undefined, { ...node.attrs, ...patch }));
+      toast("이미지를 교체했어요. 확인한 뒤 저장해 주세요.");
+    } catch (error) { toast(error?.userMessage || "이미지를 교체하지 못했어요. 다시 시도해 주세요."); }
+  };
+
   const removeImageAt = (type, images, index) => {
     if (!Array.isArray(images) || images.length <= 1) {
       toast("마지막 이미지는 삭제할 수 없어요.");
@@ -205,6 +220,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
         {['image', 'ufImage', 'parallaxImage', 'stickyStory'].includes(selected?.type) && <Row label="이미지 대체 텍스트">
           <input aria-label="이미지 대체 텍스트" value={selected.attrs.alt || ''} onChange={(event) => setAttrs(selected.type, { alt: event.target.value })} className="w-full rounded border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" />
         </Row>}
+        {['image', 'ufImage', 'parallaxImage', 'stickyStory'].includes(selected?.type) && <UploadButton label="이미지 교체" title="현재 이미지 교체" uploading={uploading} progress={progress} onPickFile={(file) => replaceImageFile(file)} />}
 
         {/* -------- Parallax -------- */}
         {selected?.type === "parallaxImage" && (
@@ -443,7 +459,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
                     onToast?.("스티키 이미지 업로드 완료");
                   } catch (e) {
                     console.error(e);
-                    onToast?.("스티키 업로드 실패");
+                    onToast?.(e?.userMessage || "스티키 업로드 실패");
                   }
                 }}
               />
@@ -912,6 +928,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
                       <label className="block text-xs">이미지 {idx + 1} 대체 텍스트
                         <input value={img?.alt || ''} onChange={(event) => { const next = [...arr]; next[idx] = { ...next[idx], alt: event.target.value }; setAttrs('gallery', { images: next }); }} className="mt-2 w-full rounded border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" />
                       </label>
+                      <UploadButton label="이미지 교체" title={`이미지 ${idx + 1} 교체`} uploading={uploading} progress={progress} onPickFile={(file) => replaceImageFile(file, idx)} />
 
                       <div className="space-y-2">
                         <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">
@@ -1322,6 +1339,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
                       <label className="block text-xs">슬라이드 {idx + 1} 대체 텍스트
                         <input value={img?.alt || ''} onChange={(event) => { const next = [...arr]; next[idx] = { ...next[idx], alt: event.target.value }; setAttrs('slideGallery', { images: next }); }} className="mt-2 w-full rounded border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" />
                       </label>
+                      <UploadButton label="이미지 교체" title={`슬라이드 ${idx + 1} 이미지 교체`} uploading={uploading} progress={progress} onPickFile={(file) => replaceImageFile(file, idx)} />
 
                       <div className="space-y-2">
                         <div className="text-[10px] font-black tracking-widest uppercase text-zinc-400">

@@ -15,6 +15,7 @@ export function useLightboxFromArticleBody(bodyRef, articleId) {
 
       const img = target.closest("img");
       if (!img) return;
+      if (img.dataset.ufImageState) return;
       if (img.closest('button, a, [data-lightbox-ignore="true"]')) return;
 
       const src =

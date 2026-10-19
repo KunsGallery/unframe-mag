@@ -3,6 +3,7 @@ const seen = new Set();
 
 function classify(error) {
   const code = String(error?.code || "");
+  if (/^image-(load|upload-[a-z-]+)$/.test(code)) return code;
   if (/^auth\/[a-z-]+$/.test(code)) return code;
   const message = String(error?.message || error || "");
   if (/fetch dynamically imported|module script|loading chunk/i.test(message)) return "chunk-load";

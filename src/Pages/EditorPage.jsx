@@ -533,7 +533,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
               <label>대표 이미지{(coverMedium || cover) && <img src={coverMedium || cover} alt="대표 이미지" />}</label>
               <UploadButton label="대표 이미지 업로드" title="대표 이미지 업로드" uploading={coverUploading} progress={coverProgress} disabled={editingDisabled} onPickFile={async (file) => {
                 try { const result = await uploadCover(file, { variant: "cover" }); setCover(result.url); setCoverMedium(result.coverMedium || result.url); setDraftDirty(true); }
-                catch { toast("대표 이미지 업로드에 실패했어요."); }
+                catch (error) { toast(error?.userMessage || "대표 이미지 업로드에 실패했어요."); }
               }} />
               <label>대표 이미지 주소<input type="url" value={cover} disabled={editingDisabled} onChange={(event) => { setCover(event.target.value); setDraftDirty(true); }} /></label>
               <details><summary>이미지 고급 설정</summary><label>목록용 이미지 주소<input type="url" value={coverMedium} disabled={editingDisabled} onChange={(event) => { setCoverMedium(event.target.value); setDraftDirty(true); }} /></label></details>

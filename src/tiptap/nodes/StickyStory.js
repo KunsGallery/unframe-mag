@@ -1,3 +1,4 @@
+import { articleImageAttributes } from "../../lib/imageUrl";
 import { Node, mergeAttributes } from '@tiptap/core';
 import {
   STICKY_STORY_DEFAULTS,
@@ -39,7 +40,7 @@ export const StickyStory = Node.create({
       ? [[
           "img",
           {
-            src: String(imageSrc),
+            ...articleImageAttributes(String(imageSrc)),
             alt: node.attrs.alt || "",
             class: "uf-sticky-story__img",
             "data-original-src": String(imageSrc),

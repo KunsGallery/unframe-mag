@@ -456,7 +456,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         });
     } catch (e) {
       console.error(e);
-      toast("이미지 업로드 실패");
+      toast(e?.userMessage || "이미지 업로드 실패");
     }
   };
 
@@ -479,7 +479,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         });
     } catch (e) {
       console.error(e);
-      toast("패럴랙스 업로드 실패");
+      toast(e?.userMessage || "패럴랙스 업로드 실패");
     }
   };
 
@@ -500,7 +500,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         });
     } catch (e) {
       console.error(e);
-      toast("스티키 업로드 실패");
+      toast(e?.userMessage || "스티키 업로드 실패");
     }
   };
 

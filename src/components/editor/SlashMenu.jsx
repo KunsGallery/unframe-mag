@@ -393,7 +393,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
         safeClose();
       } catch (err) {
         console.error(err);
-        toast("갤러리 업로드 실패");
+        toast(err?.userMessage || "갤러리 업로드 실패");
       } finally {
         pendingInsertPosRef.current = null;
         if (e.target) {

@@ -217,7 +217,7 @@ export default function MyPage({ isDarkMode, onToast }) {
       toast("프로필 사진이 업데이트되었어요.");
     } catch (e) {
       console.error(e);
-      toast("프로필 사진 업로드 실패");
+      toast(e?.userMessage || "프로필 사진 업로드 실패");
     }
   };
 

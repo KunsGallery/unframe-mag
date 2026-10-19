@@ -1,3 +1,4 @@
+import { articleImageAttributes } from "../../lib/imageUrl";
 import { Node, mergeAttributes } from "@tiptap/core";
 
 const SLIDE_GALLERY_DEFAULTS = {
@@ -164,7 +165,7 @@ export const SlideGallery = Node.create({
             [
               "img",
               {
-                src: img.src || "",
+                ...articleImageAttributes(img.src, { width: 1600, sizes: "(max-width: 768px) 100vw, 1200px" }),
                 alt: img.alt || "",
                 "data-original-src": img.src || "",
                 "data-caption": img.caption || "",
