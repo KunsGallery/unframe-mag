@@ -1,5 +1,21 @@
 /* src/styles/layout.css */
 
+.uf-site-nav :is(a, button):focus-visible {
+  outline: 2px solid #004aad;
+  outline-offset: 4px;
+}
+
+.uf-site-nav > div:first-child > div a > span {
+  height: 2px;
+  bottom: -10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uf-site-nav *, .uf-site-nav *::after {
+    transition: none !important;
+  }
+}
+
 /* ===== Custom Layout Class ===== */
 @layer components {
   .magazine-container {

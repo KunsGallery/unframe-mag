@@ -68,21 +68,24 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
 
   return (
     <nav
-      className={`h-[80px] border-b px-6 md:px-12 flex justify-between items-center sticky top-0 z-100 transition-all duration-500 ${
-        isDarkMode ? "bg-black/90 border-zinc-900" : "bg-white/90 border-zinc-50"
-      } backdrop-blur-3xl shadow-sm`}
+      aria-label="주 메뉴"
+      className={`uf-site-nav h-[72px] shrink-0 border-b px-4 sm:px-6 lg:px-10 flex justify-between gap-4 items-center sticky top-0 z-100 ${
+        isDarkMode ? "bg-black/95 border-zinc-800 text-white" : "bg-white/95 border-zinc-200 text-zinc-900"
+      } backdrop-blur-md`}
     >
-      <div className="flex items-center gap-20">
+      <div className="flex min-w-0 items-center gap-10 xl:gap-14">
         <Link
           to="/"
-          className="text-4xl font-black italic tracking-tighter hover:text-[#004aad] transition-colors"
+          aria-label="U# 홈"
+          className="shrink-0 text-[40px] leading-none font-black italic tracking-normal hover:text-[#004aad] transition-colors"
         >
           U<span className="text-[#004aad]">#</span>
         </Link>
 
-        <div className="hidden lg:flex gap-12 text-[11px] font-black uppercase tracking-[0.6em] text-zinc-400 italic">
+        <div className="hidden lg:flex items-center gap-8 text-[13px] font-medium tracking-normal text-zinc-500">
           <Link
             to="/"
+            aria-current={location.pathname === "/" ? "page" : undefined}
             className={`hover:text-[#004aad] relative group ${
               location.pathname === "/" ? (isDarkMode ? "text-white" : "text-black") : ""
             }`}
@@ -97,6 +100,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
 
           <Link
             to="/about"
+            aria-current={location.pathname === "/about" ? "page" : undefined}
             className={`hover:text-[#004aad] relative group ${
               location.pathname === "/about" ? (isDarkMode ? "text-white" : "text-black") : ""
             }`}
@@ -111,6 +115,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
 
           <Link
             to="/mylibrary"
+            aria-current={location.pathname === "/mylibrary" ? "page" : undefined}
             className={`hover:text-[#004aad] relative group ${
               location.pathname === "/mylibrary" ? (isDarkMode ? "text-white" : "text-black") : ""
             }`}
@@ -126,6 +131,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
           {isAdmin && (
             <Link
               to="/admin"
+              aria-current={location.pathname === "/admin" ? "page" : undefined}
               className={`hover:text-[#004aad] relative group ${
                 location.pathname === "/admin" ? (isDarkMode ? "text-white" : "text-black") : ""
               }`}
@@ -141,28 +147,30 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-6">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {canWrite && (
           <Link
             to="/write"
-            className={`p-4 rounded-2xl hover:bg-[#004aad]/10 transition-all ${
+            aria-label="글쓰기"
+            className={`h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-[#004aad]/10 transition-colors ${
               location.pathname === "/write"
                 ? "text-[#004aad] bg-[#004aad]/5"
                 : "text-zinc-400 hover:text-[#004aad]"
             }`}
             title="Write Article"
           >
-            <Edit3 size={24} />
+            <Edit3 size={20} />
           </Link>
         )}
 
-        <ThemeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
+        <ThemeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} compact />
 
         {user ? (
           <button
             onClick={onLogout}
             aria-label="로그아웃"
-            className="flex items-center gap-2 p-2 rounded-xl text-zinc-400 hover:text-red-500 transition-all"
+            title="로그아웃"
+            className="h-11 w-11 inline-flex items-center justify-center rounded-md text-zinc-500 hover:bg-red-500/5 hover:text-red-500 transition-colors"
             type="button"
           >
             <LogOut size={20} />
@@ -170,10 +178,10 @@ const Navbar = ({ toggleTheme, isDarkMode, user, role, onLogin, onLogout }) => {
         ) : (
           <button
             onClick={onLogin}
-            className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-lg hover:bg-[#004aad] hover:text-white transition-all"
+            className="min-h-11 px-3 text-[13px] font-medium tracking-normal hover:text-[#004aad] transition-colors"
             type="button"
           >
-            Login
+            로그인
           </button>
         )}
         <button
