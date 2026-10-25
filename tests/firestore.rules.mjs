@@ -176,6 +176,8 @@ test("home summaries follow their published article", async () => {
   await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, editionNo: "099" }));
   await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, title: "Different" }));
   await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, contentHTML: "<p>Body</p>" }));
+  await assertSucceeds(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, relatedEditionNos: ["001", "002"] }));
+  await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, relatedEditionNos: Array.from({ length: 13 }, (_, index) => String(index)) }));
   await assertFails(setDoc(doc(db, "articleSummaries", "summary-draft"), { ...summary, title: "Draft" }));
   await assertFails(setDoc(doc(user("reader"), "articleSummaries", "summary-source"), summary));
   await assertSucceeds(getDoc(doc(environment.unauthenticatedContext().firestore(), "articleSummaries", "summary-source")));

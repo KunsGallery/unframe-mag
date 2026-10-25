@@ -11,6 +11,7 @@ export const ARTICLE_CATEGORIES = [
   { key: "PROJECT", label: "Project", sub: "CATEGORY 08" },
   { key: "ESSAY", label: "Essay", sub: "CATEGORY 09" },
   { key: "ARCHIVE", label: "Archive", sub: "CATEGORY 10" },
+  { key: "CURATOR'S NOTE", label: "Curator's Note", sub: "CATEGORY 11" },
 ];
 
 export const ARCHIVE_CATEGORIES = [

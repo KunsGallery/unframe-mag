@@ -1,5 +1,6 @@
 // src/lib/articleSummary.js
 import { estimateReadMinutes } from "./readingMeta.js";
+import { normalizeRelatedEditionNos } from "./relatedArticles.js";
 
 // Home cards read these small documents instead of every article body.
 // Keep the field list in sync with the articleSummaries rule in firestore.rules.
@@ -16,5 +17,7 @@ export function buildArticleSummary(article, updatedAt) {
     if (typeof article[field] === "string" && article[field]) summary[field] = article[field];
   }
   if (typeof summary.title !== "string") summary.title = article.title ?? "";
+  const related = normalizeRelatedEditionNos(article.relatedEditionNos, article.editionNo);
+  if (related.length) summary.relatedEditionNos = related;
   return summary;
 }

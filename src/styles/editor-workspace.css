@@ -72,3 +72,16 @@
 .uf-overlay-loading { position: fixed; inset: auto 20px 20px; z-index: 60; background: var(--uf-bg); padding: 16px; border: 1px solid var(--uf-editor-border); }
 @media (min-width: 1024px) { .uf-workspace-main,.uf-workspace > .uf-recovery { margin-right: var(--uf-panel-width); } .uf-workspace.is-focus .uf-workspace-main,.uf-workspace.is-focus > .uf-recovery { margin-right: 0; } }
 @media (max-width: 640px) { .uf-workspace-actions { padding: 8px 10px; } .uf-workspace-document { width: 100%; } .uf-workspace-commands { width: 100%; justify-content: space-between; } .uf-workspace-commands button { padding: 8px; min-height: 40px; } .uf-workspace-commands button:nth-child(2) { display: none; } .uf-writing-surface { padding: 26px 20px 70px; } .uf-writing-title { font-size: 28px; } .uf-writing-subtitle { font-size: 17px; } }
+.uf-related-picker { border-top: 1px solid var(--uf-editor-border); padding-top: 18px; margin-top: 4px; }
+.uf-related-picker h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.uf-related-picker > p { font-size: 12px; line-height: 1.6; opacity: .72; margin-bottom: 12px; }
+.uf-related-picker ol, .uf-related-picker ul { display: grid; gap: 6px; margin-bottom: 12px; }
+.uf-related-picker ol li { display: grid; grid-template-columns: 1fr repeat(3, 32px); align-items: center; gap: 4px; font-size: 13px; padding: 6px 6px 6px 10px; border: 1px solid var(--uf-editor-border); border-radius: 4px; }
+.uf-related-picker ol li span { overflow-wrap: anywhere; }
+.uf-related-picker ol button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; }
+.uf-related-picker ol button:hover:not(:disabled), .uf-related-picker ul button:hover:not(:disabled) { background: var(--uf-editor-surface); }
+.uf-related-picker button:disabled { opacity: .35; }
+.uf-related-picker label { margin-bottom: 8px; }
+.uf-related-picker ul button { display: grid; grid-template-columns: 14px 1fr; column-gap: 8px; width: 100%; text-align: left; font-size: 13px; padding: 8px 10px; border-radius: 4px; }
+.uf-related-picker ul button small { grid-column: 2; font-size: 11px; opacity: .6; }
+.uf-related-empty { font-size: 12px; opacity: .6; padding: 6px 0; }

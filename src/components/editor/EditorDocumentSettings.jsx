@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import UploadButton from "./UploadButton";
 import { ARTICLE_CATEGORIES } from "../../constants/categories";
+import RelatedArticlesPicker from "./RelatedArticlesPicker";
 
 export default function EditorDocumentSettings({
   category,
@@ -15,6 +16,10 @@ export default function EditorDocumentSettings({
   coverUploading,
   coverProgress,
   toast,
+  db,
+  relatedEditionNos,
+  setRelatedEditionNos,
+  selfEditionNo,
 }) {
   return (
     <section className="uf-document-settings">
@@ -28,6 +33,8 @@ export default function EditorDocumentSettings({
       <label>대표 이미지 주소<input type="url" value={cover} disabled={editingDisabled} onChange={(event) => { setCover(event.target.value); setDraftDirty(true); }} /></label>
       <details><summary>이미지 고급 설정</summary><label>목록용 이미지 주소<input type="url" value={coverMedium} disabled={editingDisabled} onChange={(event) => { setCoverMedium(event.target.value); setDraftDirty(true); }} /></label></details>
       {cover && <button type="button" disabled={editingDisabled || coverUploading} onClick={() => { setCover(""); setCoverMedium(""); setDraftDirty(true); }}><Trash2 size={16} />대표 이미지 삭제</button>}
+      <RelatedArticlesPicker db={db} value={relatedEditionNos} selfEditionNo={selfEditionNo} disabled={editingDisabled}
+        onChange={(next) => { setRelatedEditionNos(next); setDraftDirty(true); }} />
     </section>
   );
 }

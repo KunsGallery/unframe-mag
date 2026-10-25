@@ -9,39 +9,10 @@ import {
   Play,
   Search,
 } from "lucide-react";
-import {
-  collection,
-  getCountFromServer,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { loadPublishedArticleCards } from "../lib/articleIndex";
 
-const HOME_ARTICLE_LIMIT = 60;
-
-// Summaries hold everything a home card needs without the article body.
-// Until every published article has one (backfill pending), use the full documents.
-async function loadHomeArticles() {
-  const published = query(collection(db, "articles"), where("status", "==", "published"));
-  const summaries = collection(db, "articleSummaries");
-  const count = (source) =>
-    getCountFromServer(source)
-      .then((snap) => snap.data().count)
-      .catch(() => -1);
-  const [publishedCount, summaryCount] = await Promise.all([
-    count(published),
-    count(summaries),
-  ]);
-  const source =
-    summaryCount > 0 && summaryCount === publishedCount ? summaries : published;
-  const snap = await getDocs(
-    query(source, orderBy("sortIndex", "desc"), limit(HOME_ARTICLE_LIMIT)),
-  );
-  return snap.docs.map((entry) => ({ docId: entry.id, ...entry.data() }));
-}
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { useNetworkConfig } from "../hooks/useNetworkConfig";
 import { usePopularRollup } from "../hooks/usePopularRollup";
@@ -372,7 +343,7 @@ export default function HomePage({ isDarkMode, onToast }) {
   const views = usePopularRollup({ mode: period, sortBy: "views", top: 5 });
   useEffect(() => {
     let alive = true;
-    loadHomeArticles()
+    loadPublishedArticleCards(db)
       .then((items) => {
         if (alive) setArticles(items);
       })

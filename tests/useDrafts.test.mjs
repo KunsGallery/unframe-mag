@@ -11,6 +11,7 @@ const historySource = await readFile(new URL('../src/lib/editorHistory.js', impo
 const categoriesSource = await readFile(new URL('../src/constants/categories.js', import.meta.url), 'utf8');
 const summarySource = await readFile(new URL('../src/lib/articleSummary.js', import.meta.url), 'utf8');
 const readingMetaSource = await readFile(new URL('../src/lib/readingMeta.js', import.meta.url), 'utf8');
+const relatedSource = await readFile(new URL('../src/lib/relatedArticles.js', import.meta.url), 'utf8');
 const meta = { title: '', subtitle: '', category: 'ART', cover: '', coverMedium: '', authorEmail: 'author@example.com' };
 const deferred = () => {
   let resolve;
@@ -170,11 +171,14 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
   await historyModule.evaluate();
   const readingMetaModule = new SourceTextModule(readingMetaSource, { context });
   await readingMetaModule.link(() => {});
+  const relatedModule = new SourceTextModule(relatedSource, { context });
+  await relatedModule.link(() => {});
   const summaryModule = new SourceTextModule(summarySource, { context });
-  await summaryModule.link(() => readingMetaModule);
+  await summaryModule.link((specifier) => specifier.includes('relatedArticles') ? relatedModule : readingMetaModule);
   await summaryModule.evaluate();
   await module.link((specifier) => {
     if (specifier.includes('articleSummary')) return summaryModule;
+    if (specifier.includes('relatedArticles')) return relatedModule;
     if (specifier.includes('draftRecovery')) return recoveryModule;
     if (specifier.includes('publicationTransaction')) return publicationModule;
     if (specifier.includes('editorHistory')) return historyModule;
@@ -200,7 +204,7 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     return api;
   };
   const applied = {};
-  const setters = Object.fromEntries(['Title', 'Subtitle', 'Category', 'Cover', 'CoverMedium'].map((key) => [
+  const setters = Object.fromEntries(['Title', 'Subtitle', 'Category', 'Cover', 'CoverMedium', 'RelatedEditionNos'].map((key) => [
     'set' + key, (value) => { applied[key] = value; },
   ]));
   render();
@@ -935,4 +939,18 @@ test('hold during an in-flight save prevents completion from clearing restored e
   assert.equal(server.commits.length, 1);
   assert.equal(historyRows(server, h.render().draftId)[0].snapshot.title, historyMeta.title);
   h.unmount();
+});
+
+test('related articles are saved, copied to the home summary and restored on load', async () => {
+  const server = backend({ 'counters/articles': { lastIndex: 3, articleId: 'legacy' } });
+  const h = await harness({ server });
+  assert.equal(await h.render().publish({ ...meta, title: 'Preface', relatedEditionNos: ['002', '002', '', '001'] }), true);
+  const id = h.render().draftId;
+  assert.deepEqual([...server.data.get(`articles/${id}`).relatedEditionNos], ['002', '001']);
+  assert.deepEqual([...server.data.get(`articleSummaries/${id}`).relatedEditionNos], ['002', '001']);
+  const reader = await harness({ server });
+  assert.equal(await reader.render().loadDraft(id, reader.setters), true);
+  assert.deepEqual([...reader.applied.RelatedEditionNos], ['002', '001']);
+  reader.render().startNewDraft(reader.setters);
+  assert.deepEqual([...reader.applied.RelatedEditionNos], []);
 });

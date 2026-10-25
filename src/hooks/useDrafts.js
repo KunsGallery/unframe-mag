@@ -15,6 +15,7 @@ import {
 import { DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 import { runPublicationTransaction } from "../lib/publicationTransaction.js";
 import { buildArticleSummary } from "../lib/articleSummary.js";
+import { normalizeRelatedEditionNos } from "../lib/relatedArticles.js";
 import { editorSnapshot, pruneEditorHistory, writeEditorHistory } from "../lib/editorHistory.js";
 import { activeRecoveryDocument, browserRecoveryStorage, draftSnapshot, nextEdition, readRecovery, recoveryKey, removeRecovery, writeRecovery } from "../lib/draftRecovery.js";
 
@@ -268,6 +269,7 @@ export function useDrafts({
         setters.setCategory(data.category || DEFAULT_ARTICLE_CATEGORY);
         setters.setCover(data.cover || "");
         setters.setCoverMedium(data.coverMedium || "");
+        setters.setRelatedEditionNos?.(normalizeRelatedEditionNos(data.relatedEditionNos, data.editionNo));
         setIsDirty(false);
         setLastAutoSavedAt(null);
         offerRecovery(docId);
@@ -302,6 +304,7 @@ export function useDrafts({
       setters.setCategory(DEFAULT_ARTICLE_CATEGORY);
       setters.setCover("");
       setters.setCoverMedium("");
+      setters.setRelatedEditionNos?.([]);
       editor?.commands?.setContent("", { emitUpdate: false });
       setIsDirty(false);
       setLastAutoSavedAt(null);
@@ -370,7 +373,8 @@ export function useDrafts({
       const savedSession = sessionRef.current;
       const oldKey = keyRef.current;
       const record = captureRecovery(meta) || readRecovery(storage, oldKey);
-      const payload = draftSnapshot(meta, editor.getHTML());
+      // Related articles travel with the article but stay out of history and local recovery snapshots.
+      const payload = { ...draftSnapshot(meta, editor.getHTML()), relatedEditionNos: normalizeRelatedEditionNos(meta?.relatedEditionNos) };
       const currentId = draftIdRef.current;
       // Allocate refs once, outside retryable callbacks; never create documents during a retry.
       const newRef = doc(collection(db, "articles"));
@@ -439,7 +443,8 @@ export function useDrafts({
       const savedSession = sessionRef.current;
       const oldKey = keyRef.current;
       const record = captureRecovery(meta) || readRecovery(storage, oldKey);
-      const payload = draftSnapshot(meta, editor.getHTML());
+      // Related articles travel with the article but stay out of history and local recovery snapshots.
+      const payload = { ...draftSnapshot(meta, editor.getHTML()), relatedEditionNos: normalizeRelatedEditionNos(meta?.relatedEditionNos) };
       const currentId = draftIdRef.current;
       const ref = currentId ? doc(db, "articles", currentId) : doc(collection(db, "articles"));
       const counterRef = doc(db, "counters", "articles");

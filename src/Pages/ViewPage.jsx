@@ -60,6 +60,8 @@ import { useSlideGalleryRuntime } from "../hooks/useSlideGalleryRuntime";
 import { useSavedArticles } from "../hooks/useSavedArticles";
 
 import ArticleHero from "../components/view/ArticleHero";
+import RelatedArticles, { ParentArticleLink } from "../components/view/RelatedArticles";
+import { useArticleRelations } from "../hooks/useArticleRelations";
 import SideUtils from "../components/view/SideUtils";
 import ArticleBody from "../components/view/ArticleBody";
 import CommentSection from "../components/view/CommentSection";
@@ -169,6 +171,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
   const [articleAuthorProfile, setArticleAuthorProfile] = useState(null);
 
   const { progress, scrollToProgress } = useScrollProgress();
+  const relations = useArticleRelations(article);
   const { lightbox, setLightbox } = useLightboxFromArticleBody(bodyRef, article?.id);
 
   useRevealOnce(bodyRef, [article]);
@@ -526,7 +529,10 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       )}
 
       <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-20">
+        <ParentArticleLink parent={relations.parent} />
         <ArticleBody ref={bodyRef} article={article} editor={editor} />
+
+        <RelatedArticles parent={relations.parent} items={relations.items} />
 
         <EditorInfoBox
           article={article}

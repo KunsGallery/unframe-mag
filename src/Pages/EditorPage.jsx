@@ -75,6 +75,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [category, setCategory] = useState(DEFAULT_ARTICLE_CATEGORY);
+  const [relatedEditionNos, setRelatedEditionNos] = useState([]);
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
   const [panelTab, setPanelTab] = useState("settings");
@@ -130,6 +131,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       setCategory,
       setCover,
       setCoverMedium,
+      setRelatedEditionNos,
     });
     setEditorDocMeta(null);
   };
@@ -167,7 +169,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     recovery: recoveryCandidate,
     setIsDirty: setDraftDirty,
   } = draftsApi;
-  const currentMeta = { title, subtitle, category, cover, coverMedium, author: authorName, authorEmail };
+  const currentMeta = { title, subtitle, category, cover, coverMedium, relatedEditionNos, author: authorName, authorEmail };
   const currentMetaRef = useRef(currentMeta);
   // 이벤트/타이머 핸들러가 항상 최신 메타를 읽도록 렌더 중에 갱신합니다(기존 동작 유지).
   // eslint-disable-next-line react-hooks/refs
@@ -224,10 +226,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       category,
       cover,
       coverMedium,
+      relatedEditionNos,
       author: authorName,
       authorEmail,
     });
-  }, [runAutosave, title, subtitle, category, cover, coverMedium, authorName, authorEmail]);
+  }, [runAutosave, title, subtitle, category, cover, coverMedium, relatedEditionNos, authorName, authorEmail]);
 
   useEffect(() => {
     if (!editor || !editorReady) return;
@@ -246,6 +249,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           setCategory,
           setCover,
           setCoverMedium,
+          setRelatedEditionNos,
         });
 
         if (success && !cancelled) {
@@ -272,6 +276,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     setCategory,
     setCover,
     setCoverMedium,
+    setRelatedEditionNos,
   ]);
 
   const { editorDocMeta, setEditorDocMeta, loadingEditorMeta } = useEditorDocMeta(draftId, articleId);
@@ -287,7 +292,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, []);
 
   const editingDisabled = draftsApi.isSaving || draftsApi.isDraftLoading || !!recoveryCandidate;
-  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium };
+  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium, setRelatedEditionNos };
   const openPanel = (tab) => { setPanelTab(tab); setPanelOpen(true); setFocusMode(false); };
   const saveCurrent = async () => {
     const saved = await draftsApi.saveDraft({ markClean: true }, currentMetaRef.current);
@@ -410,6 +415,10 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
                 coverUploading={coverUploading}
                 coverProgress={coverProgress}
                 toast={toast}
+                db={db}
+                relatedEditionNos={relatedEditionNos}
+                setRelatedEditionNos={setRelatedEditionNos}
+                selfEditionNo={editorDocMeta?.sourceEditionNo || editorDocMeta?.editionNo || ""}
               />
             )}
             {panelTab === "drafts" && (

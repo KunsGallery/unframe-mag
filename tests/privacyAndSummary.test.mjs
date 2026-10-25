@@ -25,7 +25,7 @@ test('summary fields stay within the articleSummaries rule allow-list', async ()
   const rules = await readFile(new URL('../firestore.rules', import.meta.url), 'utf8');
   const block = rules.slice(rules.indexOf('match /articleSummaries/'), rules.indexOf('match /counters/articles'));
   const allowed = JSON.parse(block.match(/keys\(\)\.hasOnly\((\[[^\]]+\])\)/)[1].replaceAll("'", '"'));
-  const full = buildArticleSummary({ ...article, excerpt: 'e', coverMedium: 'm', coverThumb: 't' }, 'now');
+  const full = buildArticleSummary({ ...article, excerpt: 'e', coverMedium: 'm', coverThumb: 't', relatedEditionNos: ['001'] }, 'now');
   assert.deepEqual(Object.keys(full).filter((key) => !allowed.includes(key)), []);
 });
 
