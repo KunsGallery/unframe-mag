@@ -220,3 +220,10 @@
 .uf-footnotes li { scroll-margin-top: 120px; overflow-wrap: anywhere; }
 .uf-footnotes li:target { color: var(--uf-text); }
 .uf-footnotes a { margin-left: 6px; color: #004aad; text-decoration: none; }
+.uf-footnote-pop { position: absolute; z-index: 20; width: min(320px, calc(100% - 16px)); padding: 14px 14px 10px; font-size: 14px; line-height: 1.6; color: var(--uf-text); background: var(--uf-surface); border: 1px solid var(--uf-border); border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,.16); }
+.uf-footnote-pop p { overflow-wrap: anywhere; }
+.uf-footnote-pop strong { margin-right: 8px; color: #004aad; font-weight: 800; }
+.uf-footnote-pop div { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 12px; }
+.uf-footnote-pop a { color: #004aad; }
+.uf-footnote-pop button { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 4px; }
+.uf-view sup[data-uf-footnote]:focus-visible { outline: 2px solid #004aad; outline-offset: 2px; border-radius: 2px; }

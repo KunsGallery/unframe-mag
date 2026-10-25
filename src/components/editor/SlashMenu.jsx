@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
+import { matchesSearchTerm, normalizeSearchText } from "../../lib/koreanSearch";
+import { askEmbedUrl, askImageUrl } from "../../lib/editorPrompts";
 import {
   GALLERY_DEFAULTS,
   getParallaxMotionSpeed,
@@ -29,35 +31,42 @@ import {
   STICKY_STORY_DEFAULTS,
 } from "../../constants/editorBlocks";
 
+// Korean labels first; keywords keep the old English names searchable.
 const SLASH_ITEMS = [
-  { key: "scene", label: "Scene", desc: "장면 블록 추가", icon: Layout },
-  { key: "ufImage", label: "UF Image", desc: "캡션 이미지 블록", icon: Image },
-  { key: "parallax", label: "Parallax", desc: "패럴랙스 이미지", icon: Layers },
-  { key: "sticky", label: "Sticky Story", desc: "스티키 스토리 레이아웃", icon: Sticker },
-
-  { key: "columns2", label: "2 Columns", desc: "2단 컬럼 레이아웃", icon: Columns2 },
-  { key: "columns3", label: "3 Columns", desc: "3단 컬럼 레이아웃", icon: Columns2 },
-  { key: "gallery", label: "Gallery", desc: "그리드 갤러리", icon: Box },
-  { key: "slideGallery", label: "Slide Gallery", desc: "슬라이드 갤러리", icon: Images },
-  { key: "poll", label: "Poll", desc: "참여형 투표", icon: PieChart },
-  { key: "table", label: "Table", desc: "표 삽입", icon: Table },
-  { key: "divider", label: "Divider", desc: "구분선 삽입", icon: Minus },
-  { key: "callout", label: "Callout", desc: "강조 박스 삽입", icon: SquareStack },
-
-  { key: "playlist", label: "Playlist", desc: "Unframe Playlist 플레이어", icon: Music },
-  { key: "podcast", label: "Podcast", desc: "Unframe Podcast 플레이어", icon: Mic },
-
-  { key: "quote", label: "Quote", desc: "인용문", icon: Quote },
-  { key: "footnote", label: "Footnote", desc: "각주 (글 끝 주석)", icon: Superscript },
-  { key: "h2", label: "H2", desc: "대제목", icon: Heading2 },
-  { key: "h3", label: "H3", desc: "중제목", icon: Heading3 },
+  { key: "h2", label: "대제목", desc: "큰 소제목 (H2)", keywords: "h2 heading 제목", icon: Heading2 },
+  { key: "h3", label: "중제목", desc: "작은 소제목 (H3)", keywords: "h3 heading 제목", icon: Heading3 },
+  { key: "quote", label: "인용문", desc: "인용 블록", keywords: "quote blockquote", icon: Quote },
+  { key: "footnote", label: "각주", desc: "번호 각주 (글 끝 주석)", keywords: "footnote note 주석 출처", icon: Superscript },
+  { key: "ufImage", label: "캡션 이미지", desc: "설명이 붙는 사진", keywords: "uf image 사진 그림", icon: Image },
+  { key: "gallery", label: "갤러리", desc: "여러 장을 격자로", keywords: "gallery grid 사진", icon: Box },
+  { key: "slideGallery", label: "슬라이드 갤러리", desc: "넘겨 보는 사진", keywords: "slide gallery carousel 사진", icon: Images },
+  { key: "parallax", label: "패럴랙스 이미지", desc: "스크롤에 따라 움직이는 사진", keywords: "parallax 사진", icon: Layers },
+  { key: "sticky", label: "스티키 스토리", desc: "사진을 고정하고 글이 흐름", keywords: "sticky story", icon: Sticker },
+  { key: "scene", label: "장면", desc: "배경이 있는 장면 블록", keywords: "scene", icon: Layout },
+  { key: "columns2", label: "2단 컬럼", desc: "두 칸으로 나누기", keywords: "columns 2 단", icon: Columns2 },
+  { key: "columns3", label: "3단 컬럼", desc: "세 칸으로 나누기", keywords: "columns 3 단", icon: Columns2 },
+  { key: "callout", label: "강조 박스", desc: "눈에 띄는 안내 상자", keywords: "callout note box", icon: SquareStack },
+  { key: "divider", label: "구분선", desc: "단락 사이 구분", keywords: "divider line hr", icon: Minus },
+  { key: "table", label: "표", desc: "3×3 표", keywords: "table", icon: Table },
+  { key: "poll", label: "투표", desc: "독자 참여 투표", keywords: "poll vote", icon: PieChart },
+  { key: "playlist", label: "플레이리스트", desc: "Spotify·YouTube 재생목록", keywords: "playlist music 음악 spotify youtube", icon: Music },
+  { key: "podcast", label: "팟캐스트", desc: "Spotify·YouTube 에피소드", keywords: "podcast audio spotify youtube", icon: Mic },
 ];
+
+function filterSlashItems(query) {
+  const term = normalizeSearchText(query).replace(/\s+/g, "");
+  if (!term) return SLASH_ITEMS;
+  return SLASH_ITEMS.filter((item) => matchesSearchTerm(`${item.label} ${item.desc} ${item.keywords}`, term));
+}
 
 const MENU_WIDTH = 256;
 const MENU_MAX_HEIGHT = 360;
 
 const SlashMenu = ({ pos, onClose, editor, onToast }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [query, setQuery] = useState({ pos: null, text: "" });
+  const queryText = query.pos === pos ? query.text : "";
+  const items = useMemo(() => filterSlashItems(queryText), [queryText]);
   const itemRefs = useRef([]);
   const fileInputRef = useRef(null);
   const pendingInsertPosRef = useRef(null);
@@ -76,12 +85,31 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
     if (typeof onClose === "function") onClose();
   }, [onClose]);
 
+  // Removes the "/" and whatever was typed after it to filter the menu.
   const deleteSlashTrigger = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
     const { from } = editor.state.selection;
-    const start = Math.max(from - 1, 0);
+    const slashAt = typeof pos?.from === "number" ? pos.from - 1 : from - 1;
+    const valid = slashAt >= 0 && slashAt < from && editor.state.doc.textBetween(slashAt, slashAt + 1) === "/";
+    const start = valid ? slashAt : Math.max(from - 1, 0);
     editor.chain().focus().deleteRange({ from: start, to: from }).run();
-  }, [editor]);
+  }, [editor, pos]);
+
+  // Text typed after "/" filters the menu; leaving the line or a query that matches nothing closes it.
+  useEffect(() => {
+    if (!editor || !pos || typeof pos.from !== "number") return undefined;
+    const sync = () => {
+      if (editor.isDestroyed) return;
+      const { doc, selection } = editor.state;
+      const start = pos.from;
+      if (selection.from < start || start < 1 || doc.textBetween(start - 1, start) !== "/") { safeClose(); return; }
+      const text = doc.textBetween(start, selection.from, "\n", "\n");
+      if (text.includes("\n") || text.length > 24 || (text && !filterSlashItems(text).length)) { safeClose(); return; }
+      setQuery((prev) => (prev.pos === pos && prev.text === text ? prev : { pos, text }));
+    };
+    editor.on("transaction", sync);
+    return () => editor.off("transaction", sync);
+  }, [editor, pos, safeClose]);
 
   const insertUploadedContent = useCallback(
     (savedPos, content) => {
@@ -139,8 +167,8 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
           break;
 
         case "ufImage": {
-          const url = window.prompt("UF Image URL");
-          if (!url) break;
+          askImageUrl("캡션 이미지 넣기").then((url) => {
+          if (!url || editor.isDestroyed) return;
           editor
             .chain()
             .focus()
@@ -149,12 +177,13 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
               attrs: { src: url, caption: "", size: "normal", align: "center" },
             })
             .run();
+          });
           break;
         }
 
         case "parallax": {
-          const url = window.prompt("Parallax Image URL");
-          if (!url) break;
+          askImageUrl("패럴랙스 이미지 넣기").then((url) => {
+          if (!url || editor.isDestroyed) return;
           editor
             .chain()
             .focus()
@@ -171,11 +200,14 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
               },
             })
             .run();
+          });
           break;
         }
 
         case "sticky": {
-          const url = window.prompt("Sticky Story Image URL");
+          askImageUrl("스티키 스토리 이미지 넣기").then((url) => {
+          // Cancelling still inserts the block; the image can be added from the inspector.
+          if (url === null || editor.isDestroyed) return;
           editor
             .chain()
             .focus()
@@ -188,11 +220,12 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
               content: [
                 {
                   type: "paragraph",
-                  content: [{ type: "text", text: "Sticky story text..." }],
+                  content: [{ type: "text", text: "이미지 옆에 흐를 글을 입력하세요." }],
                 },
               ],
             })
             .run();
+          });
           break;
         }
 
@@ -287,58 +320,22 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
             .run();
           break;
 
-        case "playlist": {
-          const url = window.prompt(
-            "Playlist URL (Spotify or YouTube playlist)",
-            "https://www.youtube.com/playlist?list="
-          );
-
-          const theme = "0";
-          const r = url ? toEmbedURL("playlist", url, { theme }) : null;
-          if (url && !r?.ok) {
-            toast("지원되지 않는 링크예요. Spotify 또는 YouTube 플레이리스트 링크를 확인해주세요.");
-          }
-
-          editor
-            .chain()
-            .focus()
-            .insertContent({
-              type: "ufPlaylist",
-              attrs: {
-                kind: "playlist",
-                url: url || "",
-                embedUrl: r?.ok ? r.embedUrl : "",
-                height: defaultEmbedHeight("playlist"),
-                theme,
-              },
-            })
-            .run();
-          break;
-        }
-
+        case "playlist":
         case "podcast": {
-          const url = window.prompt(
-            "Podcast URL (Spotify show/episode)",
-            "https://open.spotify.com/show/"
-          );
-
-          const theme = "0";
-          const r = url ? toEmbedURL("podcast", url, { theme }) : null;
-
-          editor
-            .chain()
-            .focus()
-            .insertContent({
-              type: "ufPodcast",
-              attrs: {
-                kind: "podcast",
-                url: url || "",
-                embedUrl: r?.ok ? r.embedUrl : "",
-                height: defaultEmbedHeight("podcast"),
-                theme,
-              },
-            })
-            .run();
+          const kind = item.key;
+          askEmbedUrl(kind).then((url) => {
+            if (!url || editor.isDestroyed) return;
+            const theme = "0";
+            const r = toEmbedURL(kind, url, { theme });
+            editor
+              .chain()
+              .focus()
+              .insertContent({
+                type: kind === "podcast" ? "ufPodcast" : "ufPlaylist",
+                attrs: { kind, url, embedUrl: r?.ok ? r.embedUrl : "", height: defaultEmbedHeight(kind), theme },
+              })
+              .run();
+          });
           break;
         }
 
@@ -348,7 +345,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
       safeClose();
     },
-    [editor, deleteSlashTrigger, safeClose, uploading, setError, toast]
+    [editor, deleteSlashTrigger, safeClose, uploading, setError]
   );
 
   const handleGalleryFiles = useCallback(
@@ -414,7 +411,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
   useEffect(() => {
     if (!pos) return;
     setSelectedIndex(0);
-  }, [pos]);
+  }, [pos, queryText]);
 
   useEffect(() => {
     if (!pos) return;
@@ -428,28 +425,22 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
   }, [selectedIndex, pos]);
 
   useEffect(() => {
+    // Capture phase: menu keys must not also move the cursor or split the paragraph.
     const handleKeyDown = (e) => {
-      if (!pos || uploading) return;
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % SLASH_ITEMS.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + SLASH_ITEMS.length) % SLASH_ITEMS.length);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        handleSelect(SLASH_ITEMS[selectedIndex]);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        deleteSlashTrigger();
-        safeClose();
-      }
+      if (!pos || uploading || !items.length) return;
+      if (e.isComposing || e.keyCode === 229) return;
+      if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "ArrowDown") setSelectedIndex((prev) => (prev + 1) % items.length);
+      else if (e.key === "ArrowUp") setSelectedIndex((prev) => (prev - 1 + items.length) % items.length);
+      else if (e.key === "Enter") handleSelect(items[Math.min(selectedIndex, items.length - 1)]);
+      else { deleteSlashTrigger(); safeClose(); }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pos, selectedIndex, handleSelect, deleteSlashTrigger, safeClose, uploading]);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [pos, selectedIndex, handleSelect, deleteSlashTrigger, safeClose, uploading, items]);
 
   const menuStyle = useMemo(() => {
     if (!pos) return {};
@@ -482,14 +473,14 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
         style={menuStyle}
       >
         <div className="px-4 py-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest border-b border-zinc-50 dark:border-zinc-800 mb-1">
-          Commands
+          {queryText ? `블록 추가 · “${queryText}”` : "블록 추가 · 입력해서 찾기"}
         </div>
 
         {uploading && (
           <div className="px-4 pt-2 pb-1">
             <div className="flex items-center gap-2 text-[11px] font-black text-[#004aad]">
               <Loader2 size={14} className="animate-spin" />
-              <span>Uploading gallery... {progress}%</span>
+              <span>갤러리 업로드 중… {progress}%</span>
             </div>
             <div className="mt-2 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
               <div
@@ -507,7 +498,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
         )}
 
         <div className="max-h-80 overflow-y-auto">
-          {SLASH_ITEMS.map((item, index) => {
+          {items.map((item, index) => {
             const Icon = item.icon;
             const active = index === selectedIndex;
 

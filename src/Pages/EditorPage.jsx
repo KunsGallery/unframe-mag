@@ -20,6 +20,8 @@ import EditorWorkspaceStyles from "../components/editor/EditorWorkspaceStyles";
 import EditorConflictBanner from "../components/editor/EditorConflictBanner";
 import EditorFindReplace from "../components/editor/EditorFindReplace";
 import FootnoteEditor from "../components/editor/FootnoteEditor";
+import EditorInputDialog from "../components/editor/EditorInputDialog";
+import EditorShortcutsDialog from "../components/editor/EditorShortcutsDialog";
 import { focusEditorBlock } from "../lib/editorOutline";
 const EditorPreview = lazy(() => import("../components/editor/EditorPreview"));
 const PublicationChecklist = lazy(() => import("../components/editor/PublicationChecklist"));
@@ -42,6 +44,9 @@ import { useEditorDocMeta } from "../hooks/useEditorDocMeta";
 import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
 import { useRecoveryCapture } from "../hooks/useRecoveryCapture";
 import { useDraftConflictWatch } from "../hooks/useDraftConflictWatch";
+import { useSelectedUfBlock } from "../hooks/useSelectedUfBlock";
+import { useNow } from "../hooks/useNow";
+import { formatClock, formatRelativeTime } from "../lib/relativeTime";
 import EditorOnboardingModal from "../components/editor/EditorOnboardingModal";
 import {
   shouldOpenEditorOnboarding,
@@ -85,7 +90,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [find, setFind] = useState({ open: false, query: "", token: 0 });
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
-  const [panelTab, setPanelTab] = useState("settings");
+  // Open on the document settings; jump to the block tab when a configurable block is selected.
+  const [panelTab, setPanelTab] = useState("document");
+  const [seenBlock, setSeenBlock] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [previewContent, setPreviewContent] = useState(null);
@@ -124,10 +131,17 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   );
 
   const editor = useEditor(editorConfig);
+  const selectedBlock = useSelectedUfBlock(editor);
+  const selectedBlockKey = selectedBlock ? `${selectedBlock.type}:${selectedBlock.pos}` : "";
+  if (selectedBlockKey !== seenBlock) {
+    setSeenBlock(selectedBlockKey);
+    if (selectedBlockKey) setPanelTab("settings");
+  }
   const galleryContainerRef = useRef(null);
   useSlideGalleryRuntime(galleryContainerRef, editor);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const handleStartNewDraft = async () => {
     if (draftsApi.isSaving || draftsApi.isDraftLoading) return;
@@ -182,23 +196,15 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   useRecoveryCapture({ isDirty, captureRecovery, currentMetaRef });
 
+  // "방금 저장됨" / "3분 전 저장됨"; the exact time stays in the tooltip.
+  const now = useNow(15000);
   const saveStatusText = useMemo(() => {
     if (!lastAutoSavedAt) return isDirty ? "저장하지 않은 변경사항" : "아직 저장되지 않음";
-
-    try {
-      const d =
-        typeof lastAutoSavedAt?.toDate === "function"
-          ? lastAutoSavedAt.toDate()
-          : new Date(lastAutoSavedAt);
-
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-
-      return isDirty ? `${hh}:${mm} 저장 후 수정 중` : `${hh}:${mm} 저장됨`;
-    } catch {
-      return isDirty ? "저장하지 않은 변경사항" : "저장됨";
-    }
-  }, [lastAutoSavedAt, isDirty]);
+    const when = formatRelativeTime(lastAutoSavedAt, now);
+    const label = when ? `${when} 저장됨` : "저장됨";
+    return isDirty ? `${label} · 수정 중` : label;
+  }, [lastAutoSavedAt, isDirty, now]);
+  const saveStatusTitle = lastAutoSavedAt ? `${formatClock(lastAutoSavedAt)}에 저장` : undefined;
 
   useAutoResizeTextarea(titleRef, title);
   useAutoResizeTextarea(subtitleRef, subtitle);
@@ -343,6 +349,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const { saveDraft, isSaving, isDraftLoading, recovery } = draftsApi;
   useEffect(() => {
     const handleSave = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "/" && workspaceRef.current?.contains(event.target)) {
+        event.preventDefault();
+        setShowShortcuts((value) => !value);
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "f" && workspaceRef.current?.contains(event.target)) {
         event.preventDefault();
         openFindRef.current();
@@ -391,9 +402,10 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           loadingEditorMeta={loadingEditorMeta}
           editorDocMeta={editorDocMeta}
           saveStatusText={saveStatusText}
+          saveStatusTitle={saveStatusTitle}
           focusMode={focusMode}
           setFocusMode={setFocusMode}
-          setShowOnboarding={setShowOnboarding}
+          onOpenHelp={() => setShowShortcuts(true)}
           isDesktopEditor={isDesktopEditor}
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
@@ -497,6 +509,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         }} onPublish={async () => { const success = await draftsApi.publish(currentMetaRef.current); if (success) setShowChecks(false); return success; }} />}
       </Suspense>
       <FootnoteEditor editor={editor} />
+      <EditorInputDialog />
+      <EditorShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} onOpenGuide={() => setShowOnboarding(true)} />
       <EditorWorkspaceStyles />
     </div>
   );

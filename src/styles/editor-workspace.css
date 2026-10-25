@@ -125,15 +125,36 @@
 /* Footnote editing and image upload placeholders */
 .uf-editor sup[data-uf-footnote] { cursor: pointer; padding: 0 2px; border-radius: 3px; background: rgba(0, 74, 173, .1); }
 .uf-editor sup[data-uf-footnote].ProseMirror-selectednode { outline: 2px solid #004aad; }
-.uf-footnote-dialog { margin: auto; width: min(480px, calc(100vw - 32px)); padding: 20px; border-radius: 8px; background: var(--uf-bg); color: var(--uf-text); }
-.uf-footnote-dialog::backdrop { background: rgba(0,0,0,.45); }
-.uf-footnote-dialog h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+.uf-footnote-dialog, .uf-input-dialog { margin: auto; width: min(480px, calc(100vw - 32px)); padding: 20px; border-radius: 8px; background: var(--uf-bg); color: var(--uf-text); }
+.uf-footnote-dialog::backdrop, .uf-input-dialog::backdrop { background: rgba(0,0,0,.45); }
+.uf-footnote-dialog h2, .uf-input-dialog h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
 .uf-footnote-dialog textarea { width: 100%; font-size: 14px; line-height: 1.6; padding: 10px; border: 1px solid var(--uf-editor-border); border-radius: 4px; background: var(--uf-bg); }
 .uf-footnote-dialog p { font-size: 12px; line-height: 1.6; opacity: .72; margin: 8px 0 16px; }
-.uf-footnote-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
-.uf-footnote-dialog footer button { min-height: 40px; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--uf-editor-border); font-size: 13px; font-weight: 600; }
+.uf-footnote-dialog footer, .uf-input-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
+.uf-footnote-dialog footer button, .uf-input-dialog footer button { min-height: 40px; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--uf-editor-border); font-size: 13px; font-weight: 600; }
 .uf-footnote-dialog footer button:first-child { margin-right: auto; color: #b91c1c; }
-.uf-footnote-dialog .uf-primary { color: white; background: #004aad; border-color: #004aad; }
+.uf-footnote-dialog .uf-primary, .uf-input-dialog .uf-primary { color: white; background: #004aad; border-color: #004aad; }
 .uf-upload-placeholder { display: block; margin: 12px 0; padding: 28px 16px; text-align: center; font-size: 13px; font-weight: 600; border: 1px dashed var(--uf-editor-border); border-radius: 6px; background: var(--uf-editor-surface); animation: uf-upload-pulse 1.4s ease-in-out infinite; }
 @keyframes uf-upload-pulse { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .uf-upload-placeholder { animation: none; } }
+.uf-input-dialog label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 600; }
+.uf-input-dialog input { width: 100%; font-size: 14px; font-weight: 400; padding: 10px; border: 1px solid var(--uf-editor-border); border-radius: 4px; background: var(--uf-bg); }
+.uf-input-dialog input[aria-invalid="true"] { border-color: #b91c1c; }
+.uf-input-dialog p { min-height: 1.6em; font-size: 12px; line-height: 1.6; opacity: .72; margin: 8px 0 16px; }
+.uf-input-dialog p.is-error { color: #b91c1c; opacity: 1; }
+.uf-draft-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-bottom: 8px; }
+.uf-draft-tools :is(input, select) { min-width: 0; font-size: 13px; padding: 8px 10px; border: 1px solid var(--uf-editor-border); border-radius: 4px; background: var(--uf-bg); }
+.uf-draft-badge { display: inline-block; margin-right: 6px; padding: 1px 6px; font-size: 11px; font-style: normal; font-weight: 700; color: #004aad; border: 1px solid currentColor; border-radius: 999px; vertical-align: 1px; }
+.uf-shortcuts { margin: auto; width: min(720px, calc(100vw - 32px)); max-height: 85vh; padding: 0; border-radius: 10px; background: var(--uf-bg); color: var(--uf-text); }
+.uf-shortcuts::backdrop { background: rgba(0,0,0,.45); }
+.uf-shortcuts header, .uf-shortcuts footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--uf-editor-border); }
+.uf-shortcuts footer { border-top: 1px solid var(--uf-editor-border); border-bottom: 0; justify-content: flex-end; }
+.uf-shortcuts h2 { font-size: 16px; font-weight: 700; }
+.uf-shortcuts header button { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 4px; }
+.uf-shortcuts footer button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px; border: 1px solid var(--uf-editor-border); border-radius: 4px; font-size: 13px; font-weight: 600; }
+.uf-shortcuts__groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 28px; padding: 16px 20px; }
+.uf-shortcuts h3 { font-size: 12px; font-weight: 700; opacity: .6; margin: 8px 0 6px; }
+.uf-shortcuts dl div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--uf-editor-border); font-size: 13px; }
+.uf-shortcuts dd { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.uf-keys { display: inline-flex; gap: 3px; }
+.uf-keys kbd { min-width: 22px; padding: 2px 6px; font: 600 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; border: 1px solid var(--uf-editor-border); border-bottom-width: 2px; border-radius: 4px; background: var(--uf-editor-surface); }

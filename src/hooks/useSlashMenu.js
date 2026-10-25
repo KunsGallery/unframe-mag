@@ -52,7 +52,8 @@ export function useSlashMenu() {
             if (!editor || editor.isDestroyed) return;
             const pos = editor.state.selection.from;
             const coords = editor.view.coordsAtPos(pos);
-            setSlashPos({ x: coords.left, y: coords.bottom + 8 });
+            // from: the position just after the "/", where a filter query starts.
+            setSlashPos({ x: coords.left, y: coords.bottom + 8, from: pos });
           } catch {
             // ignore
           }

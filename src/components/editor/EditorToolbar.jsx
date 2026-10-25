@@ -39,6 +39,9 @@ import {
 import UploadButton from "./UploadButton";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
+import { requestEditorInput, withLinkScheme } from "../../lib/editorInput";
+import { askEmbedUrl } from "../../lib/editorPrompts";
+import { isPublicationLinkValid } from "../../lib/publicationChecks";
 import {
   getParallaxMotionSpeed,
   PARALLAX_DEFAULTS,
@@ -428,15 +431,20 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
   const inTable = editorState.table;
 
-  const insertLink = () => {
+  const insertLink = async () => {
     const prev = editor.getAttributes("link").href;
-    const url = window.prompt("Link URL", prev || "https://");
-    if (url === null) return;
-    if (url.trim() === "") {
-      editor.chain().focus().unsetLink().run();
+    const url = await requestEditorInput({
+      title: prev ? "링크 수정" : "링크 넣기", label: "주소", defaultValue: prev || "", placeholder: "https://",
+      inputMode: "url", allowEmpty: !!prev, confirmLabel: prev ? "바꾸기" : "넣기",
+      hint: prev ? "주소를 지우고 확인하면 링크가 해제돼요." : "선택한 글자에 링크를 걸어요. example.com처럼 입력해도 돼요.",
+      validate: (value) => (isPublicationLinkValid(withLinkScheme(value)) ? "" : "열 수 없는 주소예요. https://로 시작하는지 확인해 주세요."),
+    });
+    if (url === null || editor.isDestroyed) return;
+    if (url === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
-    editor.chain().focus().setLink({ href: url }).run();
+    editor.chain().focus().extendMarkRange("link").setLink({ href: withLinkScheme(url) }).run();
   };
 
   const uploadInlineImage = async (file) => {
@@ -512,27 +520,11 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
     }
   };
 
-  const insertEmbed = (kind) => {
+  const insertEmbed = async (kind) => {
     const theme = isDarkMode ? "1" : "0";
-    const placeholder =
-      kind === "podcast"
-        ? "https://open.spotify.com/show/"
-        : "https://open.spotify.com/playlist/ or https://www.youtube.com/playlist?list=";
-
-    const url = window.prompt(
-      kind === "podcast"
-        ? "Podcast URL (Spotify show/episode)"
-        : "Playlist URL (Spotify or YouTube playlist)",
-      placeholder
-    );
-
-    if (url === null) return;
-
-    const r = url ? toEmbedURL(kind, url, { theme }) : null;
-
-    if (url && !r?.ok) {
-      toast("지원되지 않는 링크예요. Spotify 또는 YouTube 플레이리스트 링크를 확인해주세요.");
-    }
+    const url = await askEmbedUrl(kind);
+    if (!url || editor.isDestroyed) return;
+    const r = toEmbedURL(kind, url, { theme });
 
     const nodeType = kind === "podcast" ? "ufPodcast" : "ufPlaylist";
 

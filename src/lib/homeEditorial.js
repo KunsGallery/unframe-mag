@@ -1,3 +1,5 @@
+import { normalizeSearchText, toChoseong } from "./koreanSearch.js";
+
 export function buildHomeSelection(articles, config = {}) {
   const byId = new Map(
     articles.map((article) => [String(article.editionNo), article]),
@@ -27,27 +29,8 @@ export function buildHomeSelection(articles, config = {}) {
   };
 }
 
-const CHOSEONG = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
-// NFKC folds full-width letters but also turns typed jamo (ㅅ) into conjoining
-// jamo (U+1100..U+1112); map those back so 초성 search keeps working.
-const normalizeText = (value) =>
-  String(value ?? "")
-    .normalize("NFKC")
-    .replace(/[\u1100-\u1112]/g, (char) => CHOSEONG[char.charCodeAt(0) - 0x1100])
-    .toLocaleLowerCase();
-
-// "서로를" -> "ㅅㄹㄹ"; other characters pass through unchanged.
-function toChoseong(text) {
-  return [...text]
-    .map((char) => {
-      const code = char.charCodeAt(0) - 0xac00;
-      return code >= 0 && code < 11172 ? CHOSEONG[Math.floor(code / 588)] : char;
-    })
-    .join("");
-}
-
 function searchFields(article) {
-  const text = normalizeText(
+  const text = normalizeSearchText(
     [
       article.title,
       article.subtitle,
@@ -71,7 +54,7 @@ function matchesTerm(fields, term) {
 }
 
 export function filterHomeArchive(articles, category, search = "") {
-  const terms = normalizeText(search).split(/\s+/).filter(Boolean);
+  const terms = normalizeSearchText(search).split(/\s+/).filter(Boolean);
   return articles.filter((article) => {
     if (category !== "All" && article.category !== category) return false;
     if (!terms.length) return true;
