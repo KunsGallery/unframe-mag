@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /write
+Disallow: /edit/
+Disallow: /admin
+Disallow: /mylibrary
+
+Sitemap: https://magazine.unframe.kr/sitemap.xml

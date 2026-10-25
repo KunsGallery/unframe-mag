@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, increment, serverTimestamp, writeBatch } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteDoc, deleteField, getDoc, increment, serverTimestamp, writeBatch } from "firebase/firestore";
 import { runPublicationTransaction } from "../src/lib/publicationTransaction.js";
 
 let environment;
@@ -52,8 +52,11 @@ test("concurrent publications allocate unique server-validated editions", async 
     noteCounterRead(snap.data().lastIndex);
     const next = snap.data().lastIndex + 1;
     transaction.set(counter, { lastIndex: next, articleId: id, updatedAt: serverTimestamp() });
-    transaction.set(doc(db, "articles", id), { ...published, sortIndex: next, editionNo: String(next).padStart(3, "0") });
+    const article = { ...published, sortIndex: next, editionNo: String(next).padStart(3, "0") };
+    transaction.set(doc(db, "articles", id), article);
+    transaction.set(doc(db, "articleSummaries", id), { editionNo: article.editionNo, sortIndex: next, title: article.title, readMinutes: 2, updatedAt: serverTimestamp() });
   })));
+  assert.equal((await getDoc(doc(db, "articleSummaries", "new-a"))).data().title, "Published");
   const a = (await getDoc(doc(db, "articles", "new-a"))).data();
   const b = (await getDoc(doc(db, "articles", "new-b"))).data();
   assert.deepEqual([a.sortIndex, b.sortIndex].sort(), [7, 8]);
@@ -97,4 +100,83 @@ test("revision history stays private, immutable and bound to the article owner",
   batch.set(doc(db, 'articles', 'history-new-draft'), { status: 'draft', authorEmail: 'editor@example.com', title: 'New' });
   batch.set(doc(db, 'articles', 'history-new-draft', 'history', 'first'), record);
   await assertSucceeds(batch.commit());
+});
+
+test("public profiles never gain a reader's email; contacts stay private", async () => {
+  const db = user("fresh");
+  await assertFails(setDoc(doc(db, "users", "fresh"), { nickname: "Fresh", nicknameChanged: false, role: "user", email: "fresh@example.com" }));
+  await assertSucceeds(setDoc(doc(db, "users", "fresh"), { nickname: "Fresh", nicknameChanged: false, role: "user" }));
+  await assertFails(updateDoc(doc(db, "users", "fresh"), { email: "fresh@example.com", updatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(user("editor", "editor@example.com"), "users", "editor"), { email: "editor@example.com", updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(user("editor", "editor@example.com"), "users", "editor"), { email: "other@example.com", updatedAt: serverTimestamp() }));
+
+  const contact = doc(db, "users", "fresh", "private", "contact");
+  await assertFails(setDoc(contact, { email: "someone-else@example.com", updatedAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(contact, { email: "fresh@example.com", updatedAt: serverTimestamp() }));
+  await assertSucceeds(getDoc(contact));
+  await assertFails(getDoc(doc(user("reader"), "users", "fresh", "private", "contact")));
+  await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(), "users", "fresh", "private", "contact")));
+  await assertSucceeds(getDoc(doc(user("admin", "gallerykuns@gmail.com"), "users", "fresh", "private", "contact")));
+
+  await environment.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), "users", "legacy"), { nickname: "Legacy", nicknameChanged: false, role: "user", email: "legacy@example.com" }));
+  await assertSucceeds(updateDoc(doc(user("legacy", "legacy@example.com"), "users", "legacy"), { email: deleteField(), updatedAt: serverTimestamp() }));
+});
+
+test("progress fields move in small, consistent steps", async () => {
+  const db = user("reader");
+  const ref = doc(db, "users", "reader");
+  await assertFails(updateDoc(ref, { xp: 999999, updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { commentCount: 100, updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { xp: 6, level: 50, updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { xp: 6, tier: "DIAMOND", updatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(ref, { xp: 6, level: 1, tier: "ROOKIE", tierLabel: "Rookie", tierColor: "#9CA3AF", commentCount: 1, lastVisitDate: "20261025", streakCount: 1, visitDayCount: 1, updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db, "users", "reader", "achievements", "comments_100"), { achievementId: "comments_100" }));
+  await assertSucceeds(setDoc(doc(db, "users", "reader", "achievements", "ach_first_comment"), { achievementId: "ach_first_comment" }));
+});
+
+test("a like moves the counter only with the reader's own like record", async () => {
+  const db = user("reader");
+  const article = doc(db, "articles", "existing");
+  const like = doc(db, "articles", "existing", "likes", "reader");
+  await assertFails(updateDoc(article, { likes: increment(1) }));
+  await assertFails(updateDoc(doc(environment.unauthenticatedContext().firestore(), "articles", "existing"), { likes: increment(1) }));
+  const add = writeBatch(db);
+  add.set(like, { createdAt: serverTimestamp() });
+  add.update(article, { likes: increment(1) });
+  await assertSucceeds(add.commit());
+  const again = writeBatch(db);
+  again.set(like, { createdAt: serverTimestamp() });
+  again.update(article, { likes: increment(1) });
+  await assertFails(again.commit());
+  const remove = writeBatch(db);
+  remove.delete(like);
+  remove.update(article, { likes: increment(-1) });
+  await assertSucceeds(remove.commit());
+});
+
+test("comments are bound to their author and never carry an email", async () => {
+  const db = user("reader");
+  const base = { editionNo: "006", text: "좋아요", nickname: "Reader", author: "Reader", authorUid: "reader", authorIsAdmin: false, createdAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(db, "comments", "ok"), base));
+  await assertFails(setDoc(doc(db, "comments", "with-email"), { ...base, authorEmail: "reader@example.com" }));
+  await assertFails(setDoc(doc(db, "comments", "spoof"), { ...base, authorUid: "editor" }));
+  const { authorUid: _omitted, ...withoutUid } = base;
+  await assertFails(setDoc(doc(db, "comments", "no-uid"), withoutUid));
+  await assertFails(setDoc(doc(db, "comments", "fake-admin"), { ...base, authorIsAdmin: true }));
+});
+
+test("home summaries follow their published article", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "articles", "summary-source"), { ...published, editionNo: "005", sortIndex: 5, title: "Summary source" });
+    await setDoc(doc(context.firestore(), "articles", "summary-draft"), { status: "draft", authorEmail: "editor@example.com", title: "Draft" });
+  });
+  const db = user("editor");
+  const summary = { editionNo: "005", sortIndex: 5, title: "Summary source", readMinutes: 2, updatedAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(db, "articleSummaries", "summary-source"), summary));
+  await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, editionNo: "099" }));
+  await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, title: "Different" }));
+  await assertFails(setDoc(doc(db, "articleSummaries", "summary-source"), { ...summary, contentHTML: "<p>Body</p>" }));
+  await assertFails(setDoc(doc(db, "articleSummaries", "summary-draft"), { ...summary, title: "Draft" }));
+  await assertFails(setDoc(doc(user("reader"), "articleSummaries", "summary-source"), summary));
+  await assertSucceeds(getDoc(doc(environment.unauthenticatedContext().firestore(), "articleSummaries", "summary-source")));
 });

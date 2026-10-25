@@ -8,7 +8,7 @@ import {
   query,
   setDoc,
   where,
-  deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import UserRewardsPanel from "../components/admin/UserRewardsPanel";
@@ -182,7 +182,10 @@ export default function AdminPage({ user, isDarkMode, onToast }) {
 
     setDeletingId(article.docId);
     try {
-      await deleteDoc(doc(db, "articles", article.docId));
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "articles", article.docId));
+      batch.delete(doc(db, "articleSummaries", article.docId));
+      await batch.commit();
 
       setArticles((prev) => prev.filter((a) => a.docId !== article.docId));
 

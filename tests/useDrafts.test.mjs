@@ -9,6 +9,8 @@ const recoverySource = await readFile(new URL('../src/lib/draftRecovery.js', imp
 const publicationSource = await readFile(new URL('../src/lib/publicationTransaction.js', import.meta.url), 'utf8');
 const historySource = await readFile(new URL('../src/lib/editorHistory.js', import.meta.url), 'utf8');
 const categoriesSource = await readFile(new URL('../src/constants/categories.js', import.meta.url), 'utf8');
+const summarySource = await readFile(new URL('../src/lib/articleSummary.js', import.meta.url), 'utf8');
+const readingMetaSource = await readFile(new URL('../src/lib/readingMeta.js', import.meta.url), 'utf8');
 const meta = { title: '', subtitle: '', category: 'ART', cover: '', coverMedium: '', authorEmail: 'author@example.com' };
 const deferred = () => {
   let resolve;
@@ -166,7 +168,13 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     }, { context });
   });
   await historyModule.evaluate();
+  const readingMetaModule = new SourceTextModule(readingMetaSource, { context });
+  await readingMetaModule.link(() => {});
+  const summaryModule = new SourceTextModule(summarySource, { context });
+  await summaryModule.link(() => readingMetaModule);
+  await summaryModule.evaluate();
   await module.link((specifier) => {
+    if (specifier.includes('articleSummary')) return summaryModule;
     if (specifier.includes('draftRecovery')) return recoveryModule;
     if (specifier.includes('publicationTransaction')) return publicationModule;
     if (specifier.includes('editorHistory')) return historyModule;
@@ -484,15 +492,19 @@ test('concurrent first publications retry and allocate unique editions above the
   assert.deepEqual(await Promise.all([
     a.render().publish({ ...meta, title: 'A' }), b.render().publish({ ...meta, title: 'B' }),
   ]), [true, true]);
-  const issues = [...server.data.values()].filter((value) => value.title);
+  const issues = [...server.data].filter(([path, value]) => path.startsWith('articles/') && value.title).map(([, value]) => value);
   assert.deepEqual(issues.map((value) => value.sortIndex).sort(), [121, 122]);
+  const summaries = [...server.data].filter(([path]) => path.startsWith('articleSummaries/')).map(([, value]) => value);
+  assert.deepEqual(summaries.map((value) => value.editionNo).sort(), ['121', '122']);
+  assert.ok(summaries.every((value) => !('contentHTML' in value)), 'summaries never carry the article body');
   assert.deepEqual(issues.map((value) => value.editionNo).sort(), ['121', '122']);
   assert.ok(server.retries > 0);
   assert.equal(server.allocatedRefs, 2, 'retry reuses the original document refs');
   const counter = server.data.get('counters/articles');
   assert.equal(counter.lastIndex, 122);
   assert.equal(server.data.get('articles/' + counter.articleId).sortIndex, counter.lastIndex);
-  for (const commit of server.commits) assert.equal(commit.length, 2);
+  // counter, article and its home summary
+  for (const commit of server.commits) assert.equal(commit.length, 3);
 });
 
 test('seeded counter increments exactly once per new publication without querying the legacy maximum', async () => {
@@ -520,7 +532,9 @@ test('revision publication updates the source and deletes its draft in the same 
   assert.equal(server.data.get('articles/source').title, 'Revised');
   assert.equal(server.data.get('articles/source').sortIndex, 8);
   assert.equal(server.data.get('counters/articles').lastIndex, 8);
-  assert.equal(server.commits[0].length, 2);
+  assert.equal(server.data.get('articleSummaries/source').title, 'Revised');
+  assert.equal(server.data.get('articleSummaries/source').editionNo, '008');
+  assert.equal(server.commits[0].length, 3);
 });
 
 test('failed or missing revision source leaves draft and recovery intact', async () => {
@@ -725,12 +739,12 @@ test('simultaneous publications recover from rule-denied counter conflicts using
   assert.deepEqual(await Promise.all([
     a.render().publish({ ...meta, title: 'A' }), b.render().publish({ ...meta, title: 'B' }),
   ]), [true, true]);
-  assert.deepEqual([...server.data.values()].filter((value) => value.title).map((value) => value.sortIndex).sort(), [7, 8]);
+  assert.deepEqual([...server.data].filter(([path, value]) => path.startsWith('articles/') && value.title).map(([, value]) => value.sortIndex).sort(), [7, 8]);
   assert.equal(server.data.get('counters/articles').lastIndex, 8);
   assert.ok(server.retries > 0);
   assert.equal(server.allocatedRefs, 2);
   assert.equal(server.commits.length, 2);
-  assert.ok(server.commits.every((commit) => commit.length === 2));
+  assert.ok(server.commits.every((commit) => commit.length === 3));
 });
 
 const historyMeta = { ...meta, title: '새 초안', category: 'EXHIBITION' };
@@ -789,7 +803,7 @@ test('revision publication atomically records source BEFORE/AFTER and deletes dr
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((row) => row.snapshot.title), ['원본', '수정본']);
   assert.ok(rows.every((row) => row.ownerEmail === owner && row.userId === 'admin-uid'));
-  assert.equal(server.commits[0].length, 4);
+  assert.equal(server.commits[0].length, 5);
 });
 
 test('direct published update records BEFORE/AFTER while new publication records only AFTER', async () => {
@@ -798,11 +812,11 @@ test('direct published update records BEFORE/AFTER while new publication records
   await h.render().loadDraft('source', h.setters);
   assert.equal(await h.render().publish({ ...historyMeta, title: '새 원본' }), true);
   assert.deepEqual(historyRows(server, 'source').map((row) => row.snapshot.title), ['원본', '새 원본']);
-  assert.equal(server.commits[0].length, 3);
+  assert.equal(server.commits[0].length, 4);
   const fresh = await harness({ initialProps: { historyUserId: 'actor-uid' } });
   assert.equal(await fresh.render().publish(historyMeta), true);
   assert.equal(historyRows(fresh.server, fresh.render().draftId).length, 1);
-  assert.equal(fresh.server.commits[0].length, 3);
+  assert.equal(fresh.server.commits[0].length, 4);
 });
 
 test('history denial rolls back article, history and publication counter together and retains recovery', async () => {

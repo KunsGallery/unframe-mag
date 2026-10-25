@@ -10,6 +10,11 @@ export function stripHtml(html = "") {
 }
 
 export function estimateReadMinutes(article, { min = 1 } = {}) {
+  // Summary documents carry a precomputed value instead of the body.
+  if (!article?.contentHTML && Number.isFinite(article?.readMinutes)) {
+    return Math.max(min, article.readMinutes);
+  }
+
   const text = stripHtml(
     article?.contentHTML ||
       article?.excerpt ||

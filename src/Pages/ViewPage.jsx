@@ -26,7 +26,9 @@ import {
   serverTimestamp,
   runTransaction,
   deleteDoc,
+  getDoc,
   updateDoc,
+  writeBatch,
   increment,
   where,
 } from "firebase/firestore";
@@ -98,16 +100,6 @@ async function copyToClipboard(text) {
   return false;
 }
 
-function readLikedFromStorage(likeKey) {
-  if (!likeKey || typeof window === "undefined") return false;
-
-  try {
-    return localStorage.getItem(likeKey) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export default function ViewPage({ isDarkMode, onToast, onLogin }) {
   const { id } = useParams();
   const nav = useNavigate();
@@ -116,6 +108,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
 
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
   const [likedState, setLikedState] = useState({ key: "", value: false });
+  const likePending = useRef(false);
 
 
   const editor = useEditor({
@@ -239,13 +232,23 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
     article?.author ||
     "Kim Jae Woo";
 
-  const likeKey = useMemo(() => {
-    if (!article?.editionNo) return "";
-    const who = user?.uid || "anon";
-    return `uf_liked_${String(article.editionNo)}_${who}`;
-  }, [article?.editionNo, user?.uid]);
-  const liked =
-    likedState.key === likeKey ? likedState.value : readLikedFromStorage(likeKey);
+  const articleDocId = article?.docId || article?.firestoreId || article?.id || "";
+  const likeKey = user?.uid && articleDocId ? `${articleDocId}:${user.uid}` : "";
+  const liked = !!likeKey && likedState.key === likeKey && likedState.value;
+
+  useEffect(() => {
+    if (!likeKey) return;
+    let alive = true;
+    const [docId, uid] = likeKey.split(":");
+    getDoc(doc(db, "articles", docId, "likes", uid))
+      .then((snap) => {
+        if (alive) setLikedState({ key: likeKey, value: snap.exists() });
+      })
+      .catch((e) => console.warn("[ViewPage] like state unavailable:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, [likeKey]);
 
   const readMinutes = useMemo(() => estimateReadMinutes(article), [article]);
   const readEmoji = useMemo(() => timeEmoji(readMinutes), [readMinutes]);
@@ -385,33 +388,39 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
   };
 
   const onToggleLike = async () => {
-    if (!article?.editionNo || !likeKey) return;
-
-    const editionNo = String(article.editionNo);
-    const already = readLikedFromStorage(likeKey);
-
-    if (!already) {
-      try {
-        localStorage.setItem(likeKey, "1");
-      } catch {
-        // Keep interaction available even when persistent storage is blocked.
-      }
-      setLikedState({ key: likeKey, value: true });
-
-      trackEvent("like", { editionNo }).catch((error) => {
-        console.warn("[ViewPage] like tracking failed:", error);
-      });
-
-      const docId = article?.docId || article?.firestoreId || article?.id;
-      if (docId) {
-        updateDoc(doc(db, "articles", String(docId)), { likes: increment(1) }).catch((e) => {
-          console.warn("[ViewPage] likes increment failed:", e?.message || e);
-        });
-      }
+    if (!article?.editionNo || !articleDocId) return;
+    if (!user?.uid) {
+      toast("좋아요는 로그인 후 가능해요.");
       return;
     }
+    if (likePending.current) return;
+    likePending.current = true;
 
-    setLikedState({ key: likeKey, value: !liked });
+    const editionNo = String(article.editionNo);
+    const next = !liked;
+    setLikedState({ key: likeKey, value: next });
+
+    try {
+      // The like record and the counter move together; rules reject one without the other.
+      const batch = writeBatch(db);
+      const likeRef = doc(db, "articles", String(articleDocId), "likes", user.uid);
+      if (next) batch.set(likeRef, { createdAt: serverTimestamp() });
+      else batch.delete(likeRef);
+      batch.update(doc(db, "articles", String(articleDocId)), { likes: increment(next ? 1 : -1) });
+      await batch.commit();
+
+      if (next) {
+        trackEventOnce("like", `like_${editionNo}`, { editionNo }).catch((error) => {
+          console.warn("[ViewPage] like tracking failed:", error);
+        });
+      }
+    } catch (e) {
+      console.warn("[ViewPage] like update failed:", e?.message || e);
+      setLikedState({ key: likeKey, value: !next });
+      toast("좋아요를 저장하지 못했어요.");
+    } finally {
+      likePending.current = false;
+    }
   };
 
   const onShare = async () => {

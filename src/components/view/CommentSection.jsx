@@ -203,7 +203,7 @@ export default function CommentSection({ article, onLogin }) {
         // ✅ rules 호환: author(string) 필드 추가 (필수!)
         author: nickname, // 또는 user.displayName
         authorUid: user.uid,
-        authorEmail: user.email || null,
+        authorIsAdmin: isAdmin,
         authorPhotoURL: currentUserPhotoURL,
         createdAt: serverTimestamp(),
       });
@@ -356,7 +356,7 @@ export default function CommentSection({ article, onLogin }) {
         ) : (
           <ul className="space-y-4">
             {comments.map((c) => {
-              const commentIsAdmin = isAdminEmail(c.authorEmail);
+              const commentIsAdmin = c.authorIsAdmin === true || isAdminEmail(c.authorEmail);
               const profileSource =
                 c.authorUid === user?.uid ? profile : authorProfiles[c.authorUid];
               const commentName =

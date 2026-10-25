@@ -45,6 +45,7 @@ import ThemeToggle from "./components/common/ThemeToggle";
 import { useNetworkConfig } from "./hooks/useNetworkConfig";
 import { getSiteLinks } from "./lib/siteLinks";
 import { reportClientError } from "./lib/runtimeDiagnostics";
+import { syncUserContact } from "./lib/userContact";
 
 function safeNicknameFromDisplayName(displayName) {
   const base = String(displayName || "User")
@@ -338,6 +339,7 @@ function AppShell() {
 
   const [role, setRole] = useState("user");
   const [roleLoading, setRoleLoading] = useState(false);
+  const contactSyncKey = useRef(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -383,7 +385,6 @@ function AppShell() {
             if (existing.exists()) return;
             transaction.set(ref, {
             uid: user.uid,
-            email: email || null,
             photoURL: user.photoURL || null,
             displayName: nickname,
             name: nickname,
@@ -428,6 +429,15 @@ function AppShell() {
 
         setRole(currentRole);
         setRoleLoading(false);
+
+        const contactKey = `${user.uid}:${currentRole}`;
+        if (contactSyncKey.current !== contactKey) {
+          contactSyncKey.current = contactKey;
+          syncUserContact(db, user, data, { isAdmin: emailIsAdmin }).catch((error) => {
+            contactSyncKey.current = null;
+            console.warn("[App] contact sync failed:", error);
+          });
+        }
         } catch (error) {
           if (!active) return;
           console.error("[App] profile initialization failed:", error);

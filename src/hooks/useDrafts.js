@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 import { runPublicationTransaction } from "../lib/publicationTransaction.js";
+import { buildArticleSummary } from "../lib/articleSummary.js";
 import { editorSnapshot, pruneEditorHistory, writeEditorHistory } from "../lib/editorHistory.js";
 import { activeRecoveryDocument, browserRecoveryStorage, draftSnapshot, nextEdition, readRecovery, recoveryKey, removeRecovery, writeRecovery } from "../lib/draftRecovery.js";
 
@@ -459,6 +460,8 @@ export function useDrafts({
             transaction.update(sourceRef, {
               ...payload, updatedAt: serverTimestamp(), lastRevisionPublishedAt: serverTimestamp(),
             });
+            transaction.set(doc(db, "articleSummaries", sourceRef.id),
+              buildArticleSummary({ ...source.data(), ...payload }, serverTimestamp()));
             if (history) {
               history(transaction, sourceRef.id, source.data().authorEmail, source.data(), "발행 전 원본", true);
               history(transaction, sourceRef.id, source.data().authorEmail, payload, "수정본 발행");
@@ -498,6 +501,7 @@ export function useDrafts({
           else transaction.set(ref, {
             ...fields, likes: 0, views: 0, tags: [], createdAt: serverTimestamp(),
           });
+          transaction.set(doc(db, "articleSummaries", ref.id), buildArticleSummary({ ...prev, ...fields }, serverTimestamp()));
           if (history) {
             if (prev.status === "published") history(transaction, ref.id, prev.authorEmail, prev, "발행 전 원본", true);
             history(transaction, ref.id, fields.authorEmail, payload, "발행");

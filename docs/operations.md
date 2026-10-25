@@ -21,6 +21,33 @@ firebase deploy --only firestore:rules --project uarchive-8e437
 필드는 `lastIndex`, `articleId`, `updatedAt`입니다.
 공개 글의 에디션 번호는 수정 발행에서 바뀌지 않습니다.
 
+## 개인정보·좋아요·홈 요약 (2026-10-25)
+
+이번 변경은 코드와 규칙이 함께 바뀌어야 동작합니다. 아래 순서로 배포합니다.
+
+1. Netlify 배포가 끝나면 바로 규칙을 배포합니다(`firebase deploy --only firestore:rules`).
+   규칙 배포 전까지는 발행(요약 문서 쓰기)과 좋아요가 실패합니다. 실패해도 원고는 보존됩니다.
+   업데이트 전 화면을 열어 둔 사용자는 새로고침 전까지 가입·댓글·좋아요가 실패할 수 있습니다.
+2. 기존 데이터를 점검합니다. 아무것도 쓰지 않습니다.
+   `FIREBASE_CLI_AUTH_MODULE=<firebase-tools>/lib/auth.js node scripts/data-privacy-migration.mjs`
+3. 결과를 확인하고 적용합니다: 같은 명령 끝에 `apply`를 붙입니다.
+   독자 공개 프로필의 이메일을 `users/{uid}/private/contact`로 옮기고, 댓글의 이메일을 지우며,
+   공개 글마다 `articleSummaries` 문서를 만듭니다.
+
+- 회원 이메일은 본인과 관리자만 읽는 `users/{uid}/private/contact`에 저장합니다.
+  에디터·관리자는 작가 정보 표시를 위해 공개 프로필에 자기 이메일을 유지합니다.
+  이미 글의 `authorEmail`로 공개된 주소입니다. 로그인할 때 앱이 자동으로 맞춥니다.
+- 좋아요는 로그인한 사용자당 한 번이며 `articles/{id}/likes/{uid}`와 함께 증감합니다.
+  예전 브라우저 저장 방식의 좋아요 표시는 이어지지 않습니다.
+- 홈은 `articleSummaries`(본문 제외)를 읽습니다. 공개 글 수와 요약 수가 다르면
+  기존처럼 전체 글을 읽으므로 3단계 전에도 홈은 정상 표시됩니다.
+- XP·횟수는 한 번에 정해진 폭(XP 6, 횟수 1)까지만 오르고 레벨·등급은 XP와 일치해야 합니다.
+  반복 호출까지 막으려면 서버(Cloud Functions)에서 지급해야 합니다.
+- 관리자 이메일은 `firestore.rules`와 `src/constants/admin.js` 두 곳에 있습니다.
+  `npm test`가 두 목록이 같은지 확인합니다.
+- 글 주소(`/article/:id`)는 Netlify Edge Function `article-meta`가 제목·요약·커버를
+  미리보기 태그로 넣습니다. `/sitemap.xml`은 함수가 만들고 `robots.txt`가 안내합니다.
+
 ## Google 로그인
 
 현재 기본 방식은 사용자 클릭으로 바로 열리는 Firebase 팝업입니다.
@@ -61,8 +88,7 @@ redirect가 필요한 환경을 위한 동일 출처 프록시는 `public/_redir
 ## 업데이트와 복구
 
 서비스 워커는 새 버전이 나와도 작성 화면을 자동으로 새로고침하지 않습니다.
-내용 저장 후 업데이트 버튼을 누릅니다. 에디터·관리자·문서 엔진은 첫 방문의
-사전 캐시 대상에서 제외하고 실제 방문 이후에 캐시합니다.
+내용 저장 후 업데이트 버튼을 누릅니다.
 인증 경로와 API는 SPA 문서 캐시에서 제외합니다.
 
 문제가 생기면 Netlify의 이전 정상 배포로 사이트를 복구할 수 있습니다.

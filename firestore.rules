@@ -78,13 +78,43 @@ service cloud.firestore {
         )
         || (
           resource.data.status == "published"
-          && onlyChanges(['likes', 'views'])
-          && request.resource.data.likes is int && request.resource.data.views is int
-          && request.resource.data.likes >= resource.data.likes
-          && request.resource.data.likes <= resource.data.likes + 1
-          && request.resource.data.views >= resource.data.views
-          && request.resource.data.views <= resource.data.views + 1
+          && onlyChanges(['views'])
+          && request.resource.data.views is int
+          && request.resource.data.views == resource.data.get('views', 0) + 1
+        )
+        || (
+          // A like count moves only together with the reader's own like record.
+          resource.data.status == "published"
+          && signedIn()
+          && onlyChanges(['likes'])
+          && request.resource.data.likes is int
+          && (
+            (request.resource.data.likes == resource.data.get('likes', 0) + 1
+              && !exists(/databases/$(database)/documents/articles/$(docId)/likes/$(request.auth.uid))
+              && existsAfter(/databases/$(database)/documents/articles/$(docId)/likes/$(request.auth.uid)))
+            || (request.resource.data.likes == resource.data.get('likes', 0) - 1
+              && request.resource.data.likes >= 0
+              && exists(/databases/$(database)/documents/articles/$(docId)/likes/$(request.auth.uid))
+              && !existsAfter(/databases/$(database)/documents/articles/$(docId)/likes/$(request.auth.uid)))
+          )
         );
+
+      match /likes/{uid} {
+        function likesBefore() {
+          return get(/databases/$(database)/documents/articles/$(docId)).data.get('likes', 0);
+        }
+        function likesAfter() {
+          return getAfter(/databases/$(database)/documents/articles/$(docId)).data.get('likes', 0);
+        }
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time
+          && likesAfter() == likesBefore() + 1;
+        allow delete: if signedIn() && request.auth.uid == uid
+          && likesAfter() == likesBefore() - 1;
+        allow update: if false;
+      }
 
       match /history/{historyId} {
         function ownsArticle() {
@@ -113,6 +143,27 @@ service cloud.firestore {
           && request.resource.data.snapshot.contentHTML.size() <= 700000;
         allow update: if false;
       }
+    }
+
+    /* ---------------------------
+       ARTICLE SUMMARIES (home cards without the article body)
+    --------------------------- */
+    match /articleSummaries/{docId} {
+      function articleAfter() {
+        return getAfter(/databases/$(database)/documents/articles/$(docId)).data;
+      }
+      allow read: if true;
+      allow create, update: if canWrite()
+        && existsAfter(/databases/$(database)/documents/articles/$(docId))
+        && articleAfter().status == 'published'
+        && (isAdmin() || articleAfter().authorEmail == request.auth.token.email)
+        && request.resource.data.keys().hasOnly(['editionNo', 'sortIndex', 'title', 'subtitle', 'excerpt', 'category', 'author', 'cover', 'coverMedium', 'coverThumb', 'readMinutes', 'updatedAt'])
+        && request.resource.data.editionNo == articleAfter().editionNo
+        && request.resource.data.sortIndex == articleAfter().sortIndex
+        && request.resource.data.title == articleAfter().title;
+      allow delete: if isAdmin()
+        || (canWrite() && (!existsAfter(/databases/$(database)/documents/articles/$(docId))
+          || articleAfter().status != 'published'));
     }
 
     match /counters/articles {
@@ -154,12 +205,12 @@ service cloud.firestore {
         && request.resource.data.nickname is string
         && request.resource.data.nickname.size() > 0
         && request.resource.data.nickname.size() <= 20
-        && request.resource.data.author is string
-        && request.resource.data.author.size() > 0
-        && (
-          !("authorUid" in request.resource.data)
-          || request.resource.data.authorUid == request.auth.uid
-        );
+        && request.resource.data.author == request.resource.data.nickname
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.get('authorIsAdmin', false) == isAdmin()
+        && request.resource.data.createdAt == request.time
+        // Comments are public; never store the commenter's email on them.
+        && request.resource.data.keys().hasOnly(['editionNo', 'sortIndex', 'articleTitle', 'articleAuthorEmail', 'text', 'nickname', 'author', 'authorUid', 'authorIsAdmin', 'authorPhotoURL', 'createdAt']);
 
       allow update: if false;
 
@@ -219,11 +270,58 @@ service cloud.firestore {
     /* ---------------------------
        USERS
     --------------------------- */
+    function tierFor(xp) {
+      return xp >= 1800 ? 'DIAMOND' : xp >= 900 ? 'PLATINUM' : xp >= 400 ? 'GOLD'
+        : xp >= 150 ? 'SILVER' : xp >= 50 ? 'BRONZE' : 'ROOKIE';
+    }
+
+    // A counter may stay, or grow by at most `step` per write.
+    function stepsBy(key, step) {
+      let before = resource.data.get(key, 0);
+      let after = request.resource.data.get(key, 0);
+      return !(key in request.resource.data)
+        || (after is int && after >= before && after <= before + step);
+    }
+
+    function validProgressUpdate() {
+      let after = request.resource.data;
+      let changed = after.diff(resource.data).affectedKeys();
+      return onlyChanges([
+          "lastActiveAt", "lastVisitDate", "streakCount", "streakUpdatedAt",
+          "xp", "level", "tier", "tierLabel", "tierColor",
+          "saveUniqueCount", "visitDayCount", "commentCount", "shareCount", "updatedAt"
+        ])
+        // The largest single award in src/data/xpRules.js is 6.
+        && stepsBy('xp', 6)
+        && stepsBy('saveUniqueCount', 1)
+        && stepsBy('visitDayCount', 1)
+        && stepsBy('commentCount', 1)
+        && stepsBy('shareCount', 1)
+        && (!('streakCount' in after) || after.streakCount == 1 || stepsBy('streakCount', 1))
+        && (!changed.hasAny(['level']) || after.level == math.floor(after.get('xp', 0) / 100) + 1)
+        && (!changed.hasAny(['tier']) || after.tier == tierFor(after.get('xp', 0)))
+        && (!changed.hasAny(['lastVisitDate']) || (after.lastVisitDate is string && after.lastVisitDate.matches('^[0-9]{8}$')));
+    }
+
+    // Emails stay off public profiles, except staff whose email is already public as article author.
+    function validEmailUpdate(uid) {
+      return onlyChanges(['email', 'updatedAt'])
+        && (!('email' in request.resource.data)
+          || (request.resource.data.email == request.auth.token.email
+            && (isAdminEmail() || roleOf(uid) in ['editor', 'admin'])));
+    }
+
+    // Admins read every private contact from the user list.
+    match /{path=**}/private/{docId} {
+      allow read: if isAdmin();
+    }
+
     match /users/{uid} {
       allow read: if true;
 
       allow create: if signedIn()
         && request.auth.uid == uid
+        && !('email' in request.resource.data)
         && request.resource.data.nickname is string
         && request.resource.data.nickname.size() > 0
         && request.resource.data.nickname.size() <= 20
@@ -258,34 +356,21 @@ service cloud.firestore {
               !('role' in resource.data) && onlyChanges(['role', 'updatedAt'])
               && request.resource.data.role == 'user'
             )
-            || (
-              onlyChanges([
-                "lastActiveAt",
-                "lastVisitDate",
-                "streakCount",
-                "streakUpdatedAt",
-                "xp",
-                "level",
-                "tier",
-                "tierLabel",
-                "tierColor",
-                "saveUniqueCount",
-                "visitDayCount",
-                "commentCount",
-                "shareCount",
-                "updatedAt"
-              ])
-              && (
-                !("role" in request.resource.data)
-                || request.resource.data.role == resource.data.role
-              )
-              && (
-                !("xp" in resource.data)
-                || request.resource.data.xp >= resource.data.xp
-              )
-            )
+            || validEmailUpdate(uid)
+            || validProgressUpdate()
           )
         );
+
+      match /private/{docId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && docId == 'contact'
+          && request.resource.data.keys().hasOnly(['email', 'updatedAt'])
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isAdmin();
+      }
 
       allow delete: if false;
 
@@ -370,6 +455,17 @@ service cloud.firestore {
       }
 
       match /achievements/{achId} {
+        // Counted achievements need the profile counter written in the same transaction.
+        function achievementEarned(id) {
+          let thresholds = {
+            "save_10": ["saveUniqueCount", 10], "save_50": ["saveUniqueCount", 50], "save_100": ["saveUniqueCount", 100],
+            "comments_10": ["commentCount", 10], "comments_30": ["commentCount", 30], "comments_100": ["commentCount", 100],
+            "shares_5": ["shareCount", 5], "shares_20": ["shareCount", 20],
+            "visit_7": ["visitDayCount", 7], "visit_30": ["visitDayCount", 30]
+          };
+          let progress = getAfter(/databases/$(database)/documents/users/$(uid)).data;
+          return id in thresholds && progress.get(thresholds[id][0], 0) >= thresholds[id][1];
+        }
         allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
 
         allow create: if
@@ -378,22 +474,10 @@ service cloud.firestore {
             signedIn()
             && request.auth.uid == uid
             && !exists(/databases/$(database)/documents/users/$(uid)/achievements/$(achId))
-            && achId in [
-              "save_10",
-              "save_50",
-              "save_100",
-              "ach_first_comment",
-              "ach_first_share",
-              "ach_first_visit",
-              "ach_poll_vote",
-              "comments_10",
-              "comments_30",
-              "comments_100",
-              "shares_5",
-              "shares_20",
-              "visit_7",
-              "visit_30"
-            ]
+            && (
+              achId in ["ach_first_comment", "ach_first_share", "ach_first_visit", "ach_poll_vote"]
+              || achievementEarned(achId)
+            )
           );
 
         allow update: if isAdmin();

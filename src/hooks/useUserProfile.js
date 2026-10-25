@@ -51,7 +51,6 @@ export function useUserProfile() {
 
           const initial = {
             uid: u.uid,
-            email: u.email || null,
             photoURL: resolveProfilePhotoURL(u),
             displayName,
             name: displayName,
