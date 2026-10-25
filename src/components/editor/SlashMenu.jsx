@@ -17,6 +17,7 @@ import {
   Columns2,
   Loader2,
   Images,
+  Superscript,
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
@@ -47,6 +48,7 @@ const SLASH_ITEMS = [
   { key: "podcast", label: "Podcast", desc: "Unframe Podcast 플레이어", icon: Mic },
 
   { key: "quote", label: "Quote", desc: "인용문", icon: Quote },
+  { key: "footnote", label: "Footnote", desc: "각주 (글 끝 주석)", icon: Superscript },
   { key: "h2", label: "H2", desc: "대제목", icon: Heading2 },
   { key: "h3", label: "H3", desc: "중제목", icon: Heading3 },
 ];
@@ -119,6 +121,10 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
         case "quote":
           editor.chain().focus().toggleBlockquote().run();
+          break;
+
+        case "footnote":
+          editor.chain().focus().insertFootnote().run();
           break;
 
         case "scene":

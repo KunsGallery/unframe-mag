@@ -17,6 +17,9 @@ import EditorWorkspaceActions from "../components/editor/EditorWorkspaceActions"
 import EditorDocumentSettings from "../components/editor/EditorDocumentSettings";
 import EditorDraftList from "../components/editor/EditorDraftList";
 import EditorWorkspaceStyles from "../components/editor/EditorWorkspaceStyles";
+import EditorConflictBanner from "../components/editor/EditorConflictBanner";
+import EditorFindReplace from "../components/editor/EditorFindReplace";
+import FootnoteEditor from "../components/editor/FootnoteEditor";
 import { focusEditorBlock } from "../lib/editorOutline";
 const EditorPreview = lazy(() => import("../components/editor/EditorPreview"));
 const PublicationChecklist = lazy(() => import("../components/editor/PublicationChecklist"));
@@ -38,6 +41,7 @@ import { useEditorReady } from "../hooks/useEditorReady";
 import { useEditorDocMeta } from "../hooks/useEditorDocMeta";
 import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
 import { useRecoveryCapture } from "../hooks/useRecoveryCapture";
+import { useDraftConflictWatch } from "../hooks/useDraftConflictWatch";
 import EditorOnboardingModal from "../components/editor/EditorOnboardingModal";
 import {
   shouldOpenEditorOnboarding,
@@ -76,6 +80,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [subtitle, setSubtitle] = useState("");
   const [category, setCategory] = useState(DEFAULT_ARTICLE_CATEGORY);
   const [relatedEditionNos, setRelatedEditionNos] = useState([]);
+  const [excerpt, setExcerpt] = useState("");
+  const [tags, setTags] = useState([]);
+  const [find, setFind] = useState({ open: false, query: "", token: 0 });
   const [cover, setCover] = useState("");
   const [coverMedium, setCoverMedium] = useState("");
   const [panelTab, setPanelTab] = useState("settings");
@@ -87,6 +94,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
 
   const titleRef = useRef(null);
   const subtitleRef = useRef(null);
+  const excerptRef = useRef(null);
   const workspaceRef = useRef(null);
   const actionsRef = useRef(null);
   useLayoutEffect(() => {
@@ -109,7 +117,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const editorConfig = useMemo(
     () =>
       createEditorConfig({
-        onUploadImage: async (file) => uploadImageWithProgress(file),
+        onUploadImage: (file, options) => uploadImageWithProgress(file, options),
         onToast,
       }),
     [onToast]
@@ -132,19 +140,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       setCover,
       setCoverMedium,
       setRelatedEditionNos,
+      setExcerpt,
+      setTags,
     });
     setEditorDocMeta(null);
   };
-
-  useEffect(() => {
-    if (!editor) return;
-    const handler = (e) => {
-      const url = e.detail?.url;
-      if (url && editor.isEditable) editor.chain().focus().setImage({ src: url }).run();
-    };
-    window.addEventListener("uf:insert-image", handler);
-    return () => window.removeEventListener("uf:insert-image", handler);
-  }, [editor]);
 
   const draftsApi = useDrafts({
     db,
@@ -169,7 +169,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     recovery: recoveryCandidate,
     setIsDirty: setDraftDirty,
   } = draftsApi;
-  const currentMeta = { title, subtitle, category, cover, coverMedium, relatedEditionNos, author: authorName, authorEmail };
+  const currentMeta = { title, subtitle, excerpt, tags, category, cover, coverMedium, relatedEditionNos, author: authorName, authorEmail };
   const currentMetaRef = useRef(currentMeta);
   // 이벤트/타이머 핸들러가 항상 최신 메타를 읽도록 렌더 중에 갱신합니다(기존 동작 유지).
   // eslint-disable-next-line react-hooks/refs
@@ -227,10 +227,12 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       cover,
       coverMedium,
       relatedEditionNos,
+      excerpt,
+      tags,
       author: authorName,
       authorEmail,
     });
-  }, [runAutosave, title, subtitle, category, cover, coverMedium, relatedEditionNos, authorName, authorEmail]);
+  }, [runAutosave, title, subtitle, excerpt, tags, category, cover, coverMedium, relatedEditionNos, authorName, authorEmail]);
 
   useEffect(() => {
     if (!editor || !editorReady) return;
@@ -250,6 +252,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           setCover,
           setCoverMedium,
           setRelatedEditionNos,
+          setExcerpt,
+          setTags,
         });
 
         if (success && !cancelled) {
@@ -280,6 +284,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   ]);
 
   const { editorDocMeta, setEditorDocMeta, loadingEditorMeta } = useEditorDocMeta(draftId, articleId);
+  useDraftConflictWatch(db, draftId, draftsApi.noteRemoteEditToken);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -292,22 +297,23 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, []);
 
   const editingDisabled = draftsApi.isSaving || draftsApi.isDraftLoading || !!recoveryCandidate;
-  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium, setRelatedEditionNos };
+  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium, setRelatedEditionNos, setExcerpt, setTags };
   const openPanel = (tab) => { setPanelTab(tab); setPanelOpen(true); setFocusMode(false); };
   const saveCurrent = async () => {
     const saved = await draftsApi.saveDraft({ markClean: true }, currentMetaRef.current);
     if (saved) setHistoryRefresh((value) => value + 1);
     return saved;
   };
+  const openFindRef = useRef(null);
   const restoreSnapshot = async (snapshot) => {
     if (editingDisabled || !editor?.isInitialized) return false;
     if (draftsApi.isDirty && !await confirmEditor("현재 변경사항을 선택한 기록으로 바꿀까요?")) return false;
     const before = editor.getHTML();
     try { editor.commands.setContent(snapshot.contentHTML, { emitUpdate: false }); }
     catch { editor.commands.setContent(before, { emitUpdate: false }); toast("이 기록을 불러올 수 없어요."); return false; }
-    for (const [key, setter] of Object.entries(setters)) {
-      const field = key.slice(3); const name = field[0].toLowerCase() + field.slice(1);
-      setter(snapshot[name] || (name === "category" ? DEFAULT_ARTICLE_CATEGORY : ""));
+    // Snapshots hold only these fields; lead text, tags and related articles stay as they are.
+    for (const name of ["title", "subtitle", "category", "cover", "coverMedium"]) {
+      setters[`set${name[0].toUpperCase()}${name.slice(1)}`](snapshot[name] || (name === "category" ? DEFAULT_ARTICLE_CATEGORY : ""));
     }
     draftsApi.setIsDirty(true);
     draftsApi.holdAutosave?.();
@@ -318,9 +324,30 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     return true;
   };
 
+  const reloadAfterConflict = async () => {
+    if (!draftId || !await confirmEditor("지금 화면의 변경사항 대신 저장된 최신본을 불러올까요? 이 기기에 남은 내 변경사항은 복구 초안으로 다시 열 수 있어요.")) return;
+    draftsApi.captureRecovery(currentMetaRef.current);
+    await loadDraft(draftId, setters);
+  };
+  const overwriteAfterConflict = async () => {
+    if (!await confirmEditor("다른 곳에서 저장한 내용을 지금 화면의 글로 덮어쓸까요? 이전 내용은 ‘이력’ 탭에 남아요.")) return;
+    draftsApi.overwriteConflict();
+    await saveCurrent();
+  };
+  const openFind = () => {
+    const { from, to, empty } = editor?.state.selection || {};
+    const selected = !empty && editor ? editor.state.doc.textBetween(from, to, " ").slice(0, 100) : "";
+    setFind((value) => ({ open: true, query: selected.includes("\n") ? "" : selected, token: value.token + 1 }));
+  };
+
   const { saveDraft, isSaving, isDraftLoading, recovery } = draftsApi;
   useEffect(() => {
     const handleSave = (event) => {
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "f" && workspaceRef.current?.contains(event.target)) {
+        event.preventDefault();
+        openFindRef.current();
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && canWrite) {
         event.preventDefault();
         if (!isSaving && !isDraftLoading && !recovery) {
@@ -331,6 +358,9 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     window.addEventListener("keydown", handleSave);
     return () => window.removeEventListener("keydown", handleSave);
   }, [canWrite, saveDraft, isSaving, isDraftLoading, recovery]);
+
+  // eslint-disable-next-line react-hooks/refs -- the shortcut handler reads the latest editor selection
+  openFindRef.current = openFind;
 
   if (!canWrite) {
     return (
@@ -344,6 +374,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     <div ref={workspaceRef} className={`uf-workspace ${focusMode ? "is-focus" : ""}`}>
       {confirmation}
       {dataRouter && <EditorLeaveGuard draftsApi={draftsApi} meta={currentMeta} />}
+      <EditorConflictBanner conflict={draftsApi.conflict} disabled={draftsApi.isSaving || draftsApi.isDraftLoading}
+        onReload={reloadAfterConflict} onOverwrite={overwriteAfterConflict} />
       <EditorRecoveryBanner
         draftsApi={draftsApi}
         editorReady={editorReady}
@@ -371,8 +403,12 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           saveCurrent={saveCurrent}
           coverUploading={coverUploading}
           setShowChecks={setShowChecks}
+          onOpenFind={openFind}
         />
-        <div className="uf-toolbar-shell"><EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} /></div>
+        <div className="uf-toolbar-shell"><EditorToolbar editor={editor} isDarkMode={isDarkMode} onToast={onToast} />
+          {find.open && <EditorFindReplace key={find.token} editor={editor} initialQuery={find.query} disabled={editingDisabled}
+            onClose={() => setFind((value) => ({ ...value, open: false }))} onToast={onToast} />}
+        </div>
         <div className="uf-writing-surface" aria-busy={draftsApi.isDraftLoading}>
           <textarea ref={titleRef} aria-label="글 제목" rows={1} placeholder="글 제목" value={title} disabled={draftsApi.isDraftLoading} onChange={(event) => { setTitle(event.target.value); setDraftDirty(true); }} className="uf-title-textarea uf-writing-title" />
           <textarea ref={subtitleRef} aria-label="부제목" rows={1} placeholder="부제목" value={subtitle} disabled={draftsApi.isDraftLoading} onChange={(event) => { setSubtitle(event.target.value); setDraftDirty(true); }}
@@ -403,6 +439,13 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             {panelTab === "outline" && <EditorOutline editor={editor} disabled={editingDisabled} onNavigate={(pos) => { if (!isDesktopEditor) setPanelOpen(false); requestAnimationFrame(() => focusEditorBlock(editor, pos)); }} />}
             {panelTab === "document" && (
               <EditorDocumentSettings
+                title={title}
+                subtitle={subtitle}
+                excerpt={excerpt}
+                setExcerpt={setExcerpt}
+                tags={tags}
+                setTags={setTags}
+                excerptRef={excerptRef}
                 category={category}
                 setCategory={setCategory}
                 cover={cover}
@@ -450,8 +493,10 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           if (typeof issue.position === "number") { if (!isDesktopEditor) setPanelOpen(false); focusEditorBlock(editor, issue.position); }
           else if (issue.field === "title") titleRef.current?.focus();
           else if (issue.field === "cover") openPanel("document");
+          else if (issue.field === "excerpt") { openPanel("document"); requestAnimationFrame(() => requestAnimationFrame(() => excerptRef.current?.focus())); }
         }} onPublish={async () => { const success = await draftsApi.publish(currentMetaRef.current); if (success) setShowChecks(false); return success; }} />}
       </Suspense>
+      <FootnoteEditor editor={editor} />
       <EditorWorkspaceStyles />
     </div>
   );

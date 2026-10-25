@@ -208,3 +208,15 @@
     gap: 16px;
   }
 }
+
+/* Footnote markers are numbered by document order in the editor, preview and article. */
+.uf-prose { counter-reset: uf-footnote; }
+.uf-prose sup[data-uf-footnote] { font-size: .7em; font-weight: 700; color: #004aad; line-height: 0; vertical-align: super; }
+.uf-prose sup[data-uf-footnote]::after { counter-increment: uf-footnote; content: "[" counter(uf-footnote) "]"; }
+.uf-view sup[data-uf-footnote] { cursor: pointer; }
+.uf-footnotes { max-width: 760px; margin: 64px auto 0; padding-top: 24px; border-top: 1px solid var(--uf-border); }
+.uf-footnotes h2 { font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+.uf-footnotes ol { list-style: decimal; padding-left: 1.4em; display: grid; gap: 8px; font-size: 14px; line-height: 1.7; color: var(--uf-muted); }
+.uf-footnotes li { scroll-margin-top: 120px; overflow-wrap: anywhere; }
+.uf-footnotes li:target { color: var(--uf-text); }
+.uf-footnotes a { margin-left: 6px; color: #004aad; text-decoration: none; }

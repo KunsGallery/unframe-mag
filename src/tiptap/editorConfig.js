@@ -36,6 +36,9 @@ import { UfCallout } from "../tiptap/nodes/UfCallout";
 import { Columns, Column } from "./nodes/Columns";
 import { EditorKeyBehavior } from "./extensions/EditorKeyBehavior";
 import { PasteSanitizer } from "./extensions/PasteSanitizer";
+import { SearchReplace } from "./extensions/SearchReplace";
+import { ImageUploads, imageFiles, uploadImagesAt } from "./extensions/ImageUploads";
+import { UfFootnote } from "./nodes/UfFootnote";
 
 export function createEditorConfig({ onUploadImage, onToast }) {
   return {
@@ -96,8 +99,11 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       UfPodcast,
       UfDivider,
       UfCallout,
+      UfFootnote,
       EditorKeyBehavior,
       PasteSanitizer,
+      SearchReplace,
+      ImageUploads,
     ],
 
     editorProps: {
@@ -105,41 +111,21 @@ export function createEditorConfig({ onUploadImage, onToast }) {
         class: "ProseMirror uf-editor uf-prose max-w-none focus:outline-none min-h-[500px]",
       },
 
-      handlePaste: (_view, event) => {
-        const files = Array.from(event.clipboardData?.files || []);
-        const image = files.find((f) => f.type.startsWith("image/"));
-        if (!image) return false;
-
+      handlePaste: (view, event) => {
+        const files = imageFiles(event.clipboardData?.files);
+        if (!files.length || !onUploadImage) return false;
         event.preventDefault();
-        (async () => {
-          try {
-            const url = await onUploadImage(image);
-            window.dispatchEvent(new CustomEvent("uf:insert-image", { detail: { url } }));
-          } catch (e) {
-            console.error(e);
-            onToast?.(e?.userMessage || "이미지 업로드 실패");
-          }
-        })();
-
+        uploadImagesAt(view, files, view.state.selection.to, { upload: onUploadImage, onToast });
         return true;
       },
 
-      handleDrop: (_view, event) => {
-        const files = Array.from(event.dataTransfer?.files || []);
-        const image = files.find((f) => f.type.startsWith("image/"));
-        if (!image) return false;
-
+      // Dropped photos land where they were dropped, not at the old cursor.
+      handleDrop: (view, event) => {
+        const files = imageFiles(event.dataTransfer?.files);
+        if (!files.length || !onUploadImage) return false;
         event.preventDefault();
-        (async () => {
-          try {
-            const url = await onUploadImage(image);
-            window.dispatchEvent(new CustomEvent("uf:insert-image", { detail: { url } }));
-          } catch (e) {
-            console.error(e);
-            onToast?.(e?.userMessage || "이미지 업로드 실패");
-          }
-        })();
-
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.to;
+        uploadImagesAt(view, files, pos, { upload: onUploadImage, onToast });
         return true;
       },
     },

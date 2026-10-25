@@ -1,6 +1,7 @@
 import React, { forwardRef, useRef, useState, useCallback, useImperativeHandle } from "react";
 import { EditorContent } from "@tiptap/react";
 import ImageDeliveryLayer from "./ImageDeliveryLayer";
+import ArticleFootnotes from "./ArticleFootnotes";
 
 const ArticleBody = forwardRef(function ArticleBody({ article, editor }, ref) {
   const excerpt = article.excerpt?.trim?.() || "";
@@ -21,6 +22,7 @@ const ArticleBody = forwardRef(function ArticleBody({ article, editor }, ref) {
 
       <EditorContent editor={editor} />
       <ImageDeliveryLayer root={root} revision={editor} />
+      <ArticleFootnotes editor={editor} root={root} />
     </div>
   );
 });

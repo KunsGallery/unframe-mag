@@ -1,4 +1,5 @@
-import { Save, Send, CircleHelp, Eye, PanelRightClose, PanelRightOpen, Maximize2 } from "lucide-react";
+import { Save, Send, CircleHelp, Eye, PanelRightClose, PanelRightOpen, Maximize2, Search } from "lucide-react";
+import EditorWordCount from "./EditorWordCount";
 
 export default function EditorWorkspaceActions({
   actionsRef,
@@ -19,14 +20,17 @@ export default function EditorWorkspaceActions({
   saveCurrent,
   coverUploading,
   setShowChecks,
+  onOpenFind,
 }) {
   return (
     <header ref={actionsRef} className="uf-workspace-actions">
       <div className="uf-workspace-document">
         <strong>{loadingEditorMeta ? "불러오는 중" : editorDocMeta?.editMode === "revision" ? "발행 글 수정" : editorDocMeta?.status === "published" ? "발행된 글" : "새 글 / 초안"}</strong>
         <span role="status" aria-live="polite">{draftsApi.isSaving ? "저장 중..." : saveStatusText}</span>
+        <EditorWordCount editor={editor} />
       </div>
       <div className="uf-workspace-commands">
+        <button type="button" title="찾기·바꾸기 (⌘F)" aria-label="찾기·바꾸기" disabled={!editorReady} onClick={onOpenFind}><Search size={18} /></button>
         <button type="button" title="집중 모드" aria-label="집중 모드" aria-pressed={focusMode} onClick={() => setFocusMode((value) => !value)}><Maximize2 size={18} /></button>
         <button type="button" title="편집 도움말" aria-label="편집 도움말" onClick={() => setShowOnboarding(true)}><CircleHelp size={18} /></button>
         <button type="button" title="편집 작업 패널" aria-label="편집 작업 패널" aria-expanded={isDesktopEditor ? !focusMode : panelOpen} onClick={() => { if (isDesktopEditor) setFocusMode((value) => !value); else setPanelOpen(true); }}>{focusMode ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}</button>

@@ -1,4 +1,5 @@
 import { buildSpotifyEmbed, buildYouTubeEmbed } from './ufEmbed.js';
+import { hasShareDescription } from './shareMeta.js';
 
 const filled = (value) => typeof value === 'string' && !!value.trim();
 
@@ -13,7 +14,7 @@ export function isPublicationLinkValid(value) {
 }
 
 // JSON positions follow ProseMirror: doc has no opening token, text uses UTF-16 length.
-export function publicationChecks({ title, cover, coverMedium, content, contentJSON } = {}) {
+export function publicationChecks({ title, subtitle, excerpt, cover, coverMedium, content, contentJSON } = {}) {
   const issues = [];
   const add = (code, severity, message, field, position = null, extra = {}) =>
     issues.push({ id: `${code}-${issues.length}`, code, severity, message, field, position, ...extra });
@@ -63,6 +64,8 @@ export function publicationChecks({ title, cover, coverMedium, content, contentJ
   const doc = contentJSON ?? content;
   if (doc?.type === 'doc') visit(doc, 0);
   if (!hasBody) add('missing-body', 'error', '본문을 입력해 주세요.', 'body', 0);
+  if (!hasShareDescription({ subtitle, excerpt }))
+    add('missing-description', 'warning', '공유 미리보기에 보일 부제목이나 요약문을 입력해 주세요.', 'excerpt');
   const errors = issues.filter((issue) => issue.severity === 'error');
   const warnings = issues.filter((issue) => issue.severity === 'warning');
   return { issues, errors, warnings, canPublish: errors.length === 0 };

@@ -12,6 +12,7 @@ const categoriesSource = await readFile(new URL('../src/constants/categories.js'
 const summarySource = await readFile(new URL('../src/lib/articleSummary.js', import.meta.url), 'utf8');
 const readingMetaSource = await readFile(new URL('../src/lib/readingMeta.js', import.meta.url), 'utf8');
 const relatedSource = await readFile(new URL('../src/lib/relatedArticles.js', import.meta.url), 'utf8');
+const tagsSource = await readFile(new URL('../src/lib/articleTags.js', import.meta.url), 'utf8');
 const meta = { title: '', subtitle: '', category: 'ART', cover: '', coverMedium: '', authorEmail: 'author@example.com' };
 const deferred = () => {
   let resolve;
@@ -173,12 +174,16 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
   await readingMetaModule.link(() => {});
   const relatedModule = new SourceTextModule(relatedSource, { context });
   await relatedModule.link(() => {});
+  const tagsModule = new SourceTextModule(tagsSource, { context });
+  await tagsModule.link(() => {});
   const summaryModule = new SourceTextModule(summarySource, { context });
-  await summaryModule.link((specifier) => specifier.includes('relatedArticles') ? relatedModule : readingMetaModule);
+  await summaryModule.link((specifier) => specifier.includes('relatedArticles') ? relatedModule
+    : specifier.includes('articleTags') ? tagsModule : readingMetaModule);
   await summaryModule.evaluate();
   await module.link((specifier) => {
     if (specifier.includes('articleSummary')) return summaryModule;
     if (specifier.includes('relatedArticles')) return relatedModule;
+    if (specifier.includes('articleTags')) return tagsModule;
     if (specifier.includes('draftRecovery')) return recoveryModule;
     if (specifier.includes('publicationTransaction')) return publicationModule;
     if (specifier.includes('editorHistory')) return historyModule;
@@ -204,13 +209,14 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     return api;
   };
   const applied = {};
-  const setters = Object.fromEntries(['Title', 'Subtitle', 'Category', 'Cover', 'CoverMedium', 'RelatedEditionNos'].map((key) => [
+  const setters = Object.fromEntries(['Title', 'Subtitle', 'Category', 'Cover', 'CoverMedium', 'RelatedEditionNos', 'Excerpt', 'Tags'].map((key) => [
     'set' + key, (value) => { applied[key] = value; },
   ]));
   render();
   return {
     render, editor, timers, frames, server, storage, navigations, navigationDirty, toasts, applied, setters,
     runPublicationTransaction: publicationModule.namespace.runPublicationTransaction,
+    get api() { return latestApi; },
     unmount() { for (const slot of slots) slot?.cleanup?.(); },
     async fireAutosave() {
       assert.equal(timers.size, 1);
@@ -881,8 +887,15 @@ test('concurrent published updates capture the freshly retried BEFORE source and
   const b = await harness({ server, initialProps: { historyUserId: 'uid-b' } });
   await a.render().loadDraft('source', a.setters);
   await b.render().loadDraft('source', b.setters);
-  assert.deepEqual(await Promise.all([a.render().publish({ ...historyMeta, title: 'A' }), b.render().publish({ ...historyMeta, title: 'B' })]), [true, true]);
+  const results = await Promise.all([a.render().publish({ ...historyMeta, title: 'A' }), b.render().publish({ ...historyMeta, title: 'B' })]);
   assert.ok(server.retries > 0);
+  // The retried publication now sees the other editor's write and stops instead of overwriting it.
+  assert.deepEqual([...results].sort(), [false, true]);
+  const loser = results[0] ? b : a;
+  assert.equal(loser.render().conflict.source, 'save');
+  loser.render().overwriteConflict();
+  assert.equal(await loser.render().publish({ ...historyMeta, title: loser === a ? 'A' : 'B' }), true);
+  assert.equal(loser.render().conflict, null);
   const rows = historyRows(server, 'source');
   assert.equal(rows.length, 4);
   assert.equal(rows.filter((row) => row.label === '발행 전 원본').length, 2);
@@ -953,4 +966,60 @@ test('related articles are saved, copied to the home summary and restored on loa
   assert.deepEqual([...reader.applied.RelatedEditionNos], ['002', '001']);
   reader.render().startNewDraft(reader.setters);
   assert.deepEqual([...reader.applied.RelatedEditionNos], []);
+});
+
+test('lead text and tags are saved, copied to the summary and restored on load', async () => {
+  const server = backend({ 'counters/articles': { lastIndex: 3, articleId: 'legacy' } });
+  const h = await harness({ server });
+  assert.equal(await h.render().publish({ ...meta, title: 'Lead', excerpt: '한 줄 요약', tags: '#단체전, 회화, 회화, ' }), true);
+  const id = h.render().draftId;
+  assert.equal(server.data.get(`articles/${id}`).excerpt, '한 줄 요약');
+  assert.deepEqual([...server.data.get(`articles/${id}`).tags], ['단체전', '회화']);
+  assert.deepEqual([...server.data.get(`articleSummaries/${id}`).tags], ['단체전', '회화']);
+  const reader = await harness({ server });
+  assert.equal(await reader.render().loadDraft(id, reader.setters), true);
+  assert.equal(reader.applied.Excerpt, '한 줄 요약');
+  assert.deepEqual([...reader.applied.Tags], ['단체전', '회화']);
+});
+
+test('a save over another editor\'s newer write stops autosave until the editor chooses', async () => {
+  const server = backend({ 'articles/shared': { ...meta, title: 'Shared', status: 'draft', authorEmail: meta.authorEmail } });
+  const a = await harness({ server });
+  const b = await harness({ server });
+  await a.render().loadDraft('shared', a.setters);
+  await b.render().loadDraft('shared', b.setters);
+  assert.equal(await a.render().saveDraft({}, { ...meta, title: 'From A' }), true);
+  b.render().setIsDirty(true);
+  b.render().runAutosave({ ...meta, title: 'From B' });
+  await b.fireAutosave();
+  assert.equal(server.data.get('articles/shared').title, 'From A');
+  assert.equal(b.render().conflict.source, 'save');
+  assert.equal(b.toasts.filter((message) => message.includes('다른 곳에서')).length, 1);
+  // Autosave keeps ticking but never writes while the conflict is open.
+  await b.fireAutosave();
+  assert.equal(server.data.get('articles/shared').title, 'From A');
+  b.render().overwriteConflict();
+  assert.equal(await b.render().saveDraft({}, { ...meta, title: 'From B' }), true);
+  assert.equal(server.data.get('articles/shared').title, 'From B');
+  // A now holds the stale copy and is stopped in turn; reloading clears it.
+  assert.equal(await a.render().saveDraft({}, { ...meta, title: 'A again' }), false);
+  assert.equal(a.render().conflict.source, 'save');
+  assert.equal(await a.render().loadDraft('shared', a.setters), true);
+  assert.equal(a.render().conflict, null);
+  assert.equal(a.applied.Title, 'From B');
+  assert.equal(await a.render().saveDraft({}, { ...meta, title: 'A again' }), true);
+});
+
+test('live listener tokens flag only writes made elsewhere', async () => {
+  const server = backend({ 'articles/shared': { ...meta, title: 'Shared', status: 'draft', authorEmail: meta.authorEmail, editToken: 'one' } });
+  const h = await harness({ server });
+  await h.render().loadDraft('shared', h.setters);
+  h.render().noteRemoteEditToken('shared', 'one');
+  h.render().noteRemoteEditToken('other-article', 'zzz');
+  assert.equal(h.render().conflict, null);
+  assert.equal(await h.render().saveDraft({}, { ...meta, title: 'Mine' }), true);
+  h.render().noteRemoteEditToken('shared', server.data.get('articles/shared').editToken);
+  assert.equal(h.render().conflict, null);
+  h.render().noteRemoteEditToken('shared', 'someone-else');
+  assert.equal(h.render().conflict.source, 'remote');
 });

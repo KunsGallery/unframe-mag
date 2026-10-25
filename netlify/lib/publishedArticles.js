@@ -2,6 +2,7 @@
 // Published articles are publicly readable, so these anonymous REST reads
 // pass the same Firestore rules as a signed-out reader.
 import { getOptimizedImageUrl } from "../../src/lib/imageUrl.js";
+import { shareDescription, shareTitle } from "../../src/lib/shareMeta.js";
 
 const PROJECT = "uarchive-8e437";
 const RUN_QUERY = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents:runQuery`;
@@ -70,8 +71,7 @@ export function articleUrl(editionNo) {
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
-const describe = (article) =>
-  String(article.subtitle || article.excerpt || "UNFRAME 매거진 U#의 전시·예술 기록").slice(0, 200);
+const describe = shareDescription;
 
 // schema.org Article data for search results; "<" is escaped so the JSON cannot close the script tag.
 export function articleJsonLd(article, image) {
@@ -93,7 +93,7 @@ export function articleJsonLd(article, image) {
 }
 
 export function articleMetaTags(article) {
-  const title = `${article.title || "Untitled"} | U#`;
+  const title = shareTitle(article);
   const description = describe(article);
   const cover = article.coverMedium || article.cover;
   const image = cover ? getOptimizedImageUrl(cover, { width: 1200, format: "jpg" }) : `${SITE_URL}/icons/icon-512.png`;

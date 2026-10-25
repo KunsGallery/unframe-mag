@@ -157,9 +157,11 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/articles/$(docId))
         && articleAfter().status == 'published'
         && (isAdmin() || articleAfter().authorEmail == request.auth.token.email)
-        && request.resource.data.keys().hasOnly(['editionNo', 'sortIndex', 'title', 'subtitle', 'excerpt', 'category', 'author', 'cover', 'coverMedium', 'coverThumb', 'readMinutes', 'relatedEditionNos', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['editionNo', 'sortIndex', 'title', 'subtitle', 'excerpt', 'category', 'author', 'cover', 'coverMedium', 'coverThumb', 'readMinutes', 'relatedEditionNos', 'tags', 'updatedAt'])
         && (!('relatedEditionNos' in request.resource.data)
           || (request.resource.data.relatedEditionNos is list && request.resource.data.relatedEditionNos.size() <= 12))
+        && (!('tags' in request.resource.data)
+          || (request.resource.data.tags is list && request.resource.data.tags.size() <= 10))
         && request.resource.data.editionNo == articleAfter().editionNo
         && request.resource.data.sortIndex == articleAfter().sortIndex
         && request.resource.data.title == articleAfter().title;

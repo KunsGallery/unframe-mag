@@ -16,10 +16,34 @@ import { DEFAULT_ARTICLE_CATEGORY } from "../constants/categories";
 import { runPublicationTransaction } from "../lib/publicationTransaction.js";
 import { buildArticleSummary } from "../lib/articleSummary.js";
 import { normalizeRelatedEditionNos } from "../lib/relatedArticles.js";
+import { normalizeTags } from "../lib/articleTags.js";
 import { editorSnapshot, pruneEditorHistory, writeEditorHistory } from "../lib/editorHistory.js";
 import { activeRecoveryDocument, browserRecoveryStorage, draftSnapshot, nextEdition, readRecovery, recoveryKey, removeRecovery, writeRecovery } from "../lib/draftRecovery.js";
 
 const AUTOSAVE_DELAY_MS = 30000;
+
+// Related articles, the lead text and tags travel with the article but stay out
+// of history and local recovery snapshots.
+function articlePayload(meta, contentHTML) {
+  return {
+    ...draftSnapshot(meta, contentHTML),
+    excerpt: String(meta?.excerpt ?? ""),
+    tags: normalizeTags(meta?.tags),
+    relatedEditionNos: normalizeRelatedEditionNos(meta?.relatedEditionNos),
+  };
+}
+
+// Every save stamps a fresh editToken. A save whose article no longer carries the
+// token this editor last saw was overwritten elsewhere (another tab, device or editor).
+const newEditToken = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+const UNKNOWN_BASE = undefined;
+
+export class EditConflictError extends Error {
+  constructor() {
+    super("Article changed elsewhere");
+    this.code = "edit-conflict";
+  }
+}
 
 // Reserve IDs and time once per operation; a retry can discover a different
 // source article but must reuse the same before/after IDs under that source.
@@ -81,6 +105,11 @@ export function useDrafts({
   const draftIdRef = useRef(null);
   const sessionRef = useRef(0);
   const autosaveRef = useRef({ meta: null, save: null, timer: null, generation: 0, loading: false });
+  // base: the editToken this editor's content derives from (UNKNOWN_BASE skips the check once).
+  const editTokenRef = useRef({ base: UNKNOWN_BASE, own: new Set(), force: false });
+  const [conflict, setConflictState] = useState(null);
+  const conflictRef = useRef(null);
+  const setConflict = useCallback((value) => { conflictRef.current = value; setConflictState(value); }, []);
   autosaveRef.current.loading = isDraftLoading;
 
   const offerRecovery = useCallback((id) => {
@@ -117,8 +146,10 @@ export function useDrafts({
     setRecoveryError(false);
     dirtyRef.current = false;
     setDirtyState(false);
+    editTokenRef.current = { base: UNKNOWN_BASE, own: new Set(), force: false };
+    setConflict(null);
     offerRecovery(documentId);
-  }, [userId, historyUserId, documentId, offerRecovery]);
+  }, [userId, historyUserId, documentId, offerRecovery, setConflict]);
 
   const captureRecovery = useCallback((meta) => {
     if (!dirtyRef.current || !editor || editor.isDestroyed || recoveryRef.current || !canWrite) return;
@@ -270,6 +301,10 @@ export function useDrafts({
         setters.setCover(data.cover || "");
         setters.setCoverMedium(data.coverMedium || "");
         setters.setRelatedEditionNos?.(normalizeRelatedEditionNos(data.relatedEditionNos, data.editionNo));
+        setters.setExcerpt?.(data.excerpt || "");
+        setters.setTags?.(normalizeTags(data.tags));
+        editTokenRef.current = { base: data.editToken ?? null, own: new Set(), force: false };
+        setConflict(null);
         setIsDirty(false);
         setLastAutoSavedAt(null);
         offerRecovery(docId);
@@ -286,7 +321,7 @@ export function useDrafts({
         }
       }
     },
-    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady, setIsDirty, offerRecovery]
+    [db, editor, toast, isAdmin, authorEmail, waitForEditorReady, setIsDirty, offerRecovery, setConflict]
   );
 
   const startNewDraft = useCallback(
@@ -305,13 +340,17 @@ export function useDrafts({
       setters.setCover("");
       setters.setCoverMedium("");
       setters.setRelatedEditionNos?.([]);
+      setters.setExcerpt?.("");
+      setters.setTags?.([]);
+      editTokenRef.current = { base: null, own: new Set(), force: false };
+      setConflict(null);
       editor?.commands?.setContent("", { emitUpdate: false });
       setIsDirty(false);
       setLastAutoSavedAt(null);
       offerRecovery(null);
       toast("새 초안을 시작합니다.");
     },
-    [editor, toast, setIsDirty, offerRecovery]
+    [editor, toast, setIsDirty, offerRecovery, setConflict]
   );
 
   const restoreRecovery = useCallback((setters) => {
@@ -323,6 +362,7 @@ export function useDrafts({
     }
     const snapshot = current.snapshot;
     if (recoveryDocumentRef.current) {
+      if (recoveryDocumentRef.current !== draftIdRef.current) editTokenRef.current = { base: UNKNOWN_BASE, own: new Set(), force: false };
       draftIdRef.current = recoveryDocumentRef.current;
       setDraftId(recoveryDocumentRef.current);
     }
@@ -338,6 +378,43 @@ export function useDrafts({
     setIsDirty(true);
     return true;
   }, [editor, isDraftLoading, storage, offerRecovery, documentId, setIsDirty]);
+
+  // Runs inside every transaction attempt against the article as just read.
+  const checkEditToken = (prev) => {
+    const { base, force } = editTokenRef.current;
+    if (!force && base !== UNKNOWN_BASE && (prev.editToken ?? null) !== base) throw new EditConflictError();
+  };
+  const reserveEditToken = () => {
+    const token = newEditToken();
+    editTokenRef.current.own.add(token);
+    return token;
+  };
+  const acceptEditToken = (token, savedSession) => {
+    if (sessionRef.current !== savedSession) return;
+    editTokenRef.current = { ...editTokenRef.current, base: token, force: false };
+  };
+  const reportConflict = (e) => {
+    if (e?.code !== "edit-conflict") return false;
+    if (!conflictRef.current) toast("다른 곳에서 이 글이 수정되어 저장을 멈췄어요. 어떻게 할지 선택해 주세요.");
+    setConflict({ source: "save", at: Date.now() });
+    return true;
+  };
+
+  // The editor keeps its text; the next save may replace the newer server copy.
+  const overwriteConflict = useCallback(() => {
+    editTokenRef.current.force = true;
+    setConflict(null);
+  }, [setConflict]);
+
+  // Fed by a live listener on the open article; flags writes made elsewhere before the next save.
+  const noteRemoteEditToken = useCallback((articleId, token) => {
+    if (!articleId || articleId !== draftIdRef.current) return;
+    const value = token ?? null;
+    const current = editTokenRef.current;
+    if (current.base === UNKNOWN_BASE) { current.base = value; return; }
+    if (value === current.base || current.own.has(value) || current.force) return;
+    if (!conflictRef.current) setConflict({ source: "remote", at: Date.now() });
+  }, [setConflict]);
 
   const finishSave = useCallback((savedRevision, savedSession, oldKey, record, targetId, meta, markClean) => {
     if (sessionRef.current !== savedSession) return false;
@@ -367,14 +444,14 @@ export function useDrafts({
 
   const saveDraft = useCallback(
     async ({ silent = false, markClean = false, autosave = false } = {}, meta) => {
-      if (!editor || editor.isDestroyed || !canWrite || savingRef.current || autosaveRef.current.loading || recoveryRef.current || (autosave && recoveryHoldRef.current)) return false;
+      if (!editor || editor.isDestroyed || !canWrite || savingRef.current || autosaveRef.current.loading || recoveryRef.current || (autosave && (recoveryHoldRef.current || conflictRef.current))) return false;
       savingRef.current = true;
       const savedRevision = revisionRef.current;
       const savedSession = sessionRef.current;
       const oldKey = keyRef.current;
       const record = captureRecovery(meta) || readRecovery(storage, oldKey);
-      // Related articles travel with the article but stay out of history and local recovery snapshots.
-      const payload = { ...draftSnapshot(meta, editor.getHTML()), relatedEditionNos: normalizeRelatedEditionNos(meta?.relatedEditionNos) };
+      const editToken = reserveEditToken();
+      const payload = { ...articlePayload(meta, editor.getHTML()), editToken };
       const currentId = draftIdRef.current;
       // Allocate refs once, outside retryable callbacks; never create documents during a retry.
       const newRef = doc(collection(db, "articles"));
@@ -388,6 +465,7 @@ export function useDrafts({
           const snap = currentId ? await transaction.get(ref) : null;
           if (currentId && !snap.exists()) throw new Error("Draft no longer exists");
           const prev = snap?.data() || {};
+          if (currentId) checkEditToken(prev);
           const target = prev.status === "published" ? newRef : ref;
           const fields = {
             ...payload,
@@ -397,7 +475,7 @@ export function useDrafts({
           };
           if (!currentId || prev.status === "published") {
             transaction.set(target, {
-              ...fields, status: "draft", likes: 0, views: 0, tags: prev.tags || [],
+              ...fields, status: "draft", likes: 0, views: 0,
               createdAt: serverTimestamp(),
               ...(prev.status === "published" ? {
                 sourceArticleId: currentId, sourceEditionNo: prev.editionNo || null,
@@ -414,12 +492,14 @@ export function useDrafts({
           }
           return target.id;
         });
+        acceptEditToken(editToken, savedSession);
         finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, markClean);
         await pruneSavedHistory(db, historyUserId, currentId, targetId);
         if (!silent) toast("임시 저장 완료");
         await refreshDrafts();
         return true;
       } catch (e) {
+        if (reportConflict(e)) return false;
         console.error("Save draft error:", e);
         if (!silent) toast("저장에 실패했어요. 변경사항을 유지하고 있으니 다시 저장해 주세요.");
         return false;
@@ -428,6 +508,7 @@ export function useDrafts({
         setIsSaving(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- token helpers only touch refs
     [db, editor, refreshDrafts, toast, canWrite, authorEmail, authorName, historyUserId, captureRecovery, storage, finishSave]
   );
 
@@ -443,8 +524,8 @@ export function useDrafts({
       const savedSession = sessionRef.current;
       const oldKey = keyRef.current;
       const record = captureRecovery(meta) || readRecovery(storage, oldKey);
-      // Related articles travel with the article but stay out of history and local recovery snapshots.
-      const payload = { ...draftSnapshot(meta, editor.getHTML()), relatedEditionNos: normalizeRelatedEditionNos(meta?.relatedEditionNos) };
+      const editToken = reserveEditToken();
+      const payload = { ...articlePayload(meta, editor.getHTML()), editToken };
       const currentId = draftIdRef.current;
       const ref = currentId ? doc(db, "articles", currentId) : doc(collection(db, "articles"));
       const counterRef = doc(db, "counters", "articles");
@@ -456,6 +537,7 @@ export function useDrafts({
           const snap = currentId ? await transaction.get(ref) : null;
           if (currentId && !snap.exists()) throw new Error("Draft no longer exists");
           const prev = snap?.data() || {};
+          if (currentId) checkEditToken(prev);
           if (prev.sourceArticleId) {
             const sourceRef = doc(db, "articles", prev.sourceArticleId);
             const source = await transaction.get(sourceRef);
@@ -504,7 +586,7 @@ export function useDrafts({
           };
           if (currentId) transaction.update(ref, fields);
           else transaction.set(ref, {
-            ...fields, likes: 0, views: 0, tags: [], createdAt: serverTimestamp(),
+            ...fields, likes: 0, views: 0, createdAt: serverTimestamp(),
           });
           transaction.set(doc(db, "articleSummaries", ref.id), buildArticleSummary({ ...prev, ...fields }, serverTimestamp()));
           if (history) {
@@ -513,6 +595,7 @@ export function useDrafts({
           }
           return ref.id;
         });
+        acceptEditToken(editToken, savedSession);
         const unchanged = finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, true);
         await pruneSavedHistory(db, historyUserId, targetId);
         toast("아티클이 발행되었습니다!");
@@ -527,6 +610,7 @@ export function useDrafts({
         }
         return true;
       } catch (e) {
+        if (reportConflict(e)) return false;
         console.error("Publish error:", e);
         toast("발행에 실패했어요. 변경사항을 유지하고 있으니 다시 시도해 주세요.");
         return false;
@@ -535,6 +619,7 @@ export function useDrafts({
         setIsSaving(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- token helpers only touch refs
     [db, editor, refreshDrafts, toast, navigate, canWrite, authorEmail, authorName, historyUserId, captureRecovery, storage, finishSave]
   );
 
@@ -547,7 +632,7 @@ export function useDrafts({
     const generation = autosaveRef.current.generation;
     const tick = async () => {
       if (generation !== autosaveRef.current.generation) return;
-      if (dirtyRef.current && !savingRef.current && !autosaveRef.current.loading && !recoveryHoldRef.current && !recoveryRef.current) {
+      if (dirtyRef.current && !savingRef.current && !autosaveRef.current.loading && !recoveryHoldRef.current && !recoveryRef.current && !conflictRef.current) {
         await autosaveRef.current.save(
           { silent: true, markClean: true, autosave: true }, autosaveRef.current.meta
         );
@@ -574,6 +659,9 @@ export function useDrafts({
     publish,
     runAutosave,
     recovery,
+    conflict,
+    overwriteConflict,
+    noteRemoteEditToken,
     recoveryError,
     recoveryNeedsSave,
     captureRecovery,

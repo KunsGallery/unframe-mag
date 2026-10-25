@@ -17,6 +17,7 @@ import { LineHeight } from "../tiptap/extensions/LineHeight";
 import { LetterSpacing } from "../tiptap/extensions/LetterSpacing";
 import { UfDivider } from "../tiptap/nodes/UfDivider";
 import { UfCallout } from "../tiptap/nodes/UfCallout";
+import { UfFootnote } from "../tiptap/nodes/UfFootnote";
 import {
   collection,
   doc,
@@ -155,6 +156,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       UfPodcast,
       UfDivider,
       UfCallout,
+      UfFootnote,
     ],
     editorProps: {
       attributes: {
