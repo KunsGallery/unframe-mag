@@ -243,8 +243,11 @@ service cloud.firestore {
         allow create: if signedIn()
           && request.auth.uid == uid
           && !exists(/databases/$(database)/documents/polls/$(pollId)/votes/$(uid))
+          && request.resource.data.keys().hasOnly(['optionId', 'uid', 'createdAt'])
+          && request.resource.data.get('uid', uid) == uid
           && request.resource.data.optionId is string
           && request.resource.data.optionId.size() > 0
+          && request.resource.data.optionId.size() <= 64
           && (
             !exists(/databases/$(database)/documents/polls/$(pollId))
             || get(/databases/$(database)/documents/polls/$(pollId)).data.closed != true
@@ -403,6 +406,7 @@ service cloud.firestore {
 
         allow create, update: if signedIn()
           && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['views', 'likes', 'comments', 'votes', 'saves', 'shares', 'updatedAt', 'bucket', 'weekend'])
           && (!("views" in request.resource.data) || request.resource.data.views is number)
           && (!("likes" in request.resource.data) || request.resource.data.likes is number)
           && (!("comments" in request.resource.data) || request.resource.data.comments is number)

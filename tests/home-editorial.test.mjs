@@ -80,3 +80,17 @@ test("invalid ranking values are not displayed as reader activity", () => {
   ];
   assert.deepEqual(positiveRankingItems(rows, "views7d"), [rows[2]]);
 });
+
+test("archive search handles Korean spacing, initial consonants, editions and several words", () => {
+  const ids = (search, category = "All") => filterHomeArchive(articles, category, search).map((item) => item.editionNo);
+  assert.deepEqual(ids("서로를통과"), ["005"]);
+  assert.deepEqual(ids("ㅅㄹㄹ"), ["005"]);
+  assert.deepEqual(ids("ㅇㅁㅈ ㅂㅂ"), ["003"]);
+  assert.deepEqual(ids("6"), ["006"]);
+  assert.deepEqual(ids("#003"), ["003"]);
+  assert.deepEqual(ids("no.5"), ["005"]);
+  assert.deepEqual(ids("이미지 방법"), ["003"]);
+  assert.deepEqual(ids("이미지 실패"), []);
+  assert.deepEqual(ids("review"), ["005", "003"]);
+  assert.deepEqual(filterHomeArchive([{ editionNo: "9", title: "x", tags: ["회화"] }], "All", "회화").length, 1);
+});

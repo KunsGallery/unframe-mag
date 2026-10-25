@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -344,8 +344,27 @@ export default function HomePage({ isDarkMode, onToast }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [category, setCategory] = useState("All");
-  const [search, setSearch] = useState("");
+  // The archive filter lives in the URL so a search can be shared and survives Back.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedCategory = searchParams.get("category");
+  const category = ARCHIVE_CATEGORIES.some((item) => item.key === requestedCategory)
+    ? requestedCategory
+    : "All";
+  const search = searchParams.get("q") || "";
+  const updateArchive = (changes) =>
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        for (const [key, value] of Object.entries(changes)) {
+          if (value && value !== "All") next.set(key, value);
+          else next.delete(key);
+        }
+        return next;
+      },
+      { replace: true, preventScrollReset: true },
+    );
+  const setCategory = (value) => updateArchive({ category: value });
+  const setSearch = (value) => updateArchive({ q: value });
   const [period, setPeriod] = useState("weekly");
   const { config } = useHomeConfig();
   const { config: network } = useNetworkConfig();
@@ -618,7 +637,7 @@ export default function HomePage({ isDarkMode, onToast }) {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="제목, 주제, 작가로 찾아보기"
+              placeholder="제목, 작가, 초성(ㅅㄹ), 번호(#6)로 찾아보기"
             />
           </label>
           <p className="home-small" role="status">
@@ -635,10 +654,7 @@ export default function HomePage({ isDarkMode, onToast }) {
               <p>조건에 맞는 이야기가 아직 없어요.</p>
               <button
                 type="button"
-                onClick={() => {
-                  setCategory("All");
-                  setSearch("");
-                }}
+                onClick={() => updateArchive({ category: "All", q: "" })}
               >
                 전체 글 보기
               </button>

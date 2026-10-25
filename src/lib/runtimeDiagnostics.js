@@ -12,6 +12,11 @@ function classify(error) {
   return "runtime";
 }
 
+// Article and edit IDs are collapsed so logs never identify what someone read or wrote.
+export function anonymousRoute(pathname = window.location.pathname) {
+  return pathname.replace(/\/(article|edit)\/[^/]+/g, "/$1/:id");
+}
+
 export function getRuntimeDiagnostics() {
   try {
     const records = JSON.parse(localStorage.getItem(KEY) || "[]");
@@ -25,7 +30,7 @@ export function reportClientError(error, { source = "window" } = {}) {
   const event = {
     code: classify(error),
     source: String(source).replace(/[^a-z-]/g, "").slice(0, 40),
-    route: window.location.pathname.replace(/\/(article|edit)\/[^/]+/g, "/$1/:id"),
+    route: anonymousRoute(),
     browser: /Firefox/.test(navigator.userAgent) ? "Firefox" : /Chrome|Chromium|CriOS/.test(navigator.userAgent) ? "Chromium" : /Safari/.test(navigator.userAgent) ? "Safari" : "Other",
     build: import.meta.env.VITE_BUILD_VERSION || "local",
     at: new Date().toISOString(),

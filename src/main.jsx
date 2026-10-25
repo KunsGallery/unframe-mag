@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/debug/ErrorBoundary.jsx";
 import "./styles/index.css";
 import { reportClientError } from "./lib/runtimeDiagnostics";
 import { isAppShellError, recoverAppShell } from "./lib/appShellRecovery";
+import { startWebVitals } from "./lib/webVitals";
 
 let updateSW = () => {};
 window.addEventListener("uf:apply-update", () => updateSW(true));
@@ -42,6 +43,8 @@ window.addEventListener("unhandledrejection", (event) => {
     void recoverAppShell({ reason: "unhandled-rejection" });
   }
 });
+
+void startWebVitals().catch(() => {});
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("controllerchange", () => {

@@ -180,3 +180,14 @@ test("home summaries follow their published article", async () => {
   await assertFails(setDoc(doc(user("reader"), "articleSummaries", "summary-source"), summary));
   await assertSucceeds(getDoc(doc(environment.unauthenticatedContext().firestore(), "articleSummaries", "summary-source")));
 });
+
+test("poll votes and daily stats accept only their own fields", async () => {
+  const db = user("reader");
+  await assertFails(setDoc(doc(db, "polls", "p1", "votes", "reader"), { optionId: "a", uid: "reader", xp: 999, createdAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db, "polls", "p1", "votes", "reader"), { optionId: "x".repeat(65), uid: "reader", createdAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db, "polls", "p1", "votes", "reader"), { optionId: "a", uid: "editor", createdAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(db, "polls", "p1", "votes", "reader"), { optionId: "a", uid: "reader", createdAt: serverTimestamp() }));
+  const day = doc(db, "users", "reader", "daily", "20261025");
+  await assertFails(setDoc(day, { views: increment(1), note: "extra" }, { merge: true }));
+  await assertSucceeds(setDoc(day, { views: increment(1), updatedAt: serverTimestamp(), bucket: "evening", weekend: true }, { merge: true }));
+});

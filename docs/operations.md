@@ -46,7 +46,11 @@ firebase deploy --only firestore:rules --project uarchive-8e437
 - 관리자 이메일은 `firestore.rules`와 `src/constants/admin.js` 두 곳에 있습니다.
   `npm test`가 두 목록이 같은지 확인합니다.
 - 글 주소(`/article/:id`)는 Netlify Edge Function `article-meta`가 제목·요약·커버를
-  미리보기 태그로 넣습니다. `/sitemap.xml`은 함수가 만들고 `robots.txt`가 안내합니다.
+  미리보기 태그와 schema.org Article 데이터로 넣습니다. `/sitemap.xml`과 `/rss.xml`은 함수가 만들고
+  `robots.txt`가 사이트맵을 안내합니다. 검색 노출을 위해 Google Search Console에 사이트맵을 등록합니다.
+- 홈 아카이브 검색은 여러 단어, 띄어쓰기 무시, 초성(ㅅㄹ), 번호(#6)를 지원하며 `?q=`·`?category=`로 공유됩니다.
+- GitHub Actions(`.github/workflows/ci.yml`)가 푸시마다 lint·테스트·빌드와 에뮬레이터 규칙 테스트를 실행합니다.
+  규칙을 운영에 배포하기 전에 CI가 통과했는지 확인합니다.
 
 ## Google 로그인
 
@@ -102,6 +106,15 @@ redirect가 필요한 환경을 위한 동일 출처 프록시는 `public/_redir
 Netlify 함수 `client-error` 로그에서 `[uf:client-error]`를 찾으면
 오류 분류, 익명화된 페이지 경로, 브라우저 종류, 빌드 버전을 확인할 수 있습니다.
 로그에는 원문 본문·이메일·토큰·URL 쿼리·원문 스택을 보내지 않습니다.
+
+성능은 방문의 20%에서 Core Web Vitals(LCP·CLS·INP·FCP·TTFB)를 `client-vitals` 함수로 보냅니다.
+로그에서 `[uf:vitals]`를 찾으면 지표, 등급, 익명화된 경로, 모바일 여부, 빌드를 볼 수 있습니다.
+
+`public/_headers`의 CSP는 현재 Report-Only라 아무것도 막지 않습니다.
+위반은 `csp-report` 함수 로그의 `[uf:csp]`에 지시어와 차단된 출처만 남습니다.
+로그인·사진 업로드·Spotify/YouTube 삽입을 실제로 써 본 뒤 1~2주간 위반이 없으면
+헤더 이름을 `Content-Security-Policy`로 바꿔 적용합니다. 위반이 있으면 해당 출처를 정책에 추가합니다.
+`index.html`의 인라인 스크립트를 바꾸면 CSP의 sha256 값도 바꿔야 하며, `npm test`가 이를 확인합니다.
 전체 URL이나 민감한 사용자 정보가 필요하면 별도 동의를 얻어 조사합니다.
 
 ## 검증 한계
