@@ -2,9 +2,8 @@ import React, { forwardRef, useRef, useState, useCallback, useImperativeHandle }
 import { EditorContent } from "@tiptap/react";
 import ImageDeliveryLayer from "./ImageDeliveryLayer";
 import ArticleFootnotes from "./ArticleFootnotes";
-import SelectionShareButton from "./SelectionShareButton";
 
-const ArticleBody = forwardRef(function ArticleBody({ article, editor, onShareQuote }, ref) {
+const ArticleBody = forwardRef(function ArticleBody({ article, editor }, ref) {
   const excerpt = article.excerpt?.trim?.() || "";
   const rootRef = useRef(null);
   const [root, setRoot] = useState(null);
@@ -24,7 +23,6 @@ const ArticleBody = forwardRef(function ArticleBody({ article, editor, onShareQu
       <EditorContent editor={editor} />
       <ImageDeliveryLayer root={root} revision={editor} />
       <ArticleFootnotes editor={editor} root={root} />
-      {onShareQuote ? <SelectionShareButton root={root} onShare={onShareQuote} /> : null}
     </div>
   );
 });

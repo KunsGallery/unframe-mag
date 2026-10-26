@@ -51,7 +51,6 @@ import { UfPoll } from "../tiptap/nodes/UfPoll";
 import { UfPlaylist } from "../tiptap/nodes/UfPlaylist";
 import { UfPodcast } from "../tiptap/nodes/UfPodcast";
 import { Columns, Column } from "../tiptap/nodes/Columns";
-import ShareCardDialog from "../components/view/ShareCardDialog";
 
 import { useArticleByEditionNo } from "../hooks/useArticleByEditionNo";
 import { useScrollProgress } from "../hooks/useScrollProgress";
@@ -429,20 +428,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
     }
   };
 
-  const [shareRequest, setShareRequest] = useState(null);
-  const openShare = (quote) => {
-    if (!article?.editionNo) return;
-    setShareRequest((current) => ({
-      token: (current?.token || 0) + 1,
-      quote: quote || article.excerpt || article.subtitle || "",
-    }));
-  };
-  const onShareCard = () => {
-    trackEventOnce("share", `share_${article.editionNo}`, { editionNo: String(article.editionNo) })
-      .catch((e) => console.warn("[share] track failed:", e?.message || e));
-  };
-
-  const onShareLink = async () => {
+  const onShare = async () => {
     if (!article?.editionNo) return;
 
     const url = window.location.href;
@@ -522,7 +508,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
         liked={liked}
         onToggleSave={onToggleSave}
         onToggleLike={onToggleLike}
-        onShare={() => openShare()}
+        onShare={onShare}
       />
 
       <ArticleHero
@@ -531,7 +517,6 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
         readMinutes={readMinutes}
         readEmoji={readEmoji}
         onOpenImage={setLightbox}
-        onShare={() => openShare()}
       />
 
       {canEditArticle && (
@@ -547,7 +532,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
 
       <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-20">
         <ParentArticleLink parent={relations.parent} />
-        <ArticleBody ref={bodyRef} article={article} editor={editor} onShareQuote={openShare} />
+        <ArticleBody ref={bodyRef} article={article} editor={editor} />
 
         <RelatedArticles parent={relations.parent} items={relations.items} />
 
@@ -570,17 +555,6 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       </main>
 
       <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
-      {shareRequest ? (
-        <ShareCardDialog
-          key={shareRequest.token}
-          article={article}
-          initialQuote={shareRequest.quote}
-          onClose={() => setShareRequest(null)}
-          onShareLink={onShareLink}
-          onShared={onShareCard}
-          onToast={toast}
-        />
-      ) : null}
     </div>
   );
 }
