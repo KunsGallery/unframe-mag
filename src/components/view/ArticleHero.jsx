@@ -1,4 +1,5 @@
 import React from "react";
+import { Share2 } from "lucide-react";
 import { getCoverImageUrl, getImageSrcSet } from "../../lib/imageUrl";
 
 export default function ArticleHero({
@@ -7,6 +8,7 @@ export default function ArticleHero({
   readMinutes = 1,
   readEmoji = "☕️",
   onOpenImage,
+  onShare,
 }) {
   const heroSrc = getCoverImageUrl(article, {
     width: 2400,
@@ -68,6 +70,14 @@ export default function ArticleHero({
             {readEmoji} 예상 {readMinutes}분
           </span>
         </div>
+
+        {/* The side rail (with its share button) only exists on xl screens. */}
+        {onShare ? (
+          <button type="button" onClick={onShare}
+            className="xl:hidden mt-8 inline-flex items-center gap-2 min-h-11 px-5 rounded-full border border-zinc-300 dark:border-zinc-700 text-xs font-bold tracking-widest text-zinc-600 dark:text-zinc-300 hover:text-[#004aad] hover:border-[#004aad]">
+            <Share2 size={15} aria-hidden="true" /> 공유하기
+          </button>
+        ) : null}
       </div>
     </section>
   );
