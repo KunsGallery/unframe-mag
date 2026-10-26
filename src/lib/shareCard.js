@@ -22,7 +22,7 @@ const normalizeQuote = (value) => String(value || "")
 export function prepareQuote(value, max = SHARE_CARD_QUOTE_MAX) {
   const text = normalizeQuote(value).replace(/^["“”'‘’「『]+|["“”'‘’」』]+$/g, "").trim();
   if (text.length <= max) return text;
-  const cut = text.slice(0, max);
+  const cut = text.slice(0, Math.max(0, max - 1));
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trim()}…`;
 }
@@ -173,25 +173,38 @@ export function drawShareCard(ctx, { format = "post", style = "text", quote = ""
   ctx.restore();
 }
 
-export function loadCardImage(src) {
+export function loadCardImage(src, { timeoutMs = 8000 } = {}) {
   return new Promise((resolve) => {
     if (!src) { resolve(null); return; }
     const image = new Image();
+    const finish = (result) => {
+      clearTimeout(timer);
+      image.onload = null;
+      image.onerror = null;
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
     // Cloudinary sends CORS headers; without them the canvas would be tainted and unexportable.
     image.crossOrigin = "anonymous";
     image.decoding = "async";
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
+    image.onload = () => finish(image);
+    image.onerror = () => finish(null);
     image.src = src;
   });
 }
 
 export async function ensureCardFonts() {
   if (typeof document === "undefined" || !document.fonts?.load) return;
+  let timer;
   try {
-    await Promise.all(["400", "600", "700", "900"].map((weight) => document.fonts.load(`${weight} 40px "Pretendard"`, "가A")));
+    await Promise.race([
+      Promise.all(["400", "600", "700", "900"].map((weight) => document.fonts.load(`${weight} 40px "Pretendard"`, "가A"))),
+      new Promise((resolve) => { timer = setTimeout(resolve, 4000); }),
+    ]);
   } catch {
     // Fall back to system fonts.
+  } finally {
+    clearTimeout(timer);
   }
 }
 

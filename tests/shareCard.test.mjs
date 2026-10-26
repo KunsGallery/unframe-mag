@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SHARE_CARD_FORMATS, clampLines, drawShareCard, fitText, prepareQuote, shareCardFileName, wrapText } from '../src/lib/shareCard.js';
+import { SHARE_CARD_FORMATS, clampLines, drawShareCard, fitText, loadCardImage, prepareQuote, shareCardFileName, wrapText } from '../src/lib/shareCard.js';
 
 // One unit per character keeps widths predictable.
 const measure = (value) => [...value].length;
@@ -71,4 +71,30 @@ test('drawShareCard falls back to the text design without an image', () => {
 test('shareCardFileName names the format', () => {
   assert.equal(shareCardFileName({ editionNo: 7, format: 'story' }), 'unframe-7-story.png');
   assert.equal(shareCardFileName({ format: 'post' }), 'unframe-article-post.png');
+});
+
+test('prepared quotes include their ellipsis within the textarea limit', () => {
+  assert.equal(prepareQuote('가'.repeat(300)).length, 280);
+});
+
+test('cover image errors and timeouts fall back without leaving the card loading', async () => {
+  const OriginalImage = globalThis.Image;
+  let instance;
+  globalThis.Image = class { constructor() { instance = this; } };
+  try {
+    assert.equal(await loadCardImage(''), null);
+    const failed = loadCardImage('https://example.com/fail.jpg');
+    assert.equal(instance.crossOrigin, 'anonymous');
+    instance.onerror();
+    assert.equal(await failed, null);
+    assert.equal(instance.onload, null);
+    assert.equal(await loadCardImage('https://example.com/slow.jpg', { timeoutMs: 1 }), null);
+    const ready = loadCardImage('https://example.com/ok.jpg');
+    const loaded = instance;
+    instance.onload();
+    assert.equal(await ready, loaded);
+  } finally {
+    if (OriginalImage === undefined) delete globalThis.Image;
+    else globalThis.Image = OriginalImage;
+  }
 });

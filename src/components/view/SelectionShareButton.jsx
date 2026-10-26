@@ -20,8 +20,9 @@ export default function SelectionShareButton({ root, onShare }) {
         if (!range || !root.contains(range.commonAncestorContainer)) { setSelection(null); return; }
         const rect = range.getBoundingClientRect();
         if (!rect.width && !rect.height) { setSelection(null); return; }
+        if (rect.bottom < 0 || rect.top > window.innerHeight) { setSelection(null); return; }
         const x = Math.min(window.innerWidth - 80, Math.max(80, rect.left + rect.width / 2));
-        setSelection({ text, x, y: Math.min(window.innerHeight - 56, rect.bottom + 12) });
+        setSelection({ text, x, y: Math.max(8, Math.min(window.innerHeight - 56, rect.bottom + 12)) });
       });
     };
     document.addEventListener("selectionchange", update);

@@ -67,7 +67,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
     const timer = setTimeout(() => {
       canvasToBlob(element)
         .then((blob) => { if (alive) setExported({ key: cardKey, file: new File([blob], shareCardFileName({ editionNo: article.editionNo, format }), { type: "image/png" }) }); })
-        .catch(() => { if (alive) setExported({ key: cardKey, file: null }); });
+        .catch(() => { if (alive) setExported({ key: cardKey, file: null, error: true }); });
     }, 200);
     return () => { alive = false; clearTimeout(timer); };
   }, [article, cardKey, cover, effectiveStyle, fontsReady, format, quote, spec]);
@@ -146,6 +146,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
               <small>{quote.length}/{SHARE_CARD_QUOTE_MAX} · 본문에서 문장을 드래그하면 그 문장으로 카드를 만들 수 있어요.</small>
             </label>
 
+            {exported.key === cardKey && exported.error ? <p role="alert">이미지를 만들지 못했어요. 글자 디자인으로 바꾸거나 공유 창을 다시 열어 주세요.</p> : null}
             <footer>
               <button type="button" disabled={!file} onClick={() => file && download(file)}>
                 <Download size={16} aria-hidden="true" /> 이미지 저장
