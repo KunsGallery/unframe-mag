@@ -113,3 +113,9 @@ article.uf-prose [data-uf="parallax"]{
 
 .uf-selection-share { position: fixed; z-index: 95; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; background: #111; color: #fff; font: 700 13px/1 "Pretendard", system-ui, sans-serif; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 html.dark .uf-selection-share { background: #f4f4f5; color: #111; }
+
+/* Article hero title: same serif, weight and sizes as the home cover title (.home-cover-copy h1). */
+.uf-article-title { font-family: Georgia, "Noto Serif KR", serif; font-style: normal; font-weight: 600; font-size: 42px; line-height: 1.35; letter-spacing: normal; overflow-wrap: anywhere; }
+@media (max-width: 1000px) { .uf-article-title { font-size: 32px; } }
+@media (max-width: 800px) { .uf-article-title { font-size: 34px; } }
+@media (max-width: 520px) { .uf-article-title { font-size: 30px; } }

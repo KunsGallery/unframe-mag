@@ -51,12 +51,12 @@ export default function ArticleHero({
           {article.category}
         </span>
 
-        <h1 className="text-5xl md:text-8xl font-black italic tracking-tighter leading-none dark:text-white break-keep drop-shadow-sm whitespace-pre-line">
+        <h1 className="uf-article-title dark:text-white break-keep whitespace-pre-line">
           {article.title}
         </h1>
 
         {subtitle ? (
-          <p className="mt-6 max-w-3xl mx-auto text-sm sm:text-lg md:text-xl font-light italic leading-relaxed text-zinc-500 dark:text-zinc-300">
+          <p className="mt-6 max-w-3xl mx-auto text-sm sm:text-lg md:text-xl font-light leading-relaxed text-zinc-500 dark:text-zinc-300">
             {subtitle}
           </p>
         ) : null}
