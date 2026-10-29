@@ -480,6 +480,7 @@ export default function HomePage({ isDarkMode, onToast }) {
                   <Link to={articlePath(article)}>
                     <span className="home-kicker">{article.category}</span>
                     <h4>{article.title}</h4>
+                    {article.subtitle ? <p className="home-reading-subtitle">{article.subtitle}</p> : null}
                     <span className="home-small">
                       {estimateReadMinutes(article, { min: 2 })}분
                     </span>

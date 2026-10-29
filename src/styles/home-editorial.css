@@ -248,6 +248,16 @@
   line-height: 1.6;
   margin: 5px 0;
 }
+.home-reading-subtitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--home-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .home-letter {
   display: grid;
   grid-template-columns: 1fr 1.25fr;
