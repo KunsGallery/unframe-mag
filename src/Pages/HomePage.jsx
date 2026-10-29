@@ -478,12 +478,9 @@ export default function HomePage({ isDarkMode, onToast }) {
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <Link to={articlePath(article)}>
-                    <span className="home-kicker">{article.category}</span>
+                    <ArticleMeta article={article} />
                     <h4>{article.title}</h4>
                     {article.subtitle ? <p className="home-reading-subtitle">{article.subtitle}</p> : null}
-                    <span className="home-small">
-                      {estimateReadMinutes(article, { min: 2 })}분
-                    </span>
                   </Link>
                 </li>
               ))}
