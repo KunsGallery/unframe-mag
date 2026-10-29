@@ -9,10 +9,22 @@ import {
   Play,
   Search,
 } from "lucide-react";
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
-import { loadPublishedArticleCards } from "../lib/articleIndex";
 
+// Article documents contain the live likes and views used by archive sorting.
+async function loadHomeArticles() {
+  const published = query(collection(db, "articles"), where("status", "==", "published"));
+  const snap = await getDocs(query(published, orderBy("sortIndex", "desc")));
+  return snap.docs.map((entry) => ({ docId: entry.id, ...entry.data() }));
+}
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { useNetworkConfig } from "../hooks/useNetworkConfig";
 import { usePopularRollup } from "../hooks/usePopularRollup";
@@ -23,10 +35,10 @@ import {
   buildHomeSelection,
   filterHomeArchive,
   positiveRankingItems,
+  sortHomeArchive,
 } from "../lib/homeEditorial";
 import "../styles/home-editorial.css";
 
-const edition = (article) => String(article.editionNo || "").padStart(3, "0");
 const articlePath = (article) => `/article/${article.editionNo}`;
 
 function ArticleImage({
@@ -53,7 +65,7 @@ function ArticleImage({
       role="img"
       aria-label={`${article.title || "기사"} 표지 이미지 없음`}
     >
-      U# / {edition(article)}
+      U#
     </div>
   );
 }
@@ -62,7 +74,6 @@ function ArticleMeta({ article }) {
   return (
     <div className="home-meta">
       <span>{article.category}</span>
-      <span>NO.{edition(article)}</span>
       <span>{estimateReadMinutes(article, { min: 2 })}분 읽기</span>
     </div>
   );
@@ -184,7 +195,6 @@ function CoverStage({ stories }) {
                 aria-pressed={index % stories.length === position}
                 onClick={() => select(position)}
               >
-                <span>NO.{edition(article)}</span>
                 {article.title}
               </button>
             ))}
@@ -322,6 +332,8 @@ export default function HomePage({ isDarkMode, onToast }) {
     ? requestedCategory
     : "All";
   const search = searchParams.get("q") || "";
+  const sort = ["recommended", "likes", "views", "oldest"].includes(searchParams.get("sort"))
+    ? searchParams.get("sort") : "latest";
   const updateArchive = (changes) =>
     setSearchParams(
       (current) => {
@@ -343,7 +355,7 @@ export default function HomePage({ isDarkMode, onToast }) {
   const views = usePopularRollup({ mode: period, sortBy: "views", top: 5 });
   useEffect(() => {
     let alive = true;
-    loadPublishedArticleCards(db)
+    loadHomeArticles()
       .then((items) => {
         if (alive) setArticles(items);
       })
@@ -366,8 +378,8 @@ export default function HomePage({ isDarkMode, onToast }) {
     [articles, config],
   );
   const filtered = useMemo(
-    () => filterHomeArchive(articles, category, search),
-    [articles, category, search],
+    () => sortHomeArchive(filterHomeArchive(articles, category, search), sort, config?.editorPicks),
+    [articles, category, search, sort, config?.editorPicks],
   );
   const themeStories = useMemo(() => {
     const selected = (network.featuredEditionNos || [])
@@ -469,7 +481,6 @@ export default function HomePage({ isDarkMode, onToast }) {
                     <span className="home-kicker">{article.category}</span>
                     <h4>{article.title}</h4>
                     <span className="home-small">
-                      NO.{edition(article)} ·{" "}
                       {estimateReadMinutes(article, { min: 2 })}분
                     </span>
                   </Link>
@@ -497,7 +508,7 @@ export default function HomePage({ isDarkMode, onToast }) {
             기록합니다.
           </p>
           <p>
-            빠르게 소비되지 않는 문장과 이미지를 위해, 우리는 “번호”로 역사를
+            빠르게 소비되지 않는 문장과 이미지로, 우리의 이야기를 차곡차곡
             쌓습니다.
           </p>
           <p className="home-small">UNFRAME MAG / Editor</p>
@@ -589,13 +600,7 @@ export default function HomePage({ isDarkMode, onToast }) {
                 onClick={() => setCategory(item.key)}
               >
                 <span>{item.key === "All" ? "전체 아카이브" : item.label}</span>
-                <span>
-                  {item.key === "All"
-                    ? articles.length
-                    : articles.filter(
-                        (article) => article.category === item.key,
-                      ).length}
-                </span>
+                <span>{item.key === "All" ? articles.length : articles.filter((article) => article.category === item.key).length}</span>
               </button>
             ))}
           </div>
@@ -608,12 +613,22 @@ export default function HomePage({ isDarkMode, onToast }) {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="제목, 작가, 초성(ㅅㄹ), 번호(#6)로 찾아보기"
+              placeholder="제목, 작가, 초성(ㅅㄹ)으로 찾아보기"
             />
           </label>
-          <p className="home-small" role="status">
-            {filtered.length}개의 이야기
-          </p>
+          <div className="home-archive-toolbar">
+            <p className="home-small" role="status">{filtered.length}개의 이야기</p>
+            <label className="home-sort">
+              <span className="sr-only">아티클 정렬</span>
+              <select value={sort} onChange={(event) => updateArchive({ sort: event.target.value === "latest" ? "" : event.target.value })}>
+                <option value="latest">최신순</option>
+                <option value="recommended">추천순</option>
+                <option value="likes">좋아요순</option>
+                <option value="views">조회수순</option>
+                <option value="oldest">오래된순</option>
+              </select>
+            </label>
+          </div>
           {filtered.length ? (
             <div className="home-archive-grid">
               {filtered.map((article) => (
