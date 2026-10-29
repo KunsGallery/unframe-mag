@@ -34,7 +34,7 @@ function PreviewArticle({ content, meta }) {
       immediatelyRender: false,
       editable: false,
       extensions: base.extensions.filter((extension) =>
-        !['placeholder', 'editorKeyBehavior', 'pasteSanitizer', 'searchReplace', 'imageUploads'].includes(extension.name)
+        !['placeholder', 'editorKeyBehavior', 'pasteSanitizer', 'searchReplace', 'imageUploads', 'blockTools', 'linkShortcut', 'textSizeShortcuts'].includes(extension.name)
       ).map((extension) => extension.name === 'table'
         ? extension.configure({ resizable: false }) : extension),
       content: safePreviewContent(content),

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 import { useEditorState } from "@tiptap/react";
 import {
   Bold,
@@ -29,19 +29,23 @@ import {
   Mic,
   Table as TableIcon,
   Vote,
-  Highlighter,
-  Eraser,
-  Palette,
   Image,
   Trash2,
+  Eraser,
+  Paintbrush,
+  Superscript as SuperscriptIcon,
+  Subscript as SubscriptIcon,
+  CaseSensitive,
 } from "lucide-react";
 
 import UploadButton from "./UploadButton";
+import { HighlightPopover, TextColorPopover, TextPresetPopover, TextSizeStepper } from "./TextFormatControls";
+import { useTextFormatState } from "../../hooks/useTextFormatState";
+import { useFormatPainter } from "../../hooks/useFormatPainter";
+import { clearFormatting } from "../../lib/textFormatting";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
-import { requestEditorInput, withLinkScheme } from "../../lib/editorInput";
-import { askEmbedUrl } from "../../lib/editorPrompts";
-import { isPublicationLinkValid } from "../../lib/publicationChecks";
+import { askEmbedUrl, editLink } from "../../lib/editorPrompts";
 import {
   getParallaxMotionSpeed,
   PARALLAX_DEFAULTS,
@@ -55,52 +59,6 @@ const FONT_OPTIONS = [
   { label: "Cormorant", value: '"Cormorant Garamond", serif' },
   { label: "Georgia", value: "Georgia, serif" },
 ];
-
-const FONT_SIZE_OPTIONS = [
-  { label: "기본", value: "" },
-  { label: "14", value: "14px" },
-  { label: "16", value: "16px" },
-  { label: "18", value: "18px" },
-  { label: "20", value: "20px" },
-  { label: "24", value: "24px" },
-  { label: "28", value: "28px" },
-  { label: "32", value: "32px" },
-  { label: "40", value: "40px" },
-];
-
-const HIGHLIGHT_PRESETS = ["#fff59d", "#ffd6e7", "#c7f9cc", "#bde0fe", "#e9d5ff"];
-
-function normalizeColorToHex(value, fallback = "#111111") {
-  if (!value) return fallback;
-  if (value.startsWith("#")) {
-    if (value.length === 4) {
-      return (
-        "#" +
-        value[1] +
-        value[1] +
-        value[2] +
-        value[2] +
-        value[3] +
-        value[3]
-      ).toLowerCase();
-    }
-    return value.toLowerCase();
-  }
-
-  const rgb = value.match(/\d+/g);
-  if (!rgb || rgb.length < 3) return fallback;
-
-  const [r, g, b] = rgb.slice(0, 3).map(Number);
-  return (
-    "#" +
-    [r, g, b]
-      .map((n) => {
-        const hex = n.toString(16);
-        return hex.length === 1 ? `0${hex}` : hex;
-      })
-      .join("")
-  ).toLowerCase();
-}
 
 function ToolbarGroup({ title, children, isDarkMode, active = false, compact = false }) {
   return (
@@ -216,96 +174,11 @@ function ToolbarNumberField({
   );
 }
 
-function ColorSwatchGroup({ title, icon: Icon, children, isDarkMode }) {
-  return (
-    <div
-      className={[
-        "rounded-lg border px-2 py-1.5 flex items-center gap-2 shrink-0",
-        isDarkMode
-          ? "border-zinc-800 bg-zinc-900"
-          : "border-zinc-200 bg-white",
-      ].join(" ")}
-    >
-      <div className="flex items-center gap-1 text-[10px] font-black italic text-zinc-400 shrink-0">
-        <Icon size={12} />
-        <span>{title}</span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ToolbarColors({ editor, isDarkMode, textColor, setTextColor, highlightColor, setHighlightColor }) {
-  return (
-    <ToolbarGroup title="색상" isDarkMode={isDarkMode}>
-              <ColorSwatchGroup title="글자 색" icon={Palette} isDarkMode={isDarkMode}>
-                <input
-                  type="color"
-                  value={textColor}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTextColor(value);
-                    editor.chain().focus().setColor(value).run();
-                  }}
-                  className="w-8 h-8 rounded-lg overflow-hidden bg-transparent border-0 p-0"
-                  title="글자 색" aria-label="글자 색"
-                />
-                <button
-                  onClick={() => editor.chain().focus().unsetColor().run()}
-                  className="h-8 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-[10px] font-black italic bg-white dark:bg-zinc-900"
-                  title="글자 색 지우기" aria-label="글자 색 지우기"
-                  type="button"
-                >
-                  <Eraser size={12} />
-                </button>
-              </ColorSwatchGroup>
-
-              <ColorSwatchGroup title="강조색" icon={Highlighter} isDarkMode={isDarkMode}>
-                <div className="flex items-center gap-1">
-                  {HIGHLIGHT_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => editor.chain().focus().toggleHighlight({ color }).run()}
-                      className={`w-6 h-6 rounded-md border transition ${
-                        editor.isActive("highlight", { color })
-                          ? "ring-2 ring-[#004aad] border-[#004aad]"
-                          : "border-zinc-200 dark:border-zinc-700"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      title={`강조색 ${color}`} aria-label={`강조색 ${color}`} aria-pressed={editor.isActive("highlight", { color })}
-                      type="button"
-                    />
-                  ))}
-                </div>
-
-                <input
-                  type="color"
-                  value={highlightColor}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setHighlightColor(value);
-                    editor.chain().focus().setHighlight({ color: value }).run();
-                  }}
-                  className="w-8 h-8 rounded-lg overflow-hidden bg-transparent border-0 p-0"
-                  title="사용자 지정 강조색" aria-label="사용자 지정 강조색"
-                />
-
-                <button
-                  onClick={() => editor.chain().focus().unsetHighlight().run()}
-                  className="h-8 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-[10px] font-black italic bg-white dark:bg-zinc-900"
-                  title="강조색 지우기" aria-label="강조색 지우기"
-                  type="button"
-                >
-                  <Eraser size={12} />
-                </button>
-              </ColorSwatchGroup>
-            </ToolbarGroup>
-  );
-}
-
 export default function EditorToolbar({ editor, isDarkMode, onToast }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
   const { upload, uploading, progress } = useUploadImage();
+  const format = useTextFormatState(editor);
+  const painter = useFormatPainter(editor);
 
   const getSavedInsertPos = useCallback(() => {
     if (!editor) return null;
@@ -356,11 +229,8 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           link: false,
           table: false,
           fontFamily: "",
-          fontSize: "",
           letterSpacing: "0",
           lineHeight: "36",
-          textColor: "#111111",
-          highlightColor: "#fff59d",
         };
       }
 
@@ -383,7 +253,6 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
         link: editor.isActive("link"),
         table: editor.isActive("table"),
         fontFamily: editor.getAttributes("textStyle").fontFamily || "",
-        fontSize: editor.getAttributes("textStyle").fontSize || "",
         letterSpacing: String(
           parseInt(editor.getAttributes("textStyle").letterSpacing || "0", 10) || 0
         ),
@@ -395,57 +264,15 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
             10
           ) || 36
         ),
-        textColor: normalizeColorToHex(editor.getAttributes("textStyle").color, "#111111"),
-        highlightColor: normalizeColorToHex(editor.getAttributes("highlight").color, "#fff59d"),
       };
     },
   });
-
-  const currentTextColor = editorState.textColor || "#111111";
-  const currentHighlightColor = editorState.highlightColor || "#fff59d";
-  const [textColorDraft, setTextColorDraft] = useState({
-    source: "#111111",
-    value: "#111111",
-  });
-  const [highlightColorDraft, setHighlightColorDraft] = useState({
-    source: "#fff59d",
-    value: "#fff59d",
-  });
-
-  const textColor =
-    textColorDraft.source === currentTextColor ? textColorDraft.value : currentTextColor;
-  const highlightColor =
-    highlightColorDraft.source === currentHighlightColor
-      ? highlightColorDraft.value
-      : currentHighlightColor;
-
-  const setTextColor = (value) => {
-    setTextColorDraft({ source: currentTextColor, value });
-  };
-
-  const setHighlightColor = (value) => {
-    setHighlightColorDraft({ source: currentHighlightColor, value });
-  };
 
   if (!editor) return null;
 
   const inTable = editorState.table;
 
-  const insertLink = async () => {
-    const prev = editor.getAttributes("link").href;
-    const url = await requestEditorInput({
-      title: prev ? "링크 수정" : "링크 넣기", label: "주소", defaultValue: prev || "", placeholder: "https://",
-      inputMode: "url", allowEmpty: !!prev, confirmLabel: prev ? "바꾸기" : "넣기",
-      hint: prev ? "주소를 지우고 확인하면 링크가 해제돼요." : "선택한 글자에 링크를 걸어요. example.com처럼 입력해도 돼요.",
-      validate: (value) => (isPublicationLinkValid(withLinkScheme(value)) ? "" : "열 수 없는 주소예요. https://로 시작하는지 확인해 주세요."),
-    });
-    if (url === null || editor.isDestroyed) return;
-    if (url === "") {
-      editor.chain().focus().extendMarkRange("link").unsetLink().run();
-      return;
-    }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: withLinkScheme(url) }).run();
-  };
+  const insertLink = () => editLink(editor);
 
   const uploadInlineImage = async (file) => {
     const savedPos = getSavedInsertPos();
@@ -561,7 +388,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
       <div className="px-2 sm:px-3 py-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <details name="uf-format-options" className="group">
-            <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad]">글꼴 · 색상</summary>
+            <summary className="cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad]">세부 서식</summary>
             <div className="absolute left-0 right-0 top-full z-10 max-h-[min(50vh,320px)] overflow-auto border-b border-zinc-200 bg-white p-3 shadow-md dark:border-zinc-800 dark:bg-zinc-950">
             <ToolbarGroup title="글꼴" isDarkMode={isDarkMode}>
               <ToolbarSelect
@@ -579,27 +406,6 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
                 className="w-[116px]"
               >
                 {FONT_OPTIONS.map((f) => (
-                  <option key={f.label} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </ToolbarSelect>
-
-              <ToolbarSelect
-                label="글자 크기"
-                value={editorState.fontSize}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) {
-                    editor.chain().focus().unsetFontSize().run();
-                    return;
-                  }
-                  editor.chain().focus().setFontSize(v).run();
-                }}
-                isDarkMode={isDarkMode}
-                className="w-[80px]"
-              >
-                {FONT_SIZE_OPTIONS.map((f) => (
                   <option key={f.label} value={f.value}>
                     {f.label}
                   </option>
@@ -637,7 +443,6 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
                 }}
               />
             </ToolbarGroup>
-            <ToolbarColors editor={editor} isDarkMode={isDarkMode} textColor={textColor} setTextColor={setTextColor} highlightColor={highlightColor} setHighlightColor={setHighlightColor} />
             </div>
           </details>
           <div role="group" aria-label="기본 서식" tabIndex={0} className="order-first flex w-full min-w-0 items-center gap-2 overflow-x-auto py-1 [&>div]:shrink-0 [&>div>div]:flex-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#004aad]">
@@ -676,6 +481,51 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
                 label="코드 블록"
                 active={editorState.codeBlock}
                 onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              />
+            </ToolbarGroup>
+
+            <ToolbarGroup title="글자" isDarkMode={isDarkMode}>
+              <div className="uf-toolbar-format">
+                <TextSizeStepper editor={editor} fontSize={format.fontSize} />
+                <TextColorPopover editor={editor} color={format.color} />
+                <HighlightPopover editor={editor} highlight={format.highlight} />
+                <TextPresetPopover editor={editor} />
+              </div>
+              <ToolbarIconButton
+                icon={Paintbrush}
+                short
+                label={painter.armed ? "서식 복사 취소 (Esc)" : "서식 복사: 커서 위치의 서식을 다른 글자에 입혀요"}
+                active={painter.armed}
+                onClick={painter.toggle}
+              />
+              <ToolbarIconButton
+                icon={Eraser}
+                short
+                label="서식 지우기"
+                disabled={!format.cleanable}
+                onClick={() => clearFormatting(editor.chain().focus(), editor.schema).run()}
+              />
+              <ToolbarIconButton
+                icon={SuperscriptIcon}
+                short
+                label="위 첨자"
+                active={format.superscript}
+                onClick={() => editor.chain().focus().toggleSuperscript().run()}
+              />
+              <ToolbarIconButton
+                icon={SubscriptIcon}
+                short
+                label="아래 첨자"
+                active={format.subscript}
+                onClick={() => editor.chain().focus().toggleSubscript().run()}
+              />
+              <ToolbarIconButton
+                icon={CaseSensitive}
+                short
+                label="드롭캡: 문단 첫 글자를 크게"
+                active={format.dropCap}
+                disabled={!format.inParagraph}
+                onClick={() => editor.chain().focus().toggleDropCap().run()}
               />
             </ToolbarGroup>
 
@@ -919,6 +769,9 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
           </div>
         )}
       </div>
+      {painter.armed && (
+        <div className="uf-format-painter-hint" role="status">서식을 입힐 글자를 드래그하세요 · Esc로 취소</div>
+      )}
     </div>
   );
 }

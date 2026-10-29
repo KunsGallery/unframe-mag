@@ -227,3 +227,10 @@
 .uf-footnote-pop a { color: #004aad; }
 .uf-footnote-pop button { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 4px; }
 .uf-view sup[data-uf-footnote]:focus-visible { outline: 2px solid #004aad; outline-offset: 2px; border-radius: 2px; }
+
+/* Drop cap, superscript/subscript (editor + article) */
+.ProseMirror p.uf-dropcap { display: flow-root; }
+.ProseMirror p.uf-dropcap::first-letter { float: left; margin: 0.08em 0.12em 0 0; font-size: 3.6em; line-height: 0.85; font-weight: 900; color: var(--uf-ink-blue); }
+.ProseMirror sup:not([data-uf-footnote]), .ProseMirror sub { font-size: 0.72em; line-height: 0; }
+/* Highlights picked from the palette keep the text colour readable on dark backgrounds. */
+.ProseMirror mark[data-color] { color: inherit; border-radius: 2px; padding: 0 0.08em; }

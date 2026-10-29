@@ -28,6 +28,7 @@ const PublicationChecklist = lazy(() => import("../components/editor/Publication
 const EditorHistoryPanel = lazy(() => import("../components/editor/EditorHistoryPanel"));
 const EditorTemplatesPanel = lazy(() => import("../components/editor/EditorTemplatesPanel"));
 import BlockQuickBar from "../components/editor/BlockQuickBar";
+import SelectionFormatBubble from "../components/editor/SelectionFormatBubble";
 import BlockSideInserter from "../components/editor/BlockSideInserter";
 
 import { useUploadImage } from "../hooks/useUploadImage";
@@ -433,6 +434,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
             <SlashMenu pos={slashPos} onClose={closeSlashMenu} editor={editor} onToast={onToast} />
             {isDesktopEditor && <BlockSideInserter editor={editor} isDarkMode={isDarkMode} onToast={onToast} />}
             <BlockQuickBar editor={editor} isDarkMode={isDarkMode} />
+            <SelectionFormatBubble editor={editor} disabled={editingDisabled} />
             <div ref={galleryContainerRef}><EditorContent editor={editor} onKeyDown={(event) => {
               if (event.nativeEvent?.isComposing || event.nativeEvent?.keyCode === 229) return;
               onEditorKeyDown(editor, event);

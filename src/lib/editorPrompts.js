@@ -1,6 +1,7 @@
 // src/lib/editorPrompts.js
 import { requestEditorInput, withLinkScheme } from "./editorInput.js";
 import { toEmbedURL } from "./ufEmbed.js";
+import { isPublicationLinkValid } from "./publicationChecks.js";
 
 const IMAGE_URL_HINT = "사진 파일은 본문에 끌어다 놓거나 붙여넣으면 바로 올라가요.";
 export const askImageUrl = (title) => requestEditorInput({
@@ -17,3 +18,20 @@ export const askEmbedUrl = (kind, defaultValue = "") => requestEditorInput({
   ...EMBED_TEXT[kind], label: "링크", defaultValue, inputMode: "url", confirmLabel: "넣기",
   validate: (value) => (toEmbedURL(kind, value, { theme: "0" })?.ok ? "" : "지원하지 않는 링크예요. Spotify 또는 YouTube 링크를 확인해 주세요."),
 });
+
+// Link dialog shared by the toolbar and the selection bubble; an empty value removes the link.
+export async function editLink(editor) {
+  const prev = editor.getAttributes("link").href;
+  const url = await requestEditorInput({
+    title: prev ? "링크 수정" : "링크 넣기", label: "주소", defaultValue: prev || "", placeholder: "https://",
+    inputMode: "url", allowEmpty: !!prev, confirmLabel: prev ? "바꾸기" : "넣기",
+    hint: prev ? "주소를 지우고 확인하면 링크가 해제돼요." : "선택한 글자에 링크를 걸어요. example.com처럼 입력해도 돼요.",
+    validate: (value) => (isPublicationLinkValid(withLinkScheme(value)) ? "" : "열 수 없는 주소예요. https://로 시작하는지 확인해 주세요."),
+  });
+  if (url === null || editor.isDestroyed) return;
+  if (url === "") {
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    return;
+  }
+  editor.chain().focus().extendMarkRange("link").setLink({ href: withLinkScheme(url) }).run();
+}

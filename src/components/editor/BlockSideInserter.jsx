@@ -12,7 +12,11 @@ import {
   Minus,
   Copy,
   Trash2,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
+import { NodeSelection } from "@tiptap/pm/state";
+import { findMovableBlock } from "../../tiptap/extensions/BlockTools";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { GALLERY_DEFAULTS, SLIDE_GALLERY_DEFAULTS } from "../../constants/editorBlocks";
 
@@ -349,6 +353,31 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
     }
   };
 
+  const moveCurrentBlock = (direction) => {
+    const moved = direction < 0 ? editor.chain().focus().moveBlockUp().run() : editor.chain().focus().moveBlockDown().run();
+    if (!moved) toast(direction < 0 ? "맨 위 블록이에요." : "맨 아래 블록이에요.");
+    setMenuOpen(null);
+  };
+
+  // Dragging the grip moves the current block: select it as a node and hand
+  // ProseMirror a "move" drag, so its own drop handling places and deletes it.
+  const startBlockDrag = (event) => {
+    const view = editor.view;
+    const block = findMovableBlock(view.state.selection);
+    if (!block) { event.preventDefault(); return; }
+    const selection = NodeSelection.create(view.state.doc, block.pos);
+    view.dispatch(view.state.tr.setSelection(selection));
+    const slice = selection.content();
+    view.dragging = { slice, move: true };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", block.node.textContent || " ");
+    const dom = view.nodeDOM(block.pos);
+    if (dom instanceof HTMLElement) event.dataTransfer.setDragImage(dom, 0, 0);
+    setMenuOpen(null);
+    const clear = () => setTimeout(() => { if (view.dragging?.slice === slice) view.dragging = null; }, 50);
+    event.currentTarget.addEventListener("dragend", clear, { once: true });
+  };
+
   const deleteCurrentBlock = () => {
     if (!editor || !currentBlockEl) return;
 
@@ -432,9 +461,12 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
 
           <button
             type="button"
+            draggable
+            onDragStart={startBlockDrag}
             onClick={() => setMenuOpen((prev) => (prev === "actions" ? null : "actions"))}
             className="w-9 h-9 rounded-full border bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-center text-zinc-500 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition"
-            title="Block actions"
+            title="끌어서 옮기기 · 클릭해서 블록 메뉴"
+            aria-label="블록 메뉴 (끌어서 옮기기)"
           >
             <GripVertical size={15} />
           </button>
@@ -595,6 +627,8 @@ export default function BlockSideInserter({ editor, isDarkMode, onToast }) {
               left: getMenuLeft(anchorRect.blockLeft, ACTIONS_MENU_WIDTH),
             }}
           >
+            <MenuButton icon={ArrowUp} label="Move up" onClick={() => moveCurrentBlock(-1)} />
+            <MenuButton icon={ArrowDown} label="Move down" onClick={() => moveCurrentBlock(1)} />
             <MenuButton icon={Copy} label="Duplicate" onClick={duplicateCurrentBlock} />
             <MenuButton icon={Trash2} label="Delete" danger onClick={deleteCurrentBlock} />
           </div>

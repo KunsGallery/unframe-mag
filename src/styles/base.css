@@ -15,6 +15,18 @@
   --uf-editor-bg: #ffffff;
   --uf-editor-surface: #f8f8f8;
   --uf-editor-border: rgba(24, 24, 27, 0.12);
+  /* Inline text colours and highlights picked in the editor (theme-aware). */
+  --uf-ink-gray: #6b7280;
+  --uf-ink-blue: #004aad;
+  --uf-ink-red: #d92d20;
+  --uf-ink-orange: #c4320a;
+  --uf-ink-green: #067647;
+  --uf-ink-purple: #6941c6;
+  --uf-mark-yellow: #fff1a8;
+  --uf-mark-pink: #ffd6e7;
+  --uf-mark-green: #c9f2d4;
+  --uf-mark-blue: #cfe3ff;
+  --uf-mark-purple: #e6dcff;
   color-scheme: light;
 }
 
@@ -29,6 +41,17 @@ html[data-theme="dark"] {
   --uf-editor-bg: #09090b;
   --uf-editor-surface: #18181b;
   --uf-editor-border: rgba(255, 255, 255, 0.12);
+  --uf-ink-gray: #a1a1aa;
+  --uf-ink-blue: #6ea8ff;
+  --uf-ink-red: #ff8a80;
+  --uf-ink-orange: #ffab70;
+  --uf-ink-green: #6ce0a0;
+  --uf-ink-purple: #c4b0ff;
+  --uf-mark-yellow: rgba(250, 204, 21, 0.32);
+  --uf-mark-pink: rgba(244, 114, 182, 0.3);
+  --uf-mark-green: rgba(74, 222, 128, 0.26);
+  --uf-mark-blue: rgba(96, 165, 250, 0.3);
+  --uf-mark-purple: rgba(167, 139, 250, 0.3);
   color-scheme: dark;
 }
 

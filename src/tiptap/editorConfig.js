@@ -39,6 +39,18 @@ import { PasteSanitizer } from "./extensions/PasteSanitizer";
 import { SearchReplace } from "./extensions/SearchReplace";
 import { ImageUploads, imageFiles, uploadImagesAt } from "./extensions/ImageUploads";
 import { UfFootnote } from "./nodes/UfFootnote";
+import { Superscript, Subscript, DropCap, TextSizeShortcuts } from "./extensions/TextExtras";
+import { BlockTools } from "./extensions/BlockTools";
+import { Extension } from "@tiptap/core";
+import { editLink } from "../lib/editorPrompts";
+
+// ⌘K opens the shared link dialog (toolbar and selection bubble use the same one).
+const LinkShortcut = Extension.create({
+  name: "linkShortcut",
+  addKeyboardShortcuts() {
+    return { "Mod-k": () => { editLink(this.editor); return true; } };
+  },
+});
 
 export function createEditorConfig({ onUploadImage, onToast }) {
   return {
@@ -64,6 +76,12 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       Highlight.configure({
         multicolor: true,
       }),
+      Superscript,
+      Subscript,
+      DropCap,
+      TextSizeShortcuts,
+      BlockTools,
+      LinkShortcut,
 
       TextAlign.configure({ types: ["heading", "paragraph"] }),
 
