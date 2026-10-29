@@ -90,7 +90,7 @@ function drawLines(ctx, lines, x, y, lineHeight) {
  * Layout: brand row at the top, quote and title anchored to the bottom (photo)
  * or centred (text), site footer last.
  */
-export function drawShareCard(ctx, { format = "post", style = "text", quote = "", title = "", editionNo = "", category = "", image = null } = {}) {
+export function drawShareCard(ctx, { format = "post", style = "text", quote = "", title = "", categoryNumber = null, category = "", image = null } = {}) {
   const spec = SHARE_CARD_FORMATS[format] || SHARE_CARD_FORMATS.post;
   const { width, height, safeTop, safeBottom } = spec;
   const usePhoto = style === "photo" && !!image;
@@ -124,7 +124,7 @@ export function drawShareCard(ctx, { format = "post", style = "text", quote = ""
   ctx.fillText("U#", MARGIN, top);
   ctx.font = `700 24px ${FONT}`;
   ctx.globalAlpha = 0.85;
-  const meta = [category, editionNo ? `No.${editionNo}` : ""].filter(Boolean).join("  ·  ").toUpperCase();
+  const meta = [category, categoryNumber ? `No.${categoryNumber}` : ""].filter(Boolean).join("  ·  ").toUpperCase();
   ctx.textAlign = "right";
   ctx.fillText(meta, width - MARGIN, top + 10);
   ctx.textAlign = "left";

@@ -68,6 +68,15 @@ test('drawShareCard falls back to the text design without an image', () => {
   assert.equal(calls.some(([kind]) => kind === 'drawImage'), false);
 });
 
+test('share card displays the category position rather than the global edition number', () => {
+  const { ctx, calls } = fakeContext();
+  drawShareCard(ctx, { category: 'Essay', categoryNumber: 3, editionNo: 12 });
+  assert.ok(calls.some(([kind, text]) => kind === 'fillText' && text === 'ESSAY  ·  NO.3'));
+  const fallback = fakeContext();
+  drawShareCard(fallback.ctx, { category: 'Essay', editionNo: 12 });
+  assert.ok(fallback.calls.some(([kind, text]) => kind === 'fillText' && text === 'ESSAY'));
+});
+
 test('shareCardFileName names the format', () => {
   assert.equal(shareCardFileName({ editionNo: 7, format: 'story' }), 'unframe-7-story.png');
   assert.equal(shareCardFileName({ format: 'post' }), 'unframe-article-post.png');

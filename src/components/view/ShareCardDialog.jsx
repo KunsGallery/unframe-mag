@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Download, Link2, Share } from "lucide-react";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../../firebase/config";
 import { getCoverImageUrl } from "../../lib/imageUrl";
 import {
   SHARE_CARD_FORMATS,
@@ -30,6 +32,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
   const [fontsReady, setFontsReady] = useState(false);
   const [exported, setExported] = useState({ key: "", file: null });
   const [busy, setBusy] = useState(false);
+  const [categoryNumber, setCategoryNumber] = useState({ status: "loading", value: null });
 
   useEffect(() => { if (dialog.current && !dialog.current.open) dialog.current.showModal(); }, []);
 
@@ -41,9 +44,32 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
     return () => { alive = false; };
   }, [article]);
 
+  useEffect(() => {
+    let alive = true;
+    if (!article.category || !Number.isFinite(article.sortIndex)) {
+      setCategoryNumber({ status: "ready", value: null });
+      return () => { alive = false; };
+    }
+    setCategoryNumber({ status: "loading", value: null });
+    const earlier = query(collection(db, "articles"), where("status", "==", "published"), where("sortIndex", "<=", article.sortIndex));
+    const timer = setTimeout(() => {
+      if (alive) { alive = false; setCategoryNumber({ status: "ready", value: null }); }
+    }, 8000);
+    getDocs(earlier).then((snapshot) => {
+      if (!alive) return;
+      clearTimeout(timer);
+      const count = snapshot.docs.filter((entry) => entry.data().category === article.category).length;
+      setCategoryNumber({ status: "ready", value: count || null });
+    }).catch(() => {
+      clearTimeout(timer);
+      if (alive) setCategoryNumber({ status: "ready", value: null });
+    });
+    return () => { alive = false; clearTimeout(timer); };
+  }, [article.category, article.sortIndex]);
+
   const effectiveStyle = cover.status === "none" ? "text" : style;
   const spec = SHARE_CARD_FORMATS[format];
-  const cardKey = `${format}|${effectiveStyle}|${prepareQuote(quote)}|${cover.status}`;
+  const cardKey = `${format}|${effectiveStyle}|${prepareQuote(quote)}|${cover.status}|${categoryNumber.status}|${categoryNumber.value}`;
   // Only the export that matches what is on screen can be shared.
   const file = exported.key === cardKey ? exported.file : null;
 
@@ -51,7 +77,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
   // inside the tap, so the file has to exist before the button is pressed.
   useEffect(() => {
     const element = canvas.current;
-    if (!element || !fontsReady || cover.status === "loading") return undefined;
+    if (!element || !fontsReady || cover.status === "loading" || categoryNumber.status === "loading") return undefined;
     let alive = true;
     element.width = spec.width;
     element.height = spec.height;
@@ -60,7 +86,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
       style: effectiveStyle,
       quote: prepareQuote(quote),
       title: article.title || "",
-      editionNo: article.editionNo,
+      categoryNumber: categoryNumber.value,
       category: article.category || "",
       image: cover.image,
     });
@@ -70,7 +96,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
         .catch(() => { if (alive) setExported({ key: cardKey, file: null, error: true }); });
     }, 200);
     return () => { alive = false; clearTimeout(timer); };
-  }, [article, cardKey, cover, effectiveStyle, fontsReady, format, quote, spec]);
+  }, [article, cardKey, categoryNumber, cover, effectiveStyle, fontsReady, format, quote, spec]);
 
   const close = () => { dialog.current?.close(); onClose(); };
 
@@ -118,7 +144,7 @@ export default function ShareCardDialog({ article, initialQuote = "", onClose, o
         <div className="uf-share-card__grid">
           <div className={preview}>
             <canvas ref={canvas} role="img" aria-label={`${spec.label} 공유 카드 미리보기`} />
-            {!fontsReady || cover.status === "loading" ? <span className="uf-share-card__loading">카드를 만드는 중…</span> : null}
+            {!fontsReady || cover.status === "loading" || categoryNumber.status === "loading" ? <span className="uf-share-card__loading">카드를 만드는 중…</span> : null}
           </div>
 
           <div className="uf-share-card__controls">
