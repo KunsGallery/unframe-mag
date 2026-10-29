@@ -13,6 +13,7 @@ const summarySource = await readFile(new URL('../src/lib/articleSummary.js', imp
 const readingMetaSource = await readFile(new URL('../src/lib/readingMeta.js', import.meta.url), 'utf8');
 const relatedSource = await readFile(new URL('../src/lib/relatedArticles.js', import.meta.url), 'utf8');
 const tagsSource = await readFile(new URL('../src/lib/articleTags.js', import.meta.url), 'utf8');
+const headingSource = await readFile(new URL('../src/lib/headingStyle.js', import.meta.url), 'utf8');
 const meta = { title: '', subtitle: '', category: 'ART', cover: '', coverMedium: '', authorEmail: 'author@example.com' };
 const deferred = () => {
   let resolve;
@@ -176,6 +177,8 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
   await relatedModule.link(() => {});
   const tagsModule = new SourceTextModule(tagsSource, { context });
   await tagsModule.link(() => {});
+  const headingModule = new SourceTextModule(headingSource, { context });
+  await headingModule.link(() => {});
   const summaryModule = new SourceTextModule(summarySource, { context });
   await summaryModule.link((specifier) => specifier.includes('relatedArticles') ? relatedModule
     : specifier.includes('articleTags') ? tagsModule : readingMetaModule);
@@ -184,6 +187,7 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     if (specifier.includes('articleSummary')) return summaryModule;
     if (specifier.includes('relatedArticles')) return relatedModule;
     if (specifier.includes('articleTags')) return tagsModule;
+    if (specifier.includes('headingStyle')) return headingModule;
     if (specifier.includes('draftRecovery')) return recoveryModule;
     if (specifier.includes('publicationTransaction')) return publicationModule;
     if (specifier.includes('editorHistory')) return historyModule;
@@ -209,7 +213,7 @@ async function harness({ overrides = {}, server = backend(), storage = memorySto
     return api;
   };
   const applied = {};
-  const setters = Object.fromEntries(['Title', 'Subtitle', 'Category', 'Cover', 'CoverMedium', 'RelatedEditionNos', 'Excerpt', 'Tags'].map((key) => [
+  const setters = Object.fromEntries(['Title', 'Subtitle', 'Category', 'Cover', 'CoverMedium', 'RelatedEditionNos', 'Excerpt', 'Tags', 'HeadingStyle'].map((key) => [
     'set' + key, (value) => { applied[key] = value; },
   ]));
   render();
@@ -980,6 +984,18 @@ test('lead text and tags are saved, copied to the summary and restored on load',
   assert.equal(await reader.render().loadDraft(id, reader.setters), true);
   assert.equal(reader.applied.Excerpt, '한 줄 요약');
   assert.deepEqual([...reader.applied.Tags], ['단체전', '회화']);
+});
+
+test('title typography is saved, cleaned and restored on load', async () => {
+  const server = backend({ 'counters/articles': { lastIndex: 3, articleId: 'legacy' } });
+  const h = await harness({ server });
+  const headingStyle = { title: { desktop: 300, tracking: '-0.02', leading: 1.2 }, subtitle: { bogus: 1 } };
+  assert.equal(await h.render().publish({ ...meta, title: 'Typo', headingStyle }), true);
+  const id = h.render().draftId;
+  assert.deepEqual(JSON.parse(JSON.stringify(server.data.get(`articles/${id}`).headingStyle)), { title: { desktop: 120, tracking: -0.02, leading: 1.2 } });
+  const reader = await harness({ server });
+  assert.equal(await reader.render().loadDraft(id, reader.setters), true);
+  assert.equal(reader.applied.HeadingStyle.title.desktop, 120);
 });
 
 test('a save over another editor\'s newer write stops autosave until the editor chooses', async () => {

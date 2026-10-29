@@ -87,6 +87,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   const [category, setCategory] = useState(DEFAULT_ARTICLE_CATEGORY);
   const [relatedEditionNos, setRelatedEditionNos] = useState([]);
   const [excerpt, setExcerpt] = useState("");
+  const [headingStyle, setHeadingStyle] = useState({});
   const [tags, setTags] = useState([]);
   const [find, setFind] = useState({ open: false, query: "", token: 0 });
   const [cover, setCover] = useState("");
@@ -157,6 +158,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       setRelatedEditionNos,
       setExcerpt,
       setTags,
+      setHeadingStyle,
     });
     setEditorDocMeta(null);
   };
@@ -184,7 +186,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
     recovery: recoveryCandidate,
     setIsDirty: setDraftDirty,
   } = draftsApi;
-  const currentMeta = { title, subtitle, excerpt, tags, category, cover, coverMedium, relatedEditionNos, author: authorName, authorEmail };
+  const currentMeta = { title, subtitle, excerpt, tags, headingStyle, category, cover, coverMedium, relatedEditionNos, author: authorName, authorEmail };
   const currentMetaRef = useRef(currentMeta);
   // 이벤트/타이머 핸들러가 항상 최신 메타를 읽도록 렌더 중에 갱신합니다(기존 동작 유지).
   // eslint-disable-next-line react-hooks/refs
@@ -236,10 +238,11 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
       relatedEditionNos,
       excerpt,
       tags,
+      headingStyle,
       author: authorName,
       authorEmail,
     });
-  }, [runAutosave, title, subtitle, excerpt, tags, category, cover, coverMedium, relatedEditionNos, authorName, authorEmail]);
+  }, [runAutosave, title, subtitle, excerpt, tags, headingStyle, category, cover, coverMedium, relatedEditionNos, authorName, authorEmail]);
 
   useEffect(() => {
     if (!editor || !editorReady) return;
@@ -261,6 +264,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
           setRelatedEditionNos,
           setExcerpt,
           setTags,
+          setHeadingStyle,
         });
 
         if (success && !cancelled) {
@@ -304,7 +308,7 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
   }, []);
 
   const editingDisabled = draftsApi.isSaving || draftsApi.isDraftLoading || !!recoveryCandidate;
-  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium, setRelatedEditionNos, setExcerpt, setTags };
+  const setters = { setTitle, setSubtitle, setCategory, setCover, setCoverMedium, setRelatedEditionNos, setExcerpt, setTags, setHeadingStyle };
   const openPanel = (tab) => { setPanelTab(tab); setPanelOpen(true); setFocusMode(false); };
   const saveCurrent = async () => {
     const saved = await draftsApi.saveDraft({ markClean: true }, currentMetaRef.current);
@@ -501,7 +505,8 @@ export default function EditorPage({ isDarkMode, onToast, user, role = "user" })
         </div>
       </EditorToolsPanel>}
       <Suspense fallback={<p role="status" className="uf-overlay-loading">불러오는 중...</p>}>
-        {previewContent && <EditorPreview content={previewContent} meta={{ ...currentMeta, author: editorDocMeta?.author || authorName, editionNo: editorDocMeta?.sourceEditionNo || editorDocMeta?.editionNo || '미발행' }} isDarkMode={isDarkMode} onClose={() => setPreviewContent(null)} />}
+        {previewContent && <EditorPreview content={previewContent} meta={{ ...currentMeta, author: editorDocMeta?.author || authorName, editionNo: editorDocMeta?.sourceEditionNo || editorDocMeta?.editionNo || '미발행' }} isDarkMode={isDarkMode} onClose={() => setPreviewContent(null)}
+          onHeadingStyleChange={editingDisabled ? undefined : (next) => { setHeadingStyle(next); setDraftDirty(true); }} />}
         {showChecks && <PublicationChecklist editor={editor} meta={currentMeta} isSaving={draftsApi.isSaving} onClose={() => setShowChecks(false)} onFocusIssue={(issue) => {
           setShowChecks(false);
           if (typeof issue.position === "number") { if (!isDesktopEditor) setPanelOpen(false); focusEditorBlock(editor, issue.position); }

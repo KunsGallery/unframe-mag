@@ -1,6 +1,7 @@
 import React from "react";
 import { Share2 } from "lucide-react";
 import { getCoverImageUrl, getImageSrcSet } from "../../lib/imageUrl";
+import { headingStyleProps } from "../../lib/headingStyle";
 
 export default function ArticleHero({
   article,
@@ -51,12 +52,12 @@ export default function ArticleHero({
           {article.category}
         </span>
 
-        <h1 className="uf-article-title dark:text-white break-keep whitespace-pre-line">
+        <h1 className="uf-article-title dark:text-white break-keep whitespace-pre-line" {...headingStyleProps(article.headingStyle, "title")}>
           {article.title}
         </h1>
 
         {subtitle ? (
-          <p className="mt-6 max-w-3xl mx-auto text-sm sm:text-lg md:text-xl font-light leading-relaxed text-zinc-500 dark:text-zinc-300">
+          <p {...headingStyleProps(article.headingStyle, "subtitle")} className="uf-article-subtitle mt-6 max-w-3xl mx-auto text-sm sm:text-lg md:text-xl font-light leading-relaxed whitespace-pre-line text-zinc-500 dark:text-zinc-300">
             {subtitle}
           </p>
         ) : null}

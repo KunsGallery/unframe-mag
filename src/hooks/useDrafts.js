@@ -17,12 +17,13 @@ import { runPublicationTransaction } from "../lib/publicationTransaction.js";
 import { buildArticleSummary } from "../lib/articleSummary.js";
 import { normalizeRelatedEditionNos } from "../lib/relatedArticles.js";
 import { normalizeTags } from "../lib/articleTags.js";
+import { normalizeHeadingStyle } from "../lib/headingStyle.js";
 import { editorSnapshot, pruneEditorHistory, writeEditorHistory } from "../lib/editorHistory.js";
 import { activeRecoveryDocument, browserRecoveryStorage, draftSnapshot, nextEdition, readRecovery, recoveryKey, removeRecovery, writeRecovery } from "../lib/draftRecovery.js";
 
 const AUTOSAVE_DELAY_MS = 30000;
 
-// Related articles, the lead text and tags travel with the article but stay out
+// Related articles, the lead text, tags and title typography travel with the article but stay out
 // of history and local recovery snapshots.
 function articlePayload(meta, contentHTML) {
   return {
@@ -30,6 +31,7 @@ function articlePayload(meta, contentHTML) {
     excerpt: String(meta?.excerpt ?? ""),
     tags: normalizeTags(meta?.tags),
     relatedEditionNos: normalizeRelatedEditionNos(meta?.relatedEditionNos),
+    headingStyle: normalizeHeadingStyle(meta?.headingStyle),
   };
 }
 
@@ -303,6 +305,7 @@ export function useDrafts({
         setters.setRelatedEditionNos?.(normalizeRelatedEditionNos(data.relatedEditionNos, data.editionNo));
         setters.setExcerpt?.(data.excerpt || "");
         setters.setTags?.(normalizeTags(data.tags));
+        setters.setHeadingStyle?.(normalizeHeadingStyle(data.headingStyle));
         editTokenRef.current = { base: data.editToken ?? null, own: new Set(), force: false };
         setConflict(null);
         setIsDirty(false);
@@ -342,6 +345,7 @@ export function useDrafts({
       setters.setRelatedEditionNos?.([]);
       setters.setExcerpt?.("");
       setters.setTags?.([]);
+      setters.setHeadingStyle?.({});
       editTokenRef.current = { base: null, own: new Set(), force: false };
       setConflict(null);
       editor?.commands?.setContent("", { emitUpdate: false });

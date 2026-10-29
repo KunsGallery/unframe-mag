@@ -2,10 +2,11 @@ import "../../styles/article-runtime.css";
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor } from '@tiptap/react';
-import { Monitor, Smartphone, X } from 'lucide-react';
+import { Monitor, Smartphone, Type, X } from 'lucide-react';
 import { createEditorConfig } from '../../tiptap/editorConfig';
 import ArticleHero from '../view/ArticleHero';
 import ArticleBody from '../view/ArticleBody';
+import HeadingStyleControls from './HeadingStyleControls';
 import { useSlideGalleryRuntime } from '../../hooks/useSlideGalleryRuntime';
 import { estimateReadMinutes } from '../../lib/readingMeta';
 import { buildSpotifyEmbed, buildYouTubeEmbed } from '../../lib/ufEmbed';
@@ -86,9 +87,10 @@ function PreviewArticle({ content, meta }) {
 }
 
 // Parent mounts this component only while preview is open.
-export default function EditorPreview({ content, meta = {}, onClose, isDarkMode = false }) {
+export default function EditorPreview({ content, meta = {}, onClose, isDarkMode = false, onHeadingStyleChange }) {
   const dialog = useRef(null);
   const [viewport, setViewport] = useState('desktop');
+  const [styling, setStyling] = useState(false);
   const [frameDocument, setFrameDocument] = useState(null);
   const heading = React.useId();
   useEffect(() => {
@@ -125,15 +127,24 @@ export default function EditorPreview({ content, meta = {}, onClose, isDarkMode 
           {[['desktop', Monitor, '데스크톱'], ['mobile', Smartphone, '모바일']].map(([value, Icon, label]) =>
             <button key={value} type="button" aria-label={label} title={label} aria-pressed={viewport === value}
               onClick={() => setViewport(value)} className="min-h-11 min-w-11 rounded p-3 aria-pressed:bg-zinc-200"><Icon aria-hidden="true" size={20} /></button>)}
+          <button type="button" aria-pressed={styling} aria-controls="uf-heading-style-panel" onClick={() => setStyling((value) => !value)}
+            className="flex min-h-11 items-center gap-1.5 rounded px-3 text-sm font-semibold aria-pressed:bg-zinc-200"><Type aria-hidden="true" size={18} />제목 스타일</button>
           <button autoFocus type="button" aria-label="미리보기 닫기" title="닫기" onClick={onClose} className="min-h-11 min-w-11 p-3"><X aria-hidden="true" size={20} /></button>
         </div>
       </header>
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {styling && (
+        <aside id="uf-heading-style-panel" aria-label="제목 스타일" className="uf-heading-panel order-last max-h-[45vh] shrink-0 overflow-auto border-t border-zinc-300 md:order-none md:max-h-none md:w-[300px] md:border-r md:border-t-0">
+          <HeadingStyleControls value={meta.headingStyle} viewport={viewport} onChange={onHeadingStyleChange} />
+        </aside>
+      )}
       <div className="min-h-0 flex-1 overflow-auto bg-zinc-200 p-2">
         <iframe title={viewport === 'mobile' ? '모바일 기사 미리보기' : '데스크톱 기사 미리보기'}
           onLoad={initializeFrame} srcDoc="<!doctype html><html lang='ko'><head></head><body></body></html>"
           className="mx-auto block h-full border-0 bg-white"
           style={{ width: viewport === 'mobile' ? 390 : 1280, maxWidth: viewport === 'mobile' ? '100%' : undefined }} />
         {frameDocument && createPortal(<PreviewArticle content={content} meta={meta} />, frameDocument.body)}
+      </div>
       </div>
     </div>
   </dialog>;

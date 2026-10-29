@@ -202,3 +202,15 @@
 }
 .uf-toolbar-format { display: flex; align-items: center; gap: 2px; padding: 0 2px; border: 1px solid var(--uf-editor-border); border-radius: 6px; background: var(--uf-editor-bg); }
 .uf-toolbar-format .uf-fmt-btn { height: 34px; }
+
+/* Title/subtitle typography panel in the article preview */
+.uf-heading-controls { display: grid; gap: 18px; padding: 16px; font-size: 13px; }
+.uf-heading-controls fieldset { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; }
+.uf-heading-controls legend { margin-bottom: 4px; font-size: 14px; font-weight: 800; }
+.uf-heading-control { display: grid; gap: 4px; }
+.uf-heading-control label { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.uf-heading-control output { color: var(--uf-muted); font-variant-numeric: tabular-nums; font-weight: 500; }
+.uf-heading-control input[type="range"] { width: 100%; min-height: 28px; accent-color: #004aad; }
+.uf-heading-controls fieldset button { justify-self: start; min-height: 36px; padding: 0 12px; border: 1px solid var(--uf-editor-border); border-radius: 6px; font-size: 12px; font-weight: 600; }
+.uf-heading-controls fieldset button:disabled, .uf-heading-controls fieldset:disabled { opacity: .5; }
+.uf-heading-controls__hint { color: var(--uf-muted); font-size: 12px; line-height: 1.6; }

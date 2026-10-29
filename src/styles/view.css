@@ -119,3 +119,11 @@ html.dark .uf-selection-share { background: #f4f4f5; color: #111; }
 @media (max-width: 1000px) { .uf-article-title { font-size: 32px; } }
 @media (max-width: 800px) { .uf-article-title { font-size: 34px; } }
 @media (max-width: 520px) { .uf-article-title { font-size: 30px; } }
+
+/* Sizes chosen in the editor preview (headingStyle); unset sizes keep the defaults above. */
+@media (min-width: 801px) {
+  .uf-article-title[data-size], .uf-article-subtitle[data-size] { font-size: var(--uf-heading-size); }
+}
+@media (max-width: 800px) {
+  .uf-article-title[data-size-mobile], .uf-article-subtitle[data-size-mobile] { font-size: var(--uf-heading-size-mobile); }
+}
