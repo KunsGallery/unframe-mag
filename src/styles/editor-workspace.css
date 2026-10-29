@@ -167,8 +167,8 @@
 .uf-fmt-btn:disabled { opacity: .35; cursor: not-allowed; }
 .uf-fmt-btn:focus-visible, .uf-fmt-pop__item:focus-visible, .uf-fmt-swatch:focus-visible { outline: 2px solid #004aad; outline-offset: 1px; }
 .uf-fmt-sep { width: 1px; height: 20px; margin: 0 3px; background: var(--uf-editor-border); }
-.uf-fmt-size { display: inline-flex; align-items: center; }
-.uf-fmt-size__value { min-width: 34px; font-variant-numeric: tabular-nums; }
+.uf-fmt-size-select { height: 32px; min-width: 64px; padding: 0 6px; border: 1px solid var(--uf-editor-border); border-radius: 6px; background: var(--uf-editor-bg); color: var(--uf-text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.uf-fmt-size-select:focus-visible { outline: 2px solid #004aad; outline-offset: 1px; }
 .uf-fmt-color { font-size: 15px; font-weight: 800; line-height: 1; padding-bottom: 2px; border-bottom: 3px solid var(--swatch); }
 .uf-fmt-highlight { display: inline-flex; padding: 2px 3px; border-radius: 4px; background: var(--swatch); color: var(--uf-text); }
 .uf-fmt-pop { position: relative; display: inline-flex; }

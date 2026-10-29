@@ -1,11 +1,11 @@
 // Shared inline-formatting vocabulary for the toolbar, the selection bubble and presets.
-// Sizes are relative (em) so styled words scale with their paragraph or heading on phones;
-// colours are CSS variables so they stay readable in dark mode.
+// Colours are CSS variables so they stay readable in dark mode.
 
 export const DEFAULT_TEXT_SIZE_PX = 18;
 
-// null = the paragraph's own size.
-export const TEXT_SIZE_STEPS = ["0.75em", "0.875em", null, "1.125em", "1.25em", "1.5em", "1.75em", "2em", "2.5em"];
+// The size dropdown's choices (px, as the editor has always offered); null = the paragraph's own size.
+export const TEXT_SIZE_OPTIONS = [null, "14px", "16px", "18px", "20px", "24px", "28px", "32px", "40px"];
+const SIZE_STEPS_PX = TEXT_SIZE_OPTIONS.filter(Boolean).map((value) => parseFloat(value));
 
 export const TEXT_COLORS = [
   { label: "기본", value: null },
@@ -29,9 +29,9 @@ const SERIF = '"Noto Serif KR", serif';
 
 export const TEXT_STYLE_PRESETS = [
   { id: "emphasis", label: "강조", hint: "블루 · 굵게", marks: { color: "var(--uf-ink-blue)", bold: true } },
-  { id: "large", label: "크게", hint: "150% · 굵게", marks: { fontSize: "1.5em", bold: true } },
-  { id: "small", label: "작은 글씨", hint: "87.5% · 회색", marks: { fontSize: "0.875em", color: "var(--uf-ink-gray)" } },
-  { id: "serif", label: "세리프 인용", hint: "명조 · 125% · 기울임", marks: { fontFamily: SERIF, fontSize: "1.25em", italic: true } },
+  { id: "large", label: "크게", hint: "28 · 굵게", marks: { fontSize: "28px", bold: true } },
+  { id: "small", label: "작은 글씨", hint: "14 · 회색", marks: { fontSize: "14px", color: "var(--uf-ink-gray)" } },
+  { id: "serif", label: "세리프 인용", hint: "명조 · 24 · 기울임", marks: { fontFamily: SERIF, fontSize: "24px", italic: true } },
   { id: "marker", label: "형광 강조", hint: "노란 형광펜 · 굵게", marks: { highlight: "var(--uf-mark-yellow)", bold: true } },
 ];
 
@@ -50,24 +50,21 @@ export function textSizeRatio(value) {
   return 1;
 }
 
-export function textSizeLabel(value) {
-  if (!value) return "기본";
-  if (String(value).endsWith("px")) return String(value);
-  return `${Math.round(textSizeRatio(value) * 100)}%`;
+// Approximate px for any stored size (relative sizes from earlier drafts included).
+export function textSizePx(value) {
+  return Math.round(textSizeRatio(value) * DEFAULT_TEXT_SIZE_PX);
 }
 
-// Moves to the next step from the closest one, so old px sizes join the scale too.
+export function textSizeLabel(value) {
+  if (!value) return "기본";
+  return String(value).endsWith("px") ? String(parseFloat(value)) : String(value);
+}
+
+// ⌘⇧. / ⌘⇧, move to the next dropdown size up or down.
 export function stepTextSize(current, direction) {
-  const ratio = textSizeRatio(current);
-  let closest = 0;
-  TEXT_SIZE_STEPS.forEach((step, index) => {
-    if (Math.abs(textSizeRatio(step) - ratio) < Math.abs(textSizeRatio(TEXT_SIZE_STEPS[closest]) - ratio)) closest = index;
-  });
-  const exact = Math.abs(textSizeRatio(TEXT_SIZE_STEPS[closest]) - ratio) < 0.01;
-  let next = closest;
-  if (direction > 0) next = exact || textSizeRatio(TEXT_SIZE_STEPS[closest]) <= ratio ? closest + 1 : closest;
-  if (direction < 0) next = exact || textSizeRatio(TEXT_SIZE_STEPS[closest]) >= ratio ? closest - 1 : closest;
-  return TEXT_SIZE_STEPS[Math.max(0, Math.min(TEXT_SIZE_STEPS.length - 1, next))];
+  const px = textSizePx(current);
+  const next = direction > 0 ? SIZE_STEPS_PX.find((step) => step > px) : [...SIZE_STEPS_PX].reverse().find((step) => step < px);
+  return next ? `${next}px` : current || null;
 }
 
 // Pressing a control must not move focus out of the editor, or the selection is lost on touch devices.

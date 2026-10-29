@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Highlighter, Minus, Plus, Sparkles } from "lucide-react";
+import { ChevronDown, Highlighter, Sparkles } from "lucide-react";
 import {
   HIGHLIGHT_COLORS,
   TEXT_COLORS,
-  TEXT_SIZE_STEPS,
+  TEXT_SIZE_OPTIONS,
   TEXT_STYLE_PRESETS,
   applyTextPreset,
   keepEditorSelection,
   setTextSize,
-  stepTextSize,
   textSizeLabel,
 } from "../../lib/textFormatting";
 
@@ -63,22 +62,16 @@ function Popover({ label, trigger, active = false, disabled = false, wide = fals
   );
 }
 
-export function TextSizeStepper({ editor, fontSize, disabled }) {
-  const min = fontSize === TEXT_SIZE_STEPS[0];
-  const max = fontSize === TEXT_SIZE_STEPS[TEXT_SIZE_STEPS.length - 1];
+// Size dropdown in px (기본, 14 … 40). A size not on the list (older drafts) is shown as its own option.
+export function TextSizeSelect({ editor, fontSize, disabled }) {
+  const current = fontSize || "";
+  const custom = current && !TEXT_SIZE_OPTIONS.includes(current);
   return (
-    <div className="uf-fmt-size" role="group" aria-label="글자 크기">
-      <FormatButton label="글자 작게" shortcut="⌘⇧," disabled={disabled || min} onClick={() => setTextSize(editor, stepTextSize(fontSize, -1))}><Minus size={14} /></FormatButton>
-      <Popover label={`글자 크기: ${textSizeLabel(fontSize)}`} disabled={disabled} trigger={<span className="uf-fmt-size__value">{textSizeLabel(fontSize)}</span>}>
-        {(close) => TEXT_SIZE_STEPS.map((step) => (
-          <button key={step || "default"} type="button" className="uf-fmt-pop__item" aria-pressed={(fontSize || null) === step}
-            onMouseDown={keepEditorSelection} onClick={() => { setTextSize(editor, step); close(); }}>
-            <span style={{ fontSize: step ? `calc(14px * ${parseFloat(step)})` : 14 }}>가나다</span><small>{textSizeLabel(step)}</small>
-          </button>
-        ))}
-      </Popover>
-      <FormatButton label="글자 크게" shortcut="⌘⇧." disabled={disabled || max} onClick={() => setTextSize(editor, stepTextSize(fontSize, 1))}><Plus size={14} /></FormatButton>
-    </div>
+    <select className="uf-fmt-size-select" aria-label="글자 크기" title="글자 크기" value={current} disabled={disabled}
+      onChange={(event) => setTextSize(editor, event.target.value || null)}>
+      {TEXT_SIZE_OPTIONS.map((value) => <option key={value || "default"} value={value || ""}>{textSizeLabel(value)}</option>)}
+      {custom ? <option value={current}>{textSizeLabel(current)}</option> : null}
+    </select>
   );
 }
 

@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 
 import UploadButton from "./UploadButton";
-import { HighlightPopover, TextColorPopover, TextPresetPopover, TextSizeStepper } from "./TextFormatControls";
+import { HighlightPopover, TextColorPopover, TextPresetPopover, TextSizeSelect } from "./TextFormatControls";
 import { useTextFormatState } from "../../hooks/useTextFormatState";
 import { useFormatPainter } from "../../hooks/useFormatPainter";
 import { clearFormatting } from "../../lib/textFormatting";
@@ -486,7 +486,7 @@ export default function EditorToolbar({ editor, isDarkMode, onToast }) {
 
             <ToolbarGroup title="글자" isDarkMode={isDarkMode}>
               <div className="uf-toolbar-format">
-                <TextSizeStepper editor={editor} fontSize={format.fontSize} />
+                <TextSizeSelect editor={editor} fontSize={format.fontSize} />
                 <TextColorPopover editor={editor} color={format.color} />
                 <HighlightPopover editor={editor} highlight={format.highlight} />
                 <TextPresetPopover editor={editor} />

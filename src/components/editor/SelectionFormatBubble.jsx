@@ -4,7 +4,7 @@ import { Bold, Eraser, Italic, Link2, Strikethrough, Subscript as SubscriptIcon,
 import { useTextFormatState } from "../../hooks/useTextFormatState";
 import { clearFormatting } from "../../lib/textFormatting";
 import { editLink } from "../../lib/editorPrompts";
-import { FormatButton, HighlightPopover, TextColorPopover, TextPresetPopover, TextSizeStepper } from "./TextFormatControls";
+import { FormatButton, HighlightPopover, TextColorPopover, TextPresetPopover, TextSizeSelect } from "./TextFormatControls";
 
 const BUBBLE_GAP = 10;
 const EDGE = 8;
@@ -98,7 +98,7 @@ export default function SelectionFormatBubble({ editor, disabled }) {
       <FormatButton label="밑줄" shortcut="⌘U" active={format.underline} onClick={() => chain().toggleUnderline().run()}><Underline size={15} /></FormatButton>
       <FormatButton label="취소선" active={format.strike} onClick={() => chain().toggleStrike().run()}><Strikethrough size={15} /></FormatButton>
       <span className="uf-fmt-sep" aria-hidden="true" />
-      <TextSizeStepper editor={editor} fontSize={format.fontSize} />
+      <TextSizeSelect editor={editor} fontSize={format.fontSize} />
       <TextColorPopover editor={editor} color={format.color} />
       <HighlightPopover editor={editor} highlight={format.highlight} />
       <span className="uf-fmt-sep" aria-hidden="true" />

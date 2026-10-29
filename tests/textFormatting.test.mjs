@@ -2,27 +2,25 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
-import { TEXT_SIZE_STEPS, copyFormatting, hasFormatting, stepTextSize, textSizeLabel, textSizeRatio } from '../src/lib/textFormatting.js';
+import { copyFormatting, hasFormatting, stepTextSize, textSizeLabel, textSizeRatio } from '../src/lib/textFormatting.js';
 import { duplicateBlock, findMovableBlock, moveBlock } from '../src/tiptap/extensions/BlockTools.js';
 
-test('text sizes read relative and legacy px values', () => {
-  assert.equal(textSizeRatio(null), 1);
-  assert.equal(textSizeRatio('1.5em'), 1.5);
+test('size labels match the px dropdown and still read older relative sizes', () => {
   assert.equal(textSizeRatio('36px'), 2);
   assert.equal(textSizeLabel(null), '기본');
-  assert.equal(textSizeLabel('1.25em'), '125%');
-  assert.equal(textSizeLabel('24px'), '24px');
+  assert.equal(textSizeLabel('24px'), '24');
+  assert.equal(textSizeLabel('1.25em'), '1.25em');
 });
 
-test('stepTextSize walks the scale and joins it from old px sizes', () => {
-  assert.equal(stepTextSize(null, 1), '1.125em');
-  assert.equal(stepTextSize(null, -1), '0.875em');
-  assert.equal(stepTextSize('1.125em', -1), null);
-  assert.equal(stepTextSize(TEXT_SIZE_STEPS.at(-1), 1), TEXT_SIZE_STEPS.at(-1));
-  assert.equal(stepTextSize('0.75em', -1), '0.75em');
-  // 24px ≈ 1.33: up goes to the next larger step, down to the next smaller one.
-  assert.equal(stepTextSize('24px', 1), '1.5em');
-  assert.equal(stepTextSize('24px', -1), '1.25em');
+test('stepTextSize moves through the dropdown sizes', () => {
+  assert.equal(stepTextSize(null, 1), '20px');
+  assert.equal(stepTextSize(null, -1), '16px');
+  assert.equal(stepTextSize('24px', 1), '28px');
+  assert.equal(stepTextSize('24px', -1), '20px');
+  assert.equal(stepTextSize('40px', 1), '40px');
+  assert.equal(stepTextSize('14px', -1), '14px');
+  // An older 1.5em (≈27px) joins the scale.
+  assert.equal(stepTextSize('1.5em', 1), '28px');
 });
 
 const schema = new Schema({
