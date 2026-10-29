@@ -537,7 +537,7 @@ export function useDrafts({
       try {
         if (!authorEmail) throw new Error("Missing author email");
         const history = reserveHistory(db, ref.id, historyUserId);
-        const targetId = await runPublicationTransaction(db, counterRef, async (transaction, noteCounterRead) => {
+        const { targetId, editionNo } = await runPublicationTransaction(db, counterRef, async (transaction, noteCounterRead) => {
           const snap = currentId ? await transaction.get(ref) : null;
           if (currentId && !snap.exists()) throw new Error("Draft no longer exists");
           const prev = snap?.data() || {};
@@ -558,7 +558,7 @@ export function useDrafts({
               history(transaction, sourceRef.id, source.data().authorEmail, payload, "수정본 발행");
             }
             transaction.delete(ref);
-            return sourceRef.id;
+            return { targetId: sourceRef.id, editionNo: source.data().editionNo };
           }
           let edition = {};
           if (prev.status !== "published") {
@@ -597,7 +597,7 @@ export function useDrafts({
             if (prev.status === "published") history(transaction, ref.id, prev.authorEmail, prev, "발행 전 원본", true);
             history(transaction, ref.id, fields.authorEmail, payload, "발행");
           }
-          return ref.id;
+          return { targetId: ref.id, editionNo: edition.editionNo || prev.editionNo };
         });
         acceptEditToken(editToken, savedSession);
         const unchanged = finishSave(savedRevision, savedSession, oldKey, record, targetId, meta, true);
@@ -608,7 +608,7 @@ export function useDrafts({
           // Release the write guard before router navigation evaluates its blocker.
           savingRef.current = false;
           setIsSaving(false);
-          navigate("/");
+          navigate(editionNo ? `/article/${encodeURIComponent(String(editionNo))}` : "/");
         } else if (sessionRef.current === savedSession) {
           toast("발행 후 추가한 변경사항은 아직 저장되지 않았어요.");
         }

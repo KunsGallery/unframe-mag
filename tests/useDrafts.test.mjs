@@ -530,6 +530,7 @@ test('seeded counter increments exactly once per new publication without queryin
   await h.render().publish({ ...meta, title: 'Next' });
   assert.equal(server.data.get('counters/articles').lastIndex, 1000);
   assert.equal(server.data.get('articles/' + h.render().draftId).editionNo, '1000');
+  assert.deepEqual(h.navigations, ['/article/1000']);
 });
 
 test('revision publication updates the source and deletes its draft in the same commit without allocating an edition', async () => {
@@ -548,6 +549,7 @@ test('revision publication updates the source and deletes its draft in the same 
   assert.equal(server.data.get('counters/articles').lastIndex, 8);
   assert.equal(server.data.get('articleSummaries/source').title, 'Revised');
   assert.equal(server.data.get('articleSummaries/source').editionNo, '008');
+  assert.deepEqual(h.navigations, ['/article/008']);
   assert.equal(server.commits[0].length, 3);
 });
 
@@ -821,10 +823,11 @@ test('revision publication atomically records source BEFORE/AFTER and deletes dr
 });
 
 test('direct published update records BEFORE/AFTER while new publication records only AFTER', async () => {
-  const server = backend({ 'articles/source': { ...historyMeta, title: '원본', status: 'published', authorEmail: meta.authorEmail, sortIndex: 7 } });
+  const server = backend({ 'articles/source': { ...historyMeta, title: '원본', status: 'published', authorEmail: meta.authorEmail, sortIndex: 7, editionNo: '007' } });
   const h = await harness({ server, initialProps: { historyUserId: 'actor-uid' } });
   await h.render().loadDraft('source', h.setters);
   assert.equal(await h.render().publish({ ...historyMeta, title: '새 원본' }), true);
+  assert.deepEqual(h.navigations, ['/article/007']);
   assert.deepEqual(historyRows(server, 'source').map((row) => row.snapshot.title), ['원본', '새 원본']);
   assert.equal(server.commits[0].length, 4);
   const fresh = await harness({ initialProps: { historyUserId: 'actor-uid' } });
