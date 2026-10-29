@@ -154,6 +154,25 @@ test("a like moves the counter only with the reader's own like record", async ()
   await assertSucceeds(remove.commit());
 });
 
+test("a save moves the counter only with the reader's own saved record", async () => {
+  const db = user("reader");
+  const article = doc(db, "articles", "existing");
+  const saved = doc(db, "users", "reader", "saved", "006");
+  await assertFails(updateDoc(article, { saves: increment(1) }));
+  const add = writeBatch(db);
+  add.set(saved, { editionNo: "006", createdAt: serverTimestamp() });
+  add.update(article, { saves: increment(1) });
+  await assertSucceeds(add.commit());
+  await assertFails(updateDoc(article, { saves: increment(1) }));
+  const remove = writeBatch(db);
+  remove.delete(saved);
+  remove.update(article, { saves: increment(-1) });
+  await assertSucceeds(remove.commit());
+  // Decrementing without removing the saved record is refused.
+  await assertSucceeds(setDoc(saved, { editionNo: "006", createdAt: serverTimestamp() }));
+  await assertFails(updateDoc(article, { saves: increment(-1) }));
+});
+
 test("comments are bound to their author and never carry an email", async () => {
   const db = user("reader");
   const base = { editionNo: "006", text: "좋아요", nickname: "Reader", author: "Reader", authorUid: "reader", authorIsAdmin: false, createdAt: serverTimestamp() };

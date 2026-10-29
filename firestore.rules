@@ -97,6 +97,22 @@ service cloud.firestore {
               && exists(/databases/$(database)/documents/articles/$(docId)/likes/$(request.auth.uid))
               && !existsAfter(/databases/$(database)/documents/articles/$(docId)/likes/$(request.auth.uid)))
           )
+        )
+        || (
+          // A save count moves only together with the reader's own saved record.
+          resource.data.status == "published"
+          && signedIn()
+          && onlyChanges(['saves'])
+          && request.resource.data.saves is int
+          && (
+            (request.resource.data.saves == resource.data.get('saves', 0) + 1
+              && !exists(/databases/$(database)/documents/users/$(request.auth.uid)/saved/$(resource.data.editionNo))
+              && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/saved/$(resource.data.editionNo)))
+            || (request.resource.data.saves == resource.data.get('saves', 0) - 1
+              && request.resource.data.saves >= 0
+              && exists(/databases/$(database)/documents/users/$(request.auth.uid)/saved/$(resource.data.editionNo))
+              && !existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/saved/$(resource.data.editionNo)))
+          )
         );
 
       match /likes/{uid} {

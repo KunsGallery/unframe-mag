@@ -27,7 +27,6 @@ import {
   query,
   serverTimestamp,
   runTransaction,
-  deleteDoc,
   getDoc,
   updateDoc,
   writeBatch,
@@ -246,6 +245,17 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
   const likeKey = user?.uid && articleDocId ? `${articleDocId}:${user.uid}` : "";
   const liked = !!likeKey && likedState.key === likeKey && likedState.value;
 
+  // Counts shown in the article info panel: loaded once, then nudged by this reader's own toggles.
+  const [statDelta, setStatDelta] = useState({ key: "", likes: 0, saves: 0 });
+  const delta = statDelta.key === articleDocId ? statDelta : { likes: 0, saves: 0 };
+  const bumpStat = (name, amount) => setStatDelta((current) => {
+    const base = current.key === articleDocId ? current : { key: articleDocId, likes: 0, saves: 0 };
+    return { ...base, [name]: base[name] + amount };
+  });
+  const countOf = (value, amount) => (typeof value === "number" ? Math.max(0, value + amount) : null);
+  const likeCount = countOf(article?.likes ?? 0, delta.likes);
+  const saveCount = countOf(article?.saves, delta.saves);
+
   useEffect(() => {
     if (!likeKey) return;
     let alive = true;
@@ -310,9 +320,17 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
 
     const uid = user.uid;
 
+    // The article's public save count moves with the reader's saved record (see firestore.rules).
+    const articleRef = articleDocId && article?.status === "published" ? doc(db, "articles", String(articleDocId)) : null;
+
     if (before) {
       try {
-        await deleteDoc(doc(db, "users", uid, "saved", editionNo));
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "users", uid, "saved", editionNo));
+        // Saves made before the counter existed are not in it; never push it below zero.
+        if (articleRef && Number(saveCount) > 0) batch.update(articleRef, { saves: increment(-1) });
+        await batch.commit();
+        bumpStat("saves", -1);
         toast("저장 해제됨");
       } catch (e) {
         console.error(e);
@@ -328,6 +346,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       const stickerRef = doc(db, "users", uid, "stickers", "first_save");
 
       let nextUnique = null;
+      let counted = false;
 
       await runTransaction(db, async (tx) => {
         const [savedSnap, flagSnap, userSnap, stickerSnap] = await Promise.all([
@@ -347,6 +366,8 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
           category: article?.category || null,
           createdAt: serverTimestamp(),
         });
+        if (articleRef) tx.update(articleRef, { saves: increment(1) });
+        counted = true;
 
         if (!flagSnap.exists()) {
           const prev = userSnap.exists() ? Number(userSnap.data().saveUniqueCount || 0) : 0;
@@ -384,6 +405,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
         }
       });
 
+      if (counted && articleRef) bumpStat("saves", 1);
       if (typeof nextUnique === "number") {
         trackEvent("save", { editionNo, saveUniqueCount: nextUnique });
         toast(`저장 완료! (유니크 저장 ${nextUnique})`);
@@ -418,6 +440,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       else batch.delete(likeRef);
       batch.update(doc(db, "articles", String(articleDocId)), { likes: increment(next ? 1 : -1) });
       await batch.commit();
+      bumpStat("likes", next ? 1 : -1);
 
       if (next) {
         trackEventOnce("like", `like_${editionNo}`, { editionNo }).catch((error) => {
@@ -559,6 +582,8 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
           article={article}
           currentUser={user}
           onToast={onToast}
+          likeCount={likeCount}
+          saveCount={saveCount}
         />
 
         <MoreFromEditor

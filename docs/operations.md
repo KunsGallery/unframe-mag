@@ -135,3 +135,14 @@ Netlify 함수 `client-error` 로그에서 `[uf:client-error]`를 찾으면
 로컬 회귀 테스트와 에뮬레이터 권한 테스트는 직원 기기의 Google 로그인,
 실제 관리자 화면의 링크 저장, 뉴스레터 외부 서비스의 동작을 대신하지 않습니다.
 새 주소를 등록하면 공개 페이지에서 실제 목적지까지 확인합니다.
+
+## 기사 정보 칸과 저장 수 (2026-10)
+
+기사 하단 에디터 정보 칸 오른쪽에 작성 일시, 카테고리와 그 안에서 몇 번째 글인지, 좋아요·조회수·저장 수를 보여 줍니다.
+
+- 저장 수는 `articles/{id}.saves`에 모입니다. 독자의 `users/{uid}/saved/{editionNo}` 기록과 함께만 1씩 늘거나 줄어듭니다(`firestore.rules`).
+- **규칙을 먼저 배포한 뒤** 코드를 배포합니다. 규칙이 없으면 저장하기가 실패합니다.
+- 카운터가 생기기 전의 저장은 한 번 집계해 넣습니다.
+  `FIREBASE_CLI_AUTH_MODULE=<firebase-tools>/lib/auth.js node scripts/backfill-save-counts.mjs` (점검만),
+  결과를 확인한 뒤 끝에 `apply`를 붙여 적용합니다. 다시 실행하면 처음부터 다시 셉니다.
+- `saves` 값이 없는 글은 저장 수 줄을 숨깁니다.

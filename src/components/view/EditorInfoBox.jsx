@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import ArticleInfoPanel from "./ArticleInfoPanel";
 import {
   collection,
   doc,
@@ -16,7 +17,7 @@ import {
   resolveProfilePhotoURL,
 } from "../../lib/profileImage";
 
-export default function EditorInfoBox({ article, currentUser, onToast }) {
+export default function EditorInfoBox({ article, currentUser, onToast, likeCount, saveCount }) {
   const toast = (m) => (onToast ? onToast(m) : console.log(m));
 
   const authorEmail = String(article?.authorEmail || "").trim();
@@ -191,10 +192,14 @@ export default function EditorInfoBox({ article, currentUser, onToast }) {
     }
   };
 
-  if (!authorEmail) return null;
+  const info = <ArticleInfoPanel article={article} likeCount={likeCount} saveCount={saveCount} />;
+  if (!authorEmail) {
+    return <section className="mt-16 rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 md:p-8">{info}</section>;
+  }
 
   return (
-    <section className="mt-16 rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 md:p-8">
+    <section className="mt-16 rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 md:p-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,38%)] lg:gap-10">
+      <div className="min-w-0">
       <div className="text-[10px] tracking-[0.45em] uppercase font-black italic opacity-55">
         / Editor
       </div>
@@ -259,6 +264,10 @@ export default function EditorInfoBox({ article, currentUser, onToast }) {
               : "팬 되기"}
           </button>
         </div>
+      </div>
+      </div>
+      <div className="min-w-0 border-t border-zinc-200 pt-6 dark:border-zinc-800 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-10">
+        {info}
       </div>
     </section>
   );
