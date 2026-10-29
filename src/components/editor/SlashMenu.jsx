@@ -18,11 +18,13 @@ import {
   Loader2,
   Images,
   Superscript,
+  Link2,
 } from "lucide-react";
 import { useUploadImage } from "../../hooks/useUploadImage";
 import { toEmbedURL, defaultEmbedHeight } from "../../lib/ufEmbed";
 import { matchesSearchTerm, normalizeSearchText } from "../../lib/koreanSearch";
 import { askEmbedUrl, askImageUrl } from "../../lib/editorPrompts";
+import { insertLinkCard } from "../../lib/linkCard";
 import {
   GALLERY_DEFAULTS,
   getParallaxMotionSpeed,
@@ -50,6 +52,7 @@ const SLASH_ITEMS = [
   { key: "table", label: "표", desc: "3×3 표", keywords: "table", icon: Table },
   { key: "poll", label: "투표", desc: "독자 참여 투표", keywords: "poll vote", icon: PieChart },
   { key: "playlist", label: "플레이리스트", desc: "Spotify·YouTube 재생목록", keywords: "playlist music 음악 spotify youtube", icon: Music },
+  { key: "linkCard", label: "링크 카드", desc: "사이트를 미리보기 카드로", keywords: "link card url 링크 미리보기 갤러리 og", icon: Link2 },
   { key: "podcast", label: "팟캐스트", desc: "Spotify·YouTube 에피소드", keywords: "podcast audio spotify youtube", icon: Mic },
 ];
 
@@ -320,6 +323,10 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
             .run();
           break;
 
+        case "linkCard":
+          insertLinkCard(editor, { onToast: toast });
+          break;
+
         case "playlist":
         case "podcast": {
           const kind = item.key;
@@ -345,7 +352,7 @@ const SlashMenu = ({ pos, onClose, editor, onToast }) => {
 
       safeClose();
     },
-    [editor, deleteSlashTrigger, safeClose, uploading, setError]
+    [editor, deleteSlashTrigger, safeClose, uploading, setError, toast]
   );
 
   const handleGalleryFiles = useCallback(

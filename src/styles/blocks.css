@@ -750,3 +750,20 @@
 .uf-image-failure--compact { gap: 4px; padding: 6px; font-size: 11px; line-height: 1.3; }
 .uf-image-failure--compact > svg { display: none; }
 .uf-image-failure--compact button { max-width: 100%; padding: 4px 6px; }
+
+/* Link card (ufLinkCard): preview of an external page, image on top */
+.uf-link-card { max-width: 680px; margin: 2em auto; }
+.uf-link-card__link { display: block; overflow: hidden; border: 1px solid var(--uf-border); border-radius: 14px; background: var(--uf-surface); color: var(--uf-text); text-decoration: none !important; transition: border-color .2s ease, box-shadow .2s ease; }
+.uf-link-card__link:hover { border-color: color-mix(in srgb, #004aad 45%, var(--uf-border)); box-shadow: 0 10px 30px rgba(0, 0, 0, .08); }
+.uf-link-card__link:focus-visible { outline: 2px solid #004aad; outline-offset: 3px; }
+.uf-link-card__media { display: block; aspect-ratio: 1.91 / 1; overflow: hidden; background: var(--uf-surface-strong); }
+.uf-link-card__media img { display: block; width: 100%; height: 100%; object-fit: cover; margin: 0 !important; border-radius: 0 !important; transition: transform .4s ease; }
+.uf-link-card__link:hover .uf-link-card__media img { transform: scale(1.02); }
+.uf-link-card__body { display: grid; gap: 6px; padding: 18px 20px 20px; }
+.uf-link-card__title { font-size: 18px; font-weight: 700; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; }
+.uf-link-card__desc { font-size: 14px; line-height: 1.65; color: var(--uf-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.uf-link-card__site { font-size: 12px; font-weight: 600; color: var(--uf-muted); letter-spacing: .02em; }
+.uf-link-card__site::before { content: "↗ "; color: #004aad; }
+.ProseMirror .uf-link-card.ProseMirror-selectednode .uf-link-card__link { outline: 2px solid #004aad; outline-offset: 3px; }
+.ProseMirror[contenteditable="true"] .uf-link-card__link { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .uf-link-card__media img, .uf-link-card__link { transition: none; } }

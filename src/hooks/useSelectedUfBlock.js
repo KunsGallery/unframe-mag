@@ -23,6 +23,7 @@ export function useSelectedUfBlock(editor) {
       "columns",
       "ufDivider",
       "ufCallout",
+      "ufLinkCard",
       "table",
     ]);
 

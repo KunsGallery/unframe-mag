@@ -12,6 +12,7 @@ import GalleryInspector from "./inspector/GalleryInspector";
 import SlideGalleryInspector from "./inspector/SlideGalleryInspector";
 import DividerInspector from "./inspector/DividerInspector";
 import CalloutInspector from "./inspector/CalloutInspector";
+import LinkCardInspector from "./inspector/LinkCardInspector";
 
 export default function InspectorPanel({ editor, isDarkMode, onToast, embedded = false }) {
   const selected = useSelectedUfBlock(editor);
@@ -53,7 +54,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
       const node = editor.state.doc.nodeAt(target.pos);
       if (node !== target.node) { toast("블록이 바뀌었어요. 이미지를 다시 선택해 주세요."); return; }
       const patch = index === null
-        ? { [target.type === 'stickyStory' ? 'imageSrc' : 'src']: url }
+        ? { [target.type === 'stickyStory' ? 'imageSrc' : target.type === 'ufLinkCard' ? 'image' : 'src']: url }
         : { images: node.attrs.images.map((image, imageIndex) => imageIndex === index ? { ...image, src: url } : image) };
       editor.view.dispatch(editor.state.tr.setNodeMarkup(target.pos, undefined, { ...node.attrs, ...patch }));
       toast("이미지를 교체했어요. 확인한 뒤 저장해 주세요.");
@@ -168,7 +169,7 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
             블록 설정
           </div>
           <div className="mt-2 text-sm font-black">
-            {selected ? ({ ufImage: '이미지', image: '이미지', gallery: '사진 갤러리', slideGallery: '슬라이드 갤러리', columns: '다단 구성', parallaxImage: '패럴랙스 이미지', stickyStory: '스크롤 스토리', ufDivider: '구분선', ufCallout: '인용 / 안내', table: '표' }[selected.type] || selected.type) : "선택된 블록 없음"}
+            {selected ? ({ ufImage: '이미지', image: '이미지', gallery: '사진 갤러리', slideGallery: '슬라이드 갤러리', columns: '다단 구성', parallaxImage: '패럴랙스 이미지', stickyStory: '스크롤 스토리', ufDivider: '구분선', ufCallout: '인용 / 안내', ufLinkCard: '링크 카드', table: '표' }[selected.type] || selected.type) : "선택된 블록 없음"}
           </div>
           <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             블록을 클릭하면 설정이 여기 나타나요.
@@ -246,6 +247,12 @@ export default function InspectorPanel({ editor, isDarkMode, onToast, embedded =
         {/* -------- Callout -------- */}
         {selected?.type === "ufCallout" && (
           <CalloutInspector selected={selected} setAttrs={setAttrs} isDarkMode={isDarkMode} />
+        )}
+
+        {/* -------- Link card -------- */}
+        {selected?.type === "ufLinkCard" && (
+          <LinkCardInspector selected={selected} setAttrs={setAttrs} isDarkMode={isDarkMode} onToast={toast}
+            uploading={uploading} progress={progress} onPickImage={(file) => replaceImageFile(file)} />
         )}
       </div>
     </aside>

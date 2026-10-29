@@ -18,6 +18,7 @@ import { LetterSpacing } from "../tiptap/extensions/LetterSpacing";
 import { UfDivider } from "../tiptap/nodes/UfDivider";
 import { UfCallout } from "../tiptap/nodes/UfCallout";
 import { UfFootnote } from "../tiptap/nodes/UfFootnote";
+import { UfLinkCard } from "../tiptap/nodes/UfLinkCard";
 import { Superscript, Subscript, DropCap } from "../tiptap/extensions/TextExtras";
 import {
   collection,
@@ -161,6 +162,7 @@ export default function ViewPage({ isDarkMode, onToast, onLogin }) {
       UfDivider,
       UfCallout,
       UfFootnote,
+      UfLinkCard,
     ],
     editorProps: {
       attributes: {

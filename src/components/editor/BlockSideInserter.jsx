@@ -36,6 +36,7 @@ const BLOCK_SELECTORS = [
   ".tableWrapper",
   ".uf-callout",
   ".uf-divider",
+  ".uf-link-card",
   '[data-uf="sticky-story"]',
 ].join(",");
 
@@ -76,6 +77,7 @@ function getBlockKindFromElement(el) {
   if (el.matches(".tableWrapper")) return "table";
   if (el.matches(".uf-callout")) return "ufCallout";
   if (el.matches(".uf-divider")) return "ufDivider";
+  if (el.matches(".uf-link-card")) return "ufLinkCard";
   if (el.matches('[data-uf="sticky-story"]')) return "stickyStory";
   if (el.matches("p")) return "paragraph";
   if (el.matches("blockquote")) return "blockquote";
@@ -109,6 +111,7 @@ function getSelectionBlockInfo(editor, currentBlockEl) {
     if (kind === "table" && node.type.name === "table") return { node, pos };
     if (kind === "ufCallout" && node.type.name === "ufCallout") return { node, pos };
     if (kind === "ufDivider" && node.type.name === "ufDivider") return { node, pos };
+    if (kind === "ufLinkCard" && node.type.name === "ufLinkCard") return { node, pos };
     if (kind === "stickyStory" && node.type.name === "stickyStory") return { node, pos };
 
     if (kind === "paragraph" && node.type.name === "paragraph") return { node, pos };

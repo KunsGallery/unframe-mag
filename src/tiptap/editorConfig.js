@@ -39,6 +39,7 @@ import { PasteSanitizer } from "./extensions/PasteSanitizer";
 import { SearchReplace } from "./extensions/SearchReplace";
 import { ImageUploads, imageFiles, uploadImagesAt } from "./extensions/ImageUploads";
 import { UfFootnote } from "./nodes/UfFootnote";
+import { UfLinkCard } from "./nodes/UfLinkCard";
 import { Superscript, Subscript, DropCap, TextSizeShortcuts } from "./extensions/TextExtras";
 import { BlockTools } from "./extensions/BlockTools";
 import { Extension } from "@tiptap/core";
@@ -118,6 +119,7 @@ export function createEditorConfig({ onUploadImage, onToast }) {
       UfDivider,
       UfCallout,
       UfFootnote,
+      UfLinkCard,
       EditorKeyBehavior,
       PasteSanitizer,
       SearchReplace,

@@ -8,6 +8,7 @@ const BLOCK_TYPES = new Set([
   "columns",
   "ufCallout",
   "ufDivider",
+  "ufLinkCard",
   "stickyStory",
   "parallaxImage",
 ]);
